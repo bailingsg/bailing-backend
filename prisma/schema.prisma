@@ -1,0 +1,172 @@
+// Bailing Wooden B2B Website - Prisma Schema
+// Phase 1 仅建立基础数据模型，不包含业务数据种子。
+// 所有数据库变更必须通过 prisma migrate 管理，禁止手改数据库结构。
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- 枚举 ----------
+
+enum AdminRole {
+  ADMIN // 超级管理员
+  EDITOR // 内容编辑
+}
+
+enum ProductStatus {
+  DRAFT // 草稿
+  PUBLISHED // 已发布
+  ARCHIVED // 已归档
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum InquiryStatus {
+  NEW // 新询盘
+  IN_PROGRESS // 跟进中
+  QUOTED // 已报价
+  CLOSED // 已关闭
+}
+
+enum MediaProvider {
+  LOCAL // 本地/服务器磁盘（开发期）
+  TENCENT_COS // 预留：腾讯云对象存储（Phase 2+ 接入，本阶段不调用）
+}
+
+// ---------- 模型 ----------
+
+// 后台管理员（未来内容管理后台登录账号）
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String // bcrypt 等哈希，禁止明文
+  name         String
+  role         AdminRole @default(EDITOR)
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  blogPosts BlogPost[]
+
+  @@map("admin_users")
+}
+
+// 产品分类（支持一级父子结构，为未来多级预留 self-relation）
+model Category {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique // SEO URL
+  description String?
+  parentId    String? // 未来多级分类：自关联
+  sortOrder   Int     @default(0)
+  isActive    Boolean @default(true)
+
+  parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children Category[] @relation("CategoryTree")
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([parentId])
+  @@map("categories")
+}
+
+// 产品（Phase 1 只建模型，不实现 CRUD；详情内容后续增量迁移补充）
+model Product {
+  id              String        @id @default(cuid())
+  name            String
+  slug            String        @unique
+  summary         String? // 列表页短描述
+  description     String        @db.Text
+  categoryId      String
+  status          ProductStatus @default(DRAFT)
+  isFeatured      Boolean       @default(false)
+  seoTitle        String? // SEO 标题，空则回落 name
+  seoDescription  String? // SEO 描述
+
+  category Category   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  inquiries Inquiry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([status])
+  @@map("products")
+}
+
+// 询盘（B2B 核心业务：海外采购商提交的询价）
+model Inquiry {
+  id           String        @id @default(cuid())
+  customerName String // 客户姓名
+  email        String // 联系邮箱
+  company      String? // 公司名称
+  country      String? // 国家/地区
+  phone        String? // 电话（可选）
+  productId    String? // 意向产品（可选）
+  message      String        @db.Text // 需求内容
+  status       InquiryStatus @default(NEW)
+  // 以下两个字段仅用于风控/统计，不属于个人敏感信息
+  sourceIp     String?
+  userAgent    String?
+
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("inquiries")
+}
+
+// 博客文章（内容营销 / SEO）
+model BlogPost {
+  id             String     @id @default(cuid())
+  title          String
+  slug           String     @unique
+  excerpt        String?
+  content        String     @db.Text
+  coverImageUrl  String? // 指向 MediaAsset.url 或 COS/CDN 地址
+  status         PostStatus @default(DRAFT)
+  publishedAt    DateTime?
+  authorId       String?
+
+  author AdminUser? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([publishedAt])
+  @@map("blog_posts")
+}
+
+// 媒体资源（产品图片等）。Phase 1 只登记 URL 与元数据；
+// provider 字段为腾讯云 COS 预留（Phase 2+ 再实现上传抽象层）。
+model MediaAsset {
+  id         String        @id @default(cuid())
+  fileName   String
+  storageKey String // 存储路径/对象键
+  url        String // 对外访问地址（未来为 COS + CDN 域名）
+  mimeType   String
+  size       Int // 字节
+  altText    String? // 图片替代文本，SEO 需要
+  provider   MediaProvider @default(LOCAL)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([provider])
+  @@map("media_assets")
+}
