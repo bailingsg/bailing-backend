@@ -64,6 +64,7 @@
 | 后端 `nest build` | 通过（dist 产物正常） |
 | Prisma `generate` | Client v6.19.3 生成成功 |
 | Prisma schema 校验 | validate 随 generate 一并通过 |
+| init 迁移 SQL 生成 | `prisma migrate diff --from-empty --to-schema-datamodel --script` 生成 166 行 DDL（6 表 / 5 枚举 / 12 索引），已存为 `prisma/migrations/20261013114209_init/migration.sql` |
 | `docker compose config` | 通过（环境变量插值、端口绑定、健康检查均正确解析） |
 | 前端依赖安装 | 338 packages，通过 |
 | 前端 `tsc --noEmit` / `eslint .` | 通过 |
@@ -90,7 +91,7 @@
 | --- | --- | --- |
 | Docker 引擎启动 | Docker CLI/Desktop 已安装，但从当前 Agent 沙箱内启动 Docker Desktop 时，其后端进程写入 `~/.docker/daemon.json` 被拒（Access is denied）而崩溃；沙箱安全策略亦限制 GUI 程序启动 | **用户手动从开始菜单启动 Docker Desktop**，确认托盘显示 Engine running |
 | `npm run db:up`（PostgreSQL 容器） | 上一项阻塞（CLI 正常，仅引擎未运行） | 引擎启动后直接执行 |
-| `prisma migrate dev --name init` | 需要数据库在线 | 容器健康后执行 |
+| `prisma migrate dev --name init` | 需要数据库在线 | init 迁移已用 diff 引擎离线生成入库；数据库启动后在仓库执行 `npm run prisma:deploy` 应用 |
 | `/health/ready` 返回 200 的验证 | 需要数据库 | 迁移完成后执行 `curl` 验证 |
 | 数据库持久化验证（容器重启后数据仍在） | 同上 | `db:down` → `db:up` 后查询表仍在 |
 | 前端首页“已连接/正常”状态展示 | 依赖上一项 | 联调复验 |

@@ -38,13 +38,17 @@ docker ps                   # 确认 bailing-postgres 健康 (healthy)
 
 ## 3. 数据库迁移（bailing-backend）
 
+仓库已包含首个迁移 `prisma/migrations/20261013114209_init/`（schema 全量 DDL，由 Prisma `migrate diff` 引擎生成，与 `migrate dev` 产物同源）。
+
 ```bash
-npm run prisma:migrate      # 首次执行会创建 init 迁移 + 生成 Prisma Client
+npm run prisma:deploy      # 应用已有迁移（推荐：与 CI/生产一致，不生成新迁移）
 ```
 
-- `prisma:migrate`（= `prisma migrate dev`）：开发期使用，会生成迁移文件。
-- `prisma:deploy`（= `prisma migrate deploy`）：CI / 生产使用，只应用已有迁移。
-- 查看数据：`npm run prisma:studio`。
+开发期新建迁移（改了 schema 后）仍使用：
+
+```bash
+npm run prisma:migrate     # = prisma migrate dev，生成并应用新迁移
+```
 
 ## 4. 启动后端（bailing-backend）
 
