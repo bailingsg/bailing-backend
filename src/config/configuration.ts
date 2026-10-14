@@ -37,5 +37,14 @@ export default () => {
     adminSeedEmail: process.env.ADMIN_EMAIL ?? '',
     adminSeedPassword: process.env.ADMIN_PASSWORD ?? '',
     adminSeedName: process.env.ADMIN_NAME ?? 'Administrator',
+
+    /**
+     * 产品图片本地存储（Phase 4.2）。
+     * uploadsBaseUrl：落库图片 URL 的对外基地址（本地为后端自身；
+     * 生产可改为 CDN 域名，如 https://cdn.bailingwooden.com）。
+     */
+    uploadsBaseUrl:
+      process.env.UPLOADS_BASE_URL ??
+      `http://127.0.0.1:${process.env.PORT ?? '4000'}`,
   };
 };

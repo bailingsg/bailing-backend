@@ -4,7 +4,14 @@ import prettierConfig from 'eslint-config-prettier';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'prisma/migrations/**'],
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      'coverage/**',
+      'prisma/migrations/**',
+      // 运行时验证脚本（docs/*.mjs）不属于 tsconfig 源码范围
+      'docs/**/*.mjs',
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

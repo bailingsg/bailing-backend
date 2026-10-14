@@ -1,10 +1,13 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import { mkdirSync } from 'node:fs';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { UPLOAD_ROOT } from './modules/cms/products/upload.options';
 
 /**
- * 应用装配：统一前缀、参数校验、异常处理、响应包装、CORS。
+ * 应用装配：统一前缀、参数校验、异常处理、响应包装、CORS、静态资源。
  * main.ts 与 e2e 测试共用，保证测试覆盖与生产一致的管道行为。
  */
 export function setupApp(app: INestApplication): void {
@@ -12,6 +15,14 @@ export function setupApp(app: INestApplication): void {
 
   // 统一 API 前缀，与 docs/API-CONVENTIONS.md 保持一致
   app.setGlobalPrefix('api/v1');
+
+  // 本地图片存储（Phase 4.2）：/uploads/products/** 静态可读。
+  // 目录在启动时确保存在；文件写入由 multer 拦截器完成（服务端生成文件名）。
+  mkdirSync(UPLOAD_ROOT, { recursive: true });
+  (app as unknown as NestExpressApplication).useStaticAssets(UPLOAD_ROOT, {
+    prefix: '/uploads',
+    maxAge: '7d',
+  });
 
   // 全局参数校验：白名单 + 拒绝未声明字段，防止脏数据入库
   app.useGlobalPipes(

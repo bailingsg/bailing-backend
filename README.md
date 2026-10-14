@@ -118,7 +118,7 @@ curl http://127.0.0.1:4000/api/v1/health/ready
 > **产品数据为 Demo/Placeholder**：`prisma/seed.ts` 写入的记录名称以 `Demo ·` 开头、描述标注 `[DEMO DATA]`，**不含**任何编造的规格、认证、价格或图片。CMS 阶段可直接删除。
 > 本产品线为 B2B 制造与出口，**不含** price / stock / sku / cart / payment / rating / review 等电商字段。
 
-## 当前状态（Phase 4.1）
+## 当前状态（Phase 4.2）
 
 - Phase 3.1：工程底座已验收（tsc / ESLint / Jest / 构建 / 健康检查）。
 - Phase 3.5：`Product` 模型扩展 + `ProductImage`，迁移 `20261013161709_add_product_details` 已应用；产品与分类只读 API 已上线。
@@ -127,8 +127,13 @@ curl http://127.0.0.1:4000/api/v1/health/ready
   - `admin_users` 表随 init 迁移建立（无新增迁移、无漂移）；
   - `POST /api/v1/auth/login` + `GET /api/v1/auth/me`（JWT，`JwtAuthGuard`）；
   - `GET /api/v1/cms/stats`（JWT 保护，Dashboard 真实统计）；
-  - 口令 bcrypt(cost 12) 哈希，seed 从 `ADMIN_EMAIL` / `ADMIN_PASSWORD` 初始化默认管理员；
-  - `lint` / `typecheck` / `test`（35 项）/ `build` / `migrate status` / drift 校验全部通过。
+  - 口令 bcrypt(cost 12) 哈希，seed 从 `ADMIN_EMAIL` / `ADMIN_PASSWORD` 初始化默认管理员。
+- Phase 4.2：Products CMS 已上线——
+  - `GET/POST /api/v1/cms/product-categories`、`PATCH/DELETE /:id`（slug 冲突 409；分类下有产品禁删 400）；
+  - `GET/POST /api/v1/cms/products`、`GET/PATCH/DELETE /:id`（分页 + keyword/status/categoryId 筛选；创建默认 DRAFT）；
+  - `POST /api/v1/cms/products/:id/images`（multipart 上传：类型/大小白名单 + 魔数校验 + UUID 文件名）、`DELETE /:id/images/:imageId`（删文件 + 主图自动提升）；
+  - 本地存储 `uploads/products/`（`.gitignore` 排除），静态前缀 `/uploads/products`；迁移 `20261014120152_add_product_applications`（JSONB）。
+  - `lint` / `typecheck` / `test`（82 项）/ `build` / `migrate status` / drift 校验全部通过。
 
 ## 环境变量
 
@@ -138,6 +143,7 @@ curl http://127.0.0.1:4000/api/v1/health/ready
 - `PORT`、`HOST`、`CORS_ORIGINS` 均可配置；**CORS 禁止使用 `*`**，必须显式列出前端 Origin（当前含 3000 主站与 3001 后台）。
 - 前端 `NEXT_PUBLIC_API_BASE_URL` 指到本服务即可。
 - **认证（Phase 4.1）**：`JWT_SECRET`（必填强随机，生产缺失/过短启动失败）、`JWT_EXPIRES_IN`（默认 `15m`，仅 access token）、`ADMIN_EMAIL` / `ADMIN_PASSWORD`（seed 默认管理员，禁止硬编码口令）。
+- **图片上传（Phase 4.2）**：`UPLOADS_BASE_URL`（入库图片 URL 基地址，默认后端自身；生产可指向 CDN）、`UPLOAD_MAX_FILE_SIZE`（字节，默认 5MB）。
 
 ## 初始化默认管理员（Phase 4.1）
 

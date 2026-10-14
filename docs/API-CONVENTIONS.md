@@ -134,3 +134,44 @@ RFQ 后台接口将在后续阶段逐步迁移到 `JwtAuthGuard`；迁移完成�
 - 登录失败执行同等成本的占位哈希比较，抹平「邮箱是否存在」的响应时间差。
 - 响应一律经 `toAdminProfile` 挑选字段，`passwordHash` 永不出现在任何响应中。
 - 前端持有方式为 **HttpOnly Cookie**（SameSite=Lax + Secure），不落 localStorage。
+
+## 10. Products CMS（Phase 4.2 已落地）
+
+全部位于 `/api/v1/cms/` 前缀下，**均受 `JwtAuthGuard` 保护**（`Authorization: Bearer <JWT>`）。
+分页与筛选由查询参数驱动；写操作返回统一信封。
+
+### 分类 `/cms/product-categories`
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/cms/product-categories` | 分类列表（含 `productCount`，按 `sortOrder` 升序） |
+| POST | `/cms/product-categories` | 创建（`name` 2–120、`slug` 格式校验、`description?`、`sortOrder?`、`isActive?`） |
+| PATCH | `/cms/product-categories/:id` | 部分更新（全部字段可选） |
+| DELETE | `/cms/product-categories/:id` | 删除；**分类下有产品返回 400**（与数据库 RESTRICT 语义一致的友好提示） |
+
+错误码：slug 唯一冲突 → **409**；不存在 → **404**。
+
+### 产品 `/cms/products`
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/cms/products` | 列表：`page`（默认 1）、`limit`（默认 20，最大 100）、`keyword`（匹配 name/shortDescription/description，不区分大小写）、`status`、`categoryId` |
+| POST | `/cms/products` | 创建（`status` 默认 `DRAFT`、`isFeatured` 默认 `false`） |
+| GET | `/cms/products/:id` | 详情（编辑页数据源） |
+| PATCH | `/cms/products/:id` | 部分更新（仅更新提供的字段） |
+| DELETE | `/cms/products/:id` | 删除产品并**级联清理磁盘图片文件** |
+| POST | `/cms/products/:id/images` | 上传图片（`multipart/form-data`，字段 `file` + `alt?` + `sortOrder?` + `isPrimary?`） |
+| DELETE | `/cms/products/:id/images/:imageId` | 删除图片（删行 + 删文件；删主图自动提升最早一张为新主图） |
+
+错误码：slug 冲突 → **409**；不存在 → **404**；分类不存在 / specifications、applications 结构非法 → **400**；
+图片 MIME/扩展名不受支持或**魔数校验失败**（伪造 MIME）→ **400** 且落盘文件即删。
+
+### 图片上传安全约定
+
+- 白名单 MIME：`image/jpeg` / `image/png` / `image/webp` / `image/avif`（multer `fileFilter` 校验，MIME 与扩展名必须同源白名单）。
+- 大小限制：默认 5MB（`UPLOAD_MAX_FILE_SIZE` 字节可配）。
+- 落盘文件名由服务端生成（UUID + 白名单扩展名），**绝不使用客户端原始文件名**。
+- 存储目录：`<backend>/uploads/products/`（`.gitignore` 已排除），静态前缀 `/uploads/products`。
+- 内容校验：落盘后服务端做**魔数校验**（JPEG `FF D8 FF` / PNG / `RIFF****WEBP` / `ftyp`+avif），失败即删文件并 400。
+- 入库 URL 基地址由 `UPLOADS_BASE_URL` 配置（默认后端自身地址，生产可指向 CDN）。
+- 主图唯一：同一产品同时最多一张 `isPrimary=true`；首图自动成为主图。

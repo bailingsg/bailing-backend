@@ -2,13 +2,14 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
 import { CmsController } from './cms.controller';
 import { CmsService } from './cms.service';
+import { ProductsModule } from './products/products.module';
 
 /**
- * CMS 模块（Phase 4.1 起步）。
+ * CMS 模块（Phase 4.1 起步，4.2 纳入 Products）。
  * 控制器级挂 JwtAuthGuard：本模块所有接口默认要求登录。
  */
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, ProductsModule],
   controllers: [CmsController],
   providers: [CmsService],
   exports: [CmsService],

@@ -161,3 +161,44 @@
 ### 未做（按阶段禁令）
 
 产品 CMS / Blog CMS / 文件上传 / 富文本编辑器 / 用户管理 / 权限系统（RBAC）/ 邮件通知——均未开发。
+
+## 9. Phase 4.2 记录（2026-10-14，Products CMS 产品管理系统）
+
+### 已完成
+
+- **数据库**：`products` 表新增 `applications JSONB` 列（迁移 `20261014120152_add_product_applications`，手写 SQL → `migrate deploy` → `generate` → `migrate diff` 验证零漂移）。保留 `application String?` 单值列做向后兼容，公开 DTO 空值回退 `applications[0]`。
+- **后端**（`src/modules/cms/products/`，全部挂 `/api/v1/cms/` + 控制器级 `JwtAuthGuard`）：
+  - `product-categories.controller/service`：分类 CRUD；列表带 `productCount`（groupBy 聚合）；slug 冲突 409；分类下有产品禁删 400（与数据库 RESTRICT 一致的友好提示）。
+  - `products.controller/service`：产品列表（分页 + keyword OR 三字段 insensitive + status/categoryId 筛选）、创建（默认 DRAFT）、PATCH 部分更新、删除（先删磁盘文件再删行，ProductImage schema 级联）；P2002→409、P2025→404 错误映射。
+  - 图片：`upload.options.ts`（multer diskStorage + 5MB 限制 + JPEG/PNG/WebP/AVIF 白名单 + MIME 与扩展名同源校验 + UUID 文件名）；`addImage` 落盘后**魔数校验**失败即删文件 400；首图默认主图、主图唯一化（先清旧主图再写入）；`removeImage` 删行 + 删文件 + 删主图后自动提升最早一张。
+  - DTO：class-validator 强校验（slug 正则、name 长度、JSON 结构自定义约束 `IsSpecificationsConstraint`/`IsApplicationsConstraint`）；`validationPipe` 保持 whitelist + forbidNonWhitelisted。
+  - 静态资源：`app.setup.ts` 挂载 `/uploads` → `<backend>/uploads`（`.gitignore` 排除），本地图片可直接访问，生产可改 CDN。
+- **Admin**（bailing-admin）：
+  - `src/lib/products.ts`（CMS API 访问层，含 multipart 上传专用函数——不预设 Content-Type，由 fetch 生成 boundary）；`api.ts` 增强后端错误 message 透传（class-validator 数组拼接）。
+  - 页面：`/products`（图片/名称/分类/状态/Featured/更新时间/操作 + 搜索/分类筛选/状态筛选/分页，桌面表格 + 移动卡片）、`/products/create`、`/products/[id]/edit`（复用表单 + 图片管理侧栏 + 危险区删除产品）、`/categories`（新建表单 + 行内编辑 + 删除，含产品禁删保护）。
+  - 表单组件：JSON 规格编辑器（提交前后端双重校验）、TagInput 应用标签（隐藏字段序列化）、Save Draft/Publish 状态选择；全部经**服务端 Actions** 提交（JWT 不出服务端，浏览器只碰 HttpOnly Cookie）。
+  - 侧边栏启用 Products/Categories；middleware 保护范围增加 `/products/**`、`/categories/**`。
+  - 删除交互统一**两步确认**（页内按钮，替代原生 confirm——自动化测试与无障碍更可控，浏览器流程验证即因此被发现并修复）。
+- **测试**：`test/products-cms.spec.ts` 单元 23 例（CRUD/分页筛选/错误映射/图片关系/文件清理）+ `test/products-cms.e2e-spec.ts` e2e 24 例（JWT 401 矩阵 11 端点、分类/产品 CRUD 全流程、DTO 400 六类、图片上传/伪造 MIME/缺文件/产品不存在/主图提升/删除文件清理/静态访问）。全套 **82 例通过**（Phase 4.1 的 35 例保持不破坏）。
+- **运行时验证**：`docs/phase-4.2-verify.mjs` 29/29 通过（登录/路由保护/页面渲染/分类 CRUD/产品 CRUD/keyword 搜索/编辑页/图片上传与落盘/伪造 MIME 拒绝/文件清理/登出）。
+- **浏览器全流程**（playwright-cli，`docs/phase-4.2-browser-flow.sh`）：10/10 通过——真实浏览器登录→UI 建分类→UI 建产品（下拉选分类）→编辑页回显→上传真实 PNG→首图主图→两步确认删除产品→返回列表→清理测试分类。
+
+### 质量门
+
+lint / typecheck / 全量 jest（7  suites 82 例）/ nest build / next build / migrate 零漂移，全部通过。
+
+### 问题与处置
+
+- **fileFilter 类型不兼容**：multer 自带类型（`FileFilterCallback` 重载接口）与 `@nestjs/platform-express` 的 `MulterOptions.fileFilter`（双参 `(error, acceptFile)`）互不兼容 → `FileInterceptor` 报 TS2345。处置：本文件自定义 `ImageFileFilterCallback = (error: Error | null, acceptFile: boolean) => void`，函数返回类型直接用 platform-express 的 `MulterOptions`（深路径 import `@nestjs/platform-express/multer/interfaces/multer-options.interface`）。
+- **验证脚本上传 400**：`api()` 辅助函数对 FormData 请求也发送 `Content-Type: application/json`，破坏 multipart boundary → 改为 FormData 检测后不设 Content-Type。
+- **e2e 三处测试自身错误**：① `name: 'X'` 不满足 MinLength(2)（预期 404 实得 400）→ 改用合法长度占位名；② keyword 同时出现在两件产品描述中导致筛选命中两条 → 关键词只放第二件产品；③ `limit: 500` 被 DTO `@Max(100)` 拦截（400 是正确行为，服务层 clamp 为二级防护）→ 修正预期。
+- **`text=删除产品` 选择器撞车**：Playwright text 引擎子串匹配命中说明文字（严格模式冲突，click 静默失败）→ 改 `button:has-text("删除产品")`；顺带将原生 confirm 全量改造为页内两步确认。
+- eslint 忽略 `docs/**/*.mjs`（验证脚本不属于 tsconfig 源码范围，非项目源码不参与类型检查）。
+
+### 偏离任务书之处（如实记录）
+
+任务书 Phase 4.2 原文要求 "Drizzle ORM + SQLite，禁止迁移 PostgreSQL"。实际项目栈为 **Prisma 6 + PostgreSQL**（Phase 4.1 全部构建于此，且数据库安全红线禁止 `migrate reset`/破坏现有迁移）。按「不修改现有技术栈」「不破坏 Phase 4.1」的最高优先级约束，本阶段**保持 Prisma + PostgreSQL**，仅新增一次 JSONB 列的安全增量迁移；其余条款（结构、接口、安全、测试、页面）全部按任务书执行。
+
+### 未做（按阶段禁令 / 后续阶段）
+
+Blog CMS / Media 库 / 富文本编辑器 / 用户管理（RBAC）/ 邮件通知 / 产品排序拖拽 / 图片裁切——均未开发。

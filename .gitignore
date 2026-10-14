@@ -15,6 +15,9 @@ coverage/
 !.env.example
 
 # Logs
+# 本地上传文件（产品图片，Phase 4.2）
+uploads/
+
 logs/
 *.log
 npm-debug.log*

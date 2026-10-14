@@ -96,7 +96,8 @@ model Product {
   description      String        @db.Text // 详情页完整描述
   categoryId       String
   material         String? // 材质说明
-  application      String? // 应用场景
+  application      String? // 应用场景（公开站展示，向后兼容单值）
+  applications     Json? // 应用标签数组（Phase 4.2 CMS 管理），如 ["Furniture","Construction"]
   specifications   Json? // 规格参数：{ "厚度": "18mm", ... }
   status           ProductStatus @default(DRAFT)
   isFeatured       Boolean       @default(false) // 首页/列表页精选
