@@ -132,3 +132,32 @@
 - 处置记录：Next dev 首启被环境 safe-delete 组件拦截删除陈旧 `.next` 缓存而退出，清理 `.next` 后恢复（环境问题，非项目缺陷）。
 - 安全复核：三仓库 .env 均未跟踪；历史与新增文档无真实密码；端口无公网暴露；未执行任何破坏性 Docker/Prisma 命令；未自动提交/推送（backend 两份文档变更待用户授权提交）。
 - 容器现状：`bailing-postgres` 保持运行（本地开发库）；前后端测试进程已随任务结束清理。
+
+## 8. Phase 4.1 记录（2026-10-14，管理员认证系统 + CMS 统计）
+
+分支：`261014`（backend / admin 均从 dev 拉取）。开始前将 Phase 2–3.7 的未提交工作归档至 `261013` 并合入 dev。
+
+### 已完成
+
+- **数据库**：`AdminUser` / `AdminRole` 已随 init 迁移（`20261013114209_init`）建立，本阶段**无新增迁移**；`prisma migrate status` = up to date，`migrate diff` 漂移校验输出为空迁移（无漂移）。
+- **Auth 模块** `src/modules/auth/`：`POST /api/v1/auth/login`（bcrypt 校验，失败统一 401 `Invalid email or password` + 占位哈希比较防时间侧信道）、`GET /api/v1/auth/me`（JWT 保护 + 数据库实时状态二次校验）、`JwtStrategy`（passport-jwt，Bearer 解析）、`JwtAuthGuard`（`guards/`）。
+- **CMS 模块** `src/modules/cms/`：`GET /api/v1/cms/stats`（控制器级 `JwtAuthGuard`），Dashboard 统计全部为数据库真实计数（rfq total/byStatus、products、categories、blogPosts）。
+- **密码**：bcryptjs cost 12，只存 `passwordHash`；`toAdminProfile` 显式挑选响应字段。
+- **JWT**：`JWT_SECRET` / `JWT_EXPIRES_IN` 仅来自环境变量（`env.validation.ts` 强校验：生产缺失/短于 32 字符启动失败）；仅 access token（15m），不实现 refresh token（已在 API-CONVENTIONS 说明取舍）。
+- **seed**：`prisma/seed.ts` 新增 `seedDefaultAdmin`（读 `ADMIN_EMAIL`/`ADMIN_PASSWORD`，幂等 + 口令轮换同步）；显式 `import 'dotenv/config'`（此前依赖环境隐式加载 .env，不可靠）。
+- **兼容性**：RFQ 后台接口保持 `AdminTokenGuard`（X-Admin-Token）不变，e2e 验证公开提交 201 与后台列表行为不变。
+- **测试**：`test/auth.spec.ts`（单元 8 例：登录成功/大小写/口令错误/邮箱不存在/停用、me 有效/停用/删除）+ `test/auth.e2e-spec.ts`（login 成功/两类失败/DTO 400、JWT 无令牌与伪造令牌 401、me、cms/stats 401+真实计数、RFQ 兼容 2 例）；全套 35 例通过。
+- lint / typecheck / build 通过；修复 `test/rfq.spec.ts` 遗留的未使用变量 lint 错误。
+- **Admin**（bailing-admin）：`/login`（客户端表单 → 同源路由 `POST /api/auth/login` 转发后端并写 HttpOnly Cookie，失败显示 `Invalid email or password`）、`(dashboard)` 路由组（Sidebar + Header + 内容；layout 以 JWT 调 `/auth/me` 做服务端鉴权）、`/dashboard` 统计卡片（真实数据，来源 `/cms/stats`）、middleware 保护 `/dashboard/**` 与 `/rfq/**`、根路径重定向 `/dashboard`、登出路由。
+- **运行时验证**（生产模式双服务 + `docs/phase-4.1-verify.mjs`）：17/17 通过（登录页 200、未登录 307 跳转带 next、错误/不存在邮箱 401 同文案、正确凭证 200 + HttpOnly Cookie、登录后 dashboard/rfq 200 且含真实统计、伪造 Cookie 拒绝、登出后回登录页）。
+
+### 问题与处置
+
+- `@nestjs/jwt@12` / `@nestjs/passport@12` 为 ESM-only，与本项目 CommonJS 构建冲突（ts-jest 报 `Cannot use import statement outside a module`）→ 降级 `@nestjs/jwt@11.0.2` + `@nestjs/passport@11.0.5`（后者 peer 未含 Nest 11，用 `--legacy-peer-deps` 安装）。
+- `passport-jwt@^4.7` / `bcryptjs@^2.4.31` 版本不存在导致 ETARGET → 改用 `^4.0.1` / `^3.0.3`。
+- seed 首次运行产出的管理员口令与环境不一致：诊断确认为写入 `.env` 时强随机口令被工具链脱敏为 `<SECRET_*>` 占位符落盘。处置：改为运行时生成口令直接写 `.env` 并同步库中哈希；seed 增加显式 dotenv 加载。
+- 暂时阻塞：`github.com` 经本地代理持续 502，git push 未成功（提交已在本地分支，网络恢复后补推）。
+
+### 未做（按阶段禁令）
+
+产品 CMS / Blog CMS / 文件上传 / 富文本编辑器 / 用户管理 / 权限系统（RBAC）/ 邮件通知——均未开发。

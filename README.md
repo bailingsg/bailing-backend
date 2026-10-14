@@ -80,7 +80,7 @@ curl http://127.0.0.1:4000/api/v1/health/ready
 | `npm run db:up` / `npm run db:down` | 启动 / 停止数据库容器 |
 | `npm run prisma:deploy` | 应用已有迁移（CI/生产用，不生成新迁移） |
 | `npm run prisma:migrate` | 开发期生成并应用新迁移（会生成迁移文件，不重置数据） |
-| `npm run prisma:seed` | 写入 Demo/Placeholder 产品与分类（幂等，可重复执行） |
+| `npm run prisma:seed` | 初始化默认管理员（读 `ADMIN_EMAIL`/`ADMIN_PASSWORD`）+ 写入 Demo/Placeholder 产品与分类（幂等，可重复执行） |
 
 ## 产品 API（Phase 3.5）
 
@@ -118,10 +118,17 @@ curl http://127.0.0.1:4000/api/v1/health/ready
 > **产品数据为 Demo/Placeholder**：`prisma/seed.ts` 写入的记录名称以 `Demo ·` 开头、描述标注 `[DEMO DATA]`，**不含**任何编造的规格、认证、价格或图片。CMS 阶段可直接删除。
 > 本产品线为 B2B 制造与出口，**不含** price / stock / sku / cart / payment / rating / review 等电商字段。
 
-## 当前状态（Phase 3.5）
+## 当前状态（Phase 4.1）
 
 - Phase 3.1：工程底座已验收（tsc / ESLint / Jest / 构建 / 健康检查）。
-- Phase 3.5：`Product` 模型扩展（`shortDescription` / `material` / `application` / `specifications`）+ 新增 `ProductImage`，迁移 `20261013161709_add_product_details` 已应用；产品与分类只读 API 已上线，`lint` / `typecheck` / `build` / `migrate status` 全部通过。
+- Phase 3.5：`Product` 模型扩展 + `ProductImage`，迁移 `20261013161709_add_product_details` 已应用；产品与分类只读 API 已上线。
+- Phase 3.7：RFQ 询盘系统（公开提交 + 后台三接口 `X-Admin-Token` 保护）。
+- Phase 4.1：管理员认证系统已上线——
+  - `admin_users` 表随 init 迁移建立（无新增迁移、无漂移）；
+  - `POST /api/v1/auth/login` + `GET /api/v1/auth/me`（JWT，`JwtAuthGuard`）；
+  - `GET /api/v1/cms/stats`（JWT 保护，Dashboard 真实统计）；
+  - 口令 bcrypt(cost 12) 哈希，seed 从 `ADMIN_EMAIL` / `ADMIN_PASSWORD` 初始化默认管理员；
+  - `lint` / `typecheck` / `test`（35 项）/ `build` / `migrate status` / drift 校验全部通过。
 
 ## 环境变量
 
@@ -130,6 +137,18 @@ curl http://127.0.0.1:4000/api/v1/health/ready
 - `DATABASE_URL` 为必填；数据库密码只存在于本地 `.env`，禁止入库 / 提交 Git。
 - `PORT`、`HOST`、`CORS_ORIGINS` 均可配置；**CORS 禁止使用 `*`**，必须显式列出前端 Origin（当前含 3000 主站与 3001 后台）。
 - 前端 `NEXT_PUBLIC_API_BASE_URL` 指到本服务即可。
+- **认证（Phase 4.1）**：`JWT_SECRET`（必填强随机，生产缺失/过短启动失败）、`JWT_EXPIRES_IN`（默认 `15m`，仅 access token）、`ADMIN_EMAIL` / `ADMIN_PASSWORD`（seed 默认管理员，禁止硬编码口令）。
+
+## 初始化默认管理员（Phase 4.1）
+
+```bash
+# .env 中配置 ADMIN_EMAIL / ADMIN_PASSWORD 后执行（幂等；口令变更会自动同步）
+npm run prisma:seed
+```
+
+登录：`POST /api/v1/auth/login` → `{ "email", "password" }` →
+返回 `accessToken`；随后以 `Authorization: Bearer <accessToken>` 访问
+`/auth/me` 与 `/cms/stats`。失败统一返回 `401 Invalid email or password`。
 
 ## 数据库安全红线（持续有效）
 

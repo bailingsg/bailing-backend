@@ -77,15 +77,22 @@
 - 新增字段：只能追加（老客户端忽略未知字段，配合 `whitelist` 语义注意双向兼容）。
 - 任何 API 行为变更必须同步更新本文档与 `docs/DEVELOPMENT-LOG.md`。
 
-## 8. 当前端点清单（Phase 3.5）
+## 8. 当前端点清单（Phase 4.1）
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| GET | `/api/v1/health` | 存活检查 |
-| GET | `/api/v1/health/ready` | 就绪检查（含数据库） |
-| GET | `/api/v1/products` | 产品列表（`page` / `pageSize`≤48 / `category` / `featured`） |
-| GET | `/api/v1/products/:slug` | 产品详情（未发布或不存在 → 404） |
-| GET | `/api/v1/categories` | 产品分类列表（含 `productCount`） |
+| 方法 | 路径 | 鉴权 | 说明 |
+| --- | --- | --- | --- |
+| GET | `/api/v1/health` | 公开 | 存活检查 |
+| GET | `/api/v1/health/ready` | 公开 | 就绪检查（含数据库） |
+| GET | `/api/v1/products` | 公开 | 产品列表（`page` / `pageSize`≤48 / `category` / `featured`） |
+| GET | `/api/v1/products/:slug` | 公开 | 产品详情（未发布或不存在 → 404） |
+| GET | `/api/v1/categories` | 公开 | 产品分类列表（含 `productCount`） |
+| POST | `/api/v1/rfq` | 公开 | 提交询盘（201 / 400） |
+| GET | `/api/v1/rfq` | X-Admin-Token | 询盘列表（分页 + 状态筛选） |
+| GET | `/api/v1/rfq/:id` | X-Admin-Token | 询盘详情 |
+| PATCH | `/api/v1/rfq/:id/status` | X-Admin-Token | 状态流转 |
+| POST | `/api/v1/auth/login` | 公开 | 管理员登录 → JWT accessToken |
+| GET | `/api/v1/auth/me` | JWT | 当前登录管理员 |
+| GET | `/api/v1/cms/stats` | JWT | Dashboard 真实统计（询盘 / 产品 / 分类 / 文章） |
 
 ### 产品接口约定
 
@@ -95,8 +102,35 @@
 - **禁止电商字段**：响应中不含 `price` / `stock` / `sku` / `rating` / `review`（百灵木业为 B2B 制造商，不做在线零售）。
 - **契约稳定**：数据库字段变化不直接泄漏到响应，统一经 `product.dto.ts` 的 mapper 转换。
 
-后续阶段新增：询盘提交（`POST /api/v1/inquiries`，需 DTO 校验 + 限流）、CMS 写入接口（需鉴权）。
+## 9. 鉴权（Phase 4.1 已落地）
 
-## 9. 鉴权（CMS 阶段预留）
+### JWT 方案
 
-管理后台接口将使用 Bearer Token（JWT 方案待 CMS 阶段定稿）；届时在本文档补充令牌刷新、越权防护与速率限制约定。本阶段无任何鉴权端点，公开接口均为只读。
+- **登录**：`POST /api/v1/auth/login`，请求 `{ "email", "password" }`；
+  成功返回 `{ "accessToken", "user": { "id", "email", "role", ... } }`。
+  失败（口令错误 / 邮箱不存在 / 账号停用）**统一 401 `Invalid email or password`**，
+  不区分原因，防止账号枚举。
+- **调用**：受保护接口携带 `Authorization: Bearer <accessToken>`。
+- **有效期**：`JWT_EXPIRES_IN`（默认 `15m`）。**只实现 access token，
+  不实现 refresh token**——15 分钟窗口 + HttpOnly Cookie 会话可满足后台场景；
+  刷新机制待后续阶段按需引入（届时必须同时设计吊销策略）。
+- **密钥**：`JWT_SECRET` 仅来自环境变量；代码无默认值，生产缺失或不足 32 字符直接启动失败
+  （见 `src/config/env.validation.ts`）。
+- **多重校验**：`GET /auth/me` 以数据库实时状态为准——账号被停用/删除后既有令牌立即失效，
+  不只依赖 JWT 自然过期。
+
+### 守卫（两套并存，迁移期约定）
+
+| 守卫 | 请求头 | 适用范围 |
+| --- | --- | --- |
+| `JwtAuthGuard` | `Authorization: Bearer <JWT>` | 新增 CMS 接口（当前 `/cms/*`） |
+| `AdminTokenGuard` | `X-Admin-Token: <共享密钥>` | RFQ 后台接口（Phase 3.7 兼容，保持不破坏） |
+
+RFQ 后台接口将在后续阶段逐步迁移到 `JwtAuthGuard`；迁移完成前两者行为互不影响。
+
+### 密码与安全约定
+
+- 口令仅以 **bcrypt（cost 12）哈希** 存入 `admin_users.passwordHash`，禁止明文。
+- 登录失败执行同等成本的占位哈希比较，抹平「邮箱是否存在」的响应时间差。
+- 响应一律经 `toAdminProfile` 挑选字段，`passwordHash` 永不出现在任何响应中。
+- 前端持有方式为 **HttpOnly Cookie**（SameSite=Lax + Secure），不落 localStorage。
