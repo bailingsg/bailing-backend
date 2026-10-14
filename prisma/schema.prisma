@@ -29,9 +29,10 @@ enum PostStatus {
   PUBLISHED
 }
 
-enum InquiryStatus {
-  NEW // 新询盘
-  IN_PROGRESS // 跟进中
+// RFQ（Request For Quotation）状态流转：新询盘 → 已联系 → 已报价 → 已关闭
+enum RfqStatus {
+  NEW // 新询盘（未处理）
+  CONTACTED // 已联系客户
   QUOTED // 已报价
   CLOSED // 已关闭
 }
@@ -81,44 +82,82 @@ model Category {
   @@map("categories")
 }
 
-// 产品（Phase 1 只建模型，不实现 CRUD；详情内容后续增量迁移补充）
+// 产品（Phase 3.5 扩展为可承载 CMS 详情内容的产品实体）
+//
+// 设计约束（百灵木业是 B2B 制造商，不是电商）：
+//   · 不含 price / stock / sku / cart / payment 等电商字段
+//   · 不绑定任何图片存储服务（图片只存 URL，未来可指向 COS/CDN）
+//   · specifications 采用 jsonb 键值对，便于 CMS 侧自由扩展
 model Product {
-  id              String        @id @default(cuid())
-  name            String
-  slug            String        @unique
-  summary         String? // 列表页短描述
-  description     String        @db.Text
-  categoryId      String
-  status          ProductStatus @default(DRAFT)
-  isFeatured      Boolean       @default(false)
-  seoTitle        String? // SEO 标题，空则回落 name
-  seoDescription  String? // SEO 描述
+  id               String        @id @default(cuid())
+  name             String
+  slug             String        @unique // SEO URL，详情页 /products/[slug]
+  shortDescription String? // 列表页短描述（卡片展示）
+  description      String        @db.Text // 详情页完整描述
+  categoryId       String
+  material         String? // 材质说明
+  application      String? // 应用场景
+  specifications   Json? // 规格参数：{ "厚度": "18mm", ... }
+  status           ProductStatus @default(DRAFT)
+  isFeatured       Boolean       @default(false) // 首页/列表页精选
+  seoTitle         String? // SEO 标题，空则回落 name
+  seoDescription   String? // SEO 描述，空则回落 shortDescription
 
-  category Category   @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  inquiries Inquiry[]
+  category  Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  images    ProductImage[]
+  rfqs      Rfq[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([categoryId])
   @@index([status])
+  @@index([isFeatured])
   @@map("products")
 }
 
-// 询盘（B2B 核心业务：海外采购商提交的询价）
-model Inquiry {
-  id           String        @id @default(cuid())
-  customerName String // 客户姓名
-  email        String // 联系邮箱
-  company      String? // 公司名称
-  country      String? // 国家/地区
-  phone        String? // 电话（可选）
-  productId    String? // 意向产品（可选）
-  message      String        @db.Text // 需求内容
-  status       InquiryStatus @default(NEW)
-  // 以下两个字段仅用于风控/统计，不属于个人敏感信息
-  sourceIp     String?
-  userAgent    String?
+// 产品图片（一对多）。仅登记 URL 与元数据，不耦合具体存储服务；
+// provider/上传抽象在 CMS 阶段实现（见 MediaAsset）。
+model ProductImage {
+  id        String  @id @default(cuid())
+  productId String
+  url       String // 对外访问地址（未来为 COS + CDN 域名）
+  altText   String? // 图片替代文本，SEO / 可访问性需要
+  sortOrder Int     @default(0)
+  isPrimary Boolean @default(false) // 主图（列表卡片 / OG image）
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+// RFQ 询盘（B2B 核心业务链路：海外采购商提交询价 → 后台跟进报价）
+//
+// 设计约束（百灵木业是 B2B 制造商，不是电商）：
+//   · 不含 price / payment / order / cart 等交易字段
+//   · 只收集采购需求（规格、数量、目标市场），报价由业务在邮件中完成
+//   · attachmentUrl 仅登记地址，不绑定具体存储服务（未来可指向 COS / R2 / OSS）
+//   · sourceIp / userAgent 仅用于风控与统计，不属于个人敏感信息
+model Rfq {
+  id            String    @id @default(cuid())
+  name          String // 联系人姓名（必填）
+  company       String // 公司名称（必填）
+  email         String // 联系邮箱（必填）
+  phone         String? // 电话（可选）
+  country       String // 国家 / 地区（必填）
+  productId     String? // 意向产品（可选，关联 Product）
+  productName   String? // 产品名称快照（产品被删除后仍可追溯）
+  message       String    @db.Text // 采购需求（必填）
+  quantity      String? // 预估数量（可选，自由文本，如 "1 x 20GP"）
+  attachmentUrl String? // 附件地址（可选，本阶段仅登记）
+  status        RfqStatus @default(NEW)
+
+  sourceIp  String? // 风控：提交来源 IP
+  userAgent String? // 风控：提交来源 UA
 
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
@@ -127,7 +166,7 @@ model Inquiry {
 
   @@index([status])
   @@index([createdAt])
-  @@map("inquiries")
+  @@map("rfqs")
 }
 
 // 博客文章（内容营销 / SEO）

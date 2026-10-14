@@ -2,7 +2,9 @@
 
 百灵木业 B2B 独立站的后端服务：NestJS REST API + Prisma ORM + PostgreSQL（本地 Docker）。
 
-配套仓库：主站 [`bailing-ui`](../bailing-ui) · 管理后台 [`bailing-admin`](../bailing-admin)（Phase 2 启动）。
+配套仓库：主站 [`bailing-ui`](../bailing-ui) · 管理后台 [`bailing-admin`](../bailing-admin)。
+
+三仓库本地联调规范（端口、环境变量、启动顺序、排查）见共享工作区文档：[`docs/LOCAL-DEV-SETUP.md`](../docs/LOCAL-DEV-SETUP.md)。
 
 ## 技术栈
 
@@ -23,9 +25,12 @@ bailing-backend/
 │   ├── common/                  # 统一响应类型、异常过滤器、响应拦截器
 │   └── modules/
 │       ├── health/              # GET /api/v1/health、/api/v1/health/ready
+│       ├── products/            # GET /api/v1/products、/api/v1/products/:slug
+│       ├── categories/          # GET /api/v1/categories
 │       └── prisma/              # Prisma 服务（惰性连接）
 ├── prisma/
-│   ├── schema.prisma            # 数据模型（6 个基础模型）
+│   ├── schema.prisma            # 数据模型
+│   ├── seed.ts                  # Demo/Placeholder 数据种子（可选执行）
 │   └── migrations/              # Prisma 迁移（唯一允许的数据库变更方式）
 ├── infrastructure/
 │   └── docker/docker-compose.yml  # 本地 PostgreSQL
@@ -73,16 +78,62 @@ curl http://127.0.0.1:4000/api/v1/health/ready
 | `npm run lint` / `npm run typecheck` | ESLint / tsc |
 | `npm test` | Jest（单测 + e2e） |
 | `npm run db:up` / `npm run db:down` | 启动 / 停止数据库容器 |
-| `npm run db:reset` | 重置数据库（危险：清空数据） |
 | `npm run prisma:deploy` | 应用已有迁移（CI/生产用，不生成新迁移） |
+| `npm run prisma:migrate` | 开发期生成并应用新迁移（会生成迁移文件，不重置数据） |
+| `npm run prisma:seed` | 写入 Demo/Placeholder 产品与分类（幂等，可重复执行） |
+
+## 产品 API（Phase 3.5）
+
+公开只读接口，仅返回 `status = PUBLISHED` 的产品（草稿/归档不会泄漏）。
+
+| 方法与路径 | 说明 |
+| --- | --- |
+| `GET /api/v1/products` | 产品列表，支持 `page`、`pageSize`（≤48）、`category`（分类 slug）、`featured`（`true`/`false`） |
+| `GET /api/v1/products/:slug` | 产品详情；不存在或未发布返回 404 |
+| `GET /api/v1/categories` | 分类列表（含各分类已发布产品数 `productCount`），供筛选器使用 |
+
+响应统一经 `TransformInterceptor` 包装为 `{ success: true, data }`：
+
+```jsonc
+// GET /api/v1/products
+{
+  "success": true,
+  "data": {
+    "items": [
+      {
+        "id": "…", "slug": "…", "name": "…",
+        "shortDescription": "…",
+        "category": { "id": "…", "slug": "…", "name": "…" },
+        "material": null, "application": null, "featured": false,
+        "images": [{ "id": "…", "url": "…", "altText": null, "sortOrder": 0, "isPrimary": true }]
+      }
+    ],
+    "total": 3, "page": 1, "pageSize": 12, "totalPages": 1
+  }
+}
+```
+
+详情在列表项基础上追加 `description`、`specifications`、`seo`、`createdAt`、`updatedAt`。
+
+> **产品数据为 Demo/Placeholder**：`prisma/seed.ts` 写入的记录名称以 `Demo ·` 开头、描述标注 `[DEMO DATA]`，**不含**任何编造的规格、认证、价格或图片。CMS 阶段可直接删除。
+> 本产品线为 B2B 制造与出口，**不含** price / stock / sku / cart / payment / rating / review 等电商字段。
+
+## 当前状态（Phase 3.5）
+
+- Phase 3.1：工程底座已验收（tsc / ESLint / Jest / 构建 / 健康检查）。
+- Phase 3.5：`Product` 模型扩展（`shortDescription` / `material` / `application` / `specifications`）+ 新增 `ProductImage`，迁移 `20261013161709_add_product_details` 已应用；产品与分类只读 API 已上线，`lint` / `typecheck` / `build` / `migrate status` 全部通过。
 
 ## 环境变量
 
 见 [.env.example](./.env.example)。要点：
 
 - `DATABASE_URL` 为必填；数据库密码只存在于本地 `.env`，禁止入库 / 提交 Git。
-- `PORT`、`HOST`、`CORS_ORIGINS` 均可配置；**CORS 禁止使用 `*`**，必须显式列出前端 Origin。
+- `PORT`、`HOST`、`CORS_ORIGINS` 均可配置；**CORS 禁止使用 `*`**，必须显式列出前端 Origin（当前含 3000 主站与 3001 后台）。
 - 前端 `NEXT_PUBLIC_API_BASE_URL` 指到本服务即可。
+
+## 数据库安全红线（持续有效）
+
+命名卷 `bailing-postgres-data` 保存全部数据。禁止以下操作：`docker compose down -v`、`docker volume prune`、`prisma migrate reset`、`prisma db push`、删除或重写迁移文件、重建数据库、将端口暴露公网。结构变更只能通过新增迁移进行。
 
 ## 故障排查
 
@@ -91,8 +142,8 @@ curl http://127.0.0.1:4000/api/v1/health/ready
 | `/api/v1/health/ready` 返回 503 | Docker Desktop 未启动或 `npm run db:up` 未执行；`docker ps` 确认 `bailing-postgres` 健康 |
 | 启动报“缺少必填环境变量” | 未创建 `.env` 或 `DATABASE_URL` 为空 |
 | Prisma 报连接失败 | 检查 `.env` 中密码与 docker-compose 的 `POSTGRES_PASSWORD` 一致 |
-| 端口 5432 被占用 | 修改 `.env` 的 `POSTGRES_PORT` 后重新 `npm run db:up` |
-| 迁移失败（P3005 等） | 数据库非空导致，开发库可 `npm run db:reset` 重建 |
+| 端口 5432 被占用 | 修改 `.env` 的 `POSTGRES_PORT` 后重新 `npm run db:up`（勿停他人容器） |
+| 迁移失败（P3005 等） | **不要**直接 `db:reset`；先对照 `docs/LOCAL-DEV-SETUP.md` 的安全红线确认原因，必要时人工评估迁移方案 |
 
 更多文档：[docs/PHASE0-ARCHITECTURE.md](./docs/PHASE0-ARCHITECTURE.md) ·
 [docs/PHASE1-SETUP.md](./docs/PHASE1-SETUP.md) ·

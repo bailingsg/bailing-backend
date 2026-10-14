@@ -4,6 +4,9 @@ import configuration from './config/configuration';
 import { validateEnv } from './config/env.validation';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { HealthModule } from './modules/health/health.module';
+import { ProductsModule } from './modules/products/products.module';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { RfqModule } from './modules/rfq/rfq.module';
 
 @Module({
   imports: [
@@ -15,6 +18,9 @@ import { HealthModule } from './modules/health/health.module';
     }),
     PrismaModule,
     HealthModule,
+    ProductsModule,
+    CategoriesModule,
+    RfqModule,
   ],
 })
 export class AppModule {}

@@ -36,6 +36,6 @@ export function setupApp(app: INestApplication): void {
     origin: origins.length > 0 ? origins : false,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Admin-Token'],
   });
 }

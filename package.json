@@ -21,6 +21,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
+    "prisma:seed": "ts-node prisma/seed.ts",
     "prisma:studio": "prisma studio",
     "db:up": "docker compose --env-file .env -f infrastructure/docker/docker-compose.yml up -d",
     "db:down": "docker compose --env-file .env -f infrastructure/docker/docker-compose.yml down",

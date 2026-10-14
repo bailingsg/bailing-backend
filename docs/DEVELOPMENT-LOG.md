@@ -108,3 +108,27 @@
 - bailing-admin 启动：登录鉴权、产品/询盘/博客管理。
 - 腾讯云 COS 上传抽象层（`MediaAsset.provider` 已预留）与 CDN。
 - 数据库备份脚本（pg_dump）与生产 Docker Compose 部署。
+
+## 6. Phase 1.1 追加记录（2026-10-13，Docker/PostgreSQL 验收第一次执行）
+
+- 新增 `docs/PHASE1.1-ACCEPTANCE.md`。
+- 已完成（静态/安全检查，全部一次通过）：三仓库分支与工作区检查（均在 261013，无未提交修改）；后端 package.json 脚本核对（db:up / db:down / prisma:deploy 与文档一致）；`docker compose config --quiet` 通过（命名卷 `bailing-postgres-data`、pg_isready 健康检查、127.0.0.1 端口绑定、env 注入无硬编码密钥、restart unless-stopped、仅 postgres 单服务）；`prisma validate` 通过；init 迁移（166 行 DDL：6 表 / 5 枚举 / 12 索引）与 migration_lock.toml 在库；`git check-ignore` + `git ls-files` + `git grep`（含全部提交历史）三重确认 .env 未跟踪、.env.example 与历史提交均不含真实密码。
+- **阻塞（未执行，非失败）**：Docker Engine 未运行。沙箱内无法启动 Docker Desktop（后端进程写 `~/.docker/daemon.json` 被拒而崩溃；`wsl.exe` 被沙箱安全策略禁用）。解除方式：用户从开始菜单手动启动 Docker Desktop，待 `docker info` 可连接后通知 Agent。
+- 剩余执行计划（引擎恢复后）：`npm run db:up` → `docker compose ps` 确认 healthy → `npm run prisma:deploy` → `npx prisma migrate status` → psql 核查六表与约束 → `start:dev` + `curl` 验证 /health 200 与 /ready 200 → 故障注入（`docker compose stop/start postgres`，不删卷）→ 持久化验证（临时验收表写入唯一标识 → 仅重启容器 → 复查 → 只删临时表）→ 前端首页联调 → 回填 PHASE1.1-ACCEPTANCE.md。
+- 本轮未修改任何代码与配置，未删除数据卷，未重置数据库，未提交新代码。
+
+## 7. Phase 1.1 最终验收（2026-10-13，引擎恢复后全部执行完成）
+
+用户已手动启动 Docker Desktop，Engine 连接成功（Server: Docker Desktop 4.92.0 / Engine 29.8.0 / context desktop-linux）。以下全部实际执行并通过（详见 `docs/PHASE1.1-ACCEPTANCE.md`）：
+
+- `npm run db:up` → 容器 `bailing-postgres` Up (healthy)，端口仅 127.0.0.1:5432，命名卷 `bailing-postgres-data` 已创建。
+- `prisma validate` / `generate` / `prisma:deploy` 通过：init 迁移 applied；`migrate status` = up to date。
+- psql 实测：6 业务表 + _prisma_migrations；slug/email 唯一约束、外键（RESTRICT/SET NULL）、索引齐全。
+- `/api/v1/health` 200；`/api/v1/health/ready` DB 在线 200（`checks.database=true`）。
+- 故障注入：`docker compose stop postgres` → /health 仍 200、/ready 503（未谎报）；`start postgres` 约 6s 恢复 healthy 后 /ready 恢复 200。
+- 持久化：临时表 `phase1_1_acceptance_test` 写入唯一记录 → `docker restart` 容器（保留卷）→ 记录仍在 → DROP 临时表，业务表与迁移记录终态完好。
+- 前端联调：`next dev` 首页 200，SSR 展示“后端服务就绪 / 已连接 / 数据库: 正常”。
+- DB 在线复跑 Jest：6/6 通过（含 /ready 200 分支）。
+- 处置记录：Next dev 首启被环境 safe-delete 组件拦截删除陈旧 `.next` 缓存而退出，清理 `.next` 后恢复（环境问题，非项目缺陷）。
+- 安全复核：三仓库 .env 均未跟踪；历史与新增文档无真实密码；端口无公网暴露；未执行任何破坏性 Docker/Prisma 命令；未自动提交/推送（backend 两份文档变更待用户授权提交）。
+- 容器现状：`bailing-postgres` 保持运行（本地开发库）；前后端测试进程已随任务结束清理。

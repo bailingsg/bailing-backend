@@ -77,15 +77,26 @@
 - 新增字段：只能追加（老客户端忽略未知字段，配合 `whitelist` 语义注意双向兼容）。
 - 任何 API 行为变更必须同步更新本文档与 `docs/DEVELOPMENT-LOG.md`。
 
-## 8. 当前端点清单（Phase 1）
+## 8. 当前端点清单（Phase 3.5）
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | GET | `/api/v1/health` | 存活检查 |
 | GET | `/api/v1/health/ready` | 就绪检查（含数据库） |
+| GET | `/api/v1/products` | 产品列表（`page` / `pageSize`≤48 / `category` / `featured`） |
+| GET | `/api/v1/products/:slug` | 产品详情（未发布或不存在 → 404） |
+| GET | `/api/v1/categories` | 产品分类列表（含 `productCount`） |
 
-Phase 2 起新增：产品分类/详情、询盘提交（`POST /api/v1/inquiries`，需 DTO 校验 + 限流）等。
+### 产品接口约定
 
-## 9. 鉴权（Phase 2 预留）
+- **只读**：产品写入（新增/编辑）属 CMS 阶段，本阶段不提供任何写接口。
+- **可见性**：仅返回 `status = PUBLISHED`；`DRAFT` / `ARCHIVED` 一律不可见，避免草稿泄漏。
+- **不存在与未发布统一返回 404**，不区分二者，避免通过状态差异探测未公开产品。
+- **禁止电商字段**：响应中不含 `price` / `stock` / `sku` / `rating` / `review`（百灵木业为 B2B 制造商，不做在线零售）。
+- **契约稳定**：数据库字段变化不直接泄漏到响应，统一经 `product.dto.ts` 的 mapper 转换。
 
-管理后台接口将使用 Bearer Token（JWT 方案待 Phase 2 定稿）；届时在本文档补充令牌刷新、越权防护与速率限制约定。本阶段无任何鉴权端点。
+后续阶段新增：询盘提交（`POST /api/v1/inquiries`，需 DTO 校验 + 限流）、CMS 写入接口（需鉴权）。
+
+## 9. 鉴权（CMS 阶段预留）
+
+管理后台接口将使用 Bearer Token（JWT 方案待 CMS 阶段定稿）；届时在本文档补充令牌刷新、越权防护与速率限制约定。本阶段无任何鉴权端点，公开接口均为只读。
