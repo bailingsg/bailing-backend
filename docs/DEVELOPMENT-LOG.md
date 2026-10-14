@@ -202,3 +202,48 @@ lint / typecheck / 全量 jest（7  suites 82 例）/ nest build / next build / 
 ### 未做（按阶段禁令 / 后续阶段）
 
 Blog CMS / Media 库 / 富文本编辑器 / 用户管理（RBAC）/ 邮件通知 / 产品排序拖拽 / 图片裁切——均未开发。
+
+## 10. Phase 4.3 记录（2026-10-14，Media Library 媒体资源库）
+
+### 数据库（演扩，非新建）
+
+Phase 1 已预留 `media_assets` 表（`fileName`/`altText`/`provider` + `enum MediaProvider { LOCAL, TENCENT_COS }`，注释明言"provider 为腾讯云 COS 预留，Phase 2+ 再实现上传抽象层"）。
+本阶段**演扩原模型**而非新建表（保证既有数据与迁移历史零破坏，表当时为空，零风险）：
+
+- `fileName` → `filename`（RENAME）
+- 新增 `originalName`（NOT NULL）、`width`、`height`（可空）、`category`（`enum MediaCategory { IMAGE, DOCUMENT }`，默认 IMAGE）、`createdBy`（TEXT，不建外键）
+- 新增唯一索引 `storageKey`，以及 `category` / `createdAt` / `createdBy` 索引
+
+迁移 `20261014151500_add_media_assets`（手写 SQL）→ `migrate deploy` → `generate` → `migrate diff` 验证零漂移。
+
+### 后端（Storage Adapter 架构）
+
+- `src/modules/media/storage/`：`storage.interface.ts`（`StorageProvider` 接口 + `STORAGE_PROVIDER` 注入令牌）、`local-storage.provider.ts`（本地实现）、`cos-storage.provider.ts`（**COS 预留占位**，方法均抛明确指引）。
+- `media-file.util.ts`：MIME/大小校验、**魔数校验**、图片尺寸解析（PNG/JPEG/WebP/AVIF）。
+- `media.service.ts`：上传（校验→魔数→尺寸→Provider→落库）、列表（分页 + keyword/category）、详情、删除（**引用检查**：被 `ProductImage` 引用 → 400 `Media asset is in use.`；先删库行再删文件）。
+- `media.controller.ts`：`/cms/media`，类级 JWT Guard，上传用 `memoryStorage` + 10MB limits + 201。
+- `media.module.ts`：`STORAGE_PROVIDER` 工厂按 `STORAGE_PROVIDER` 环境变量选择实现。
+- 接线：`configuration.ts` 增 `storageProvider`；`app.setup.ts` 增媒体目录 mkdir + `/uploads/media` 静态挂载；`cms.module.ts` 引入 `MediaModule`；`http-exception.filter.ts` 增 MulterError 兜底映射；`.env.example` 补三个媒体变量。
+
+**关键修复**：`storageKey` 的 `media/` 是逻辑命名空间，`resolvePath` 直接拼接会造成 `uploads/media/media/` 双前缀 → 静态 404。改为解析时剥离命名空间前缀。
+
+### Admin（媒体资源库页面）
+
+- `/media`：画廊网格（缩略图 / 文件名 / 类型 / 大小 / 尺寸 / 上传时间 / 操作）、**拖拽上传**、**两步确认删除**、关键词搜索（URL 参数驱动、服务端渲染）、**图片预览弹窗**（含存储键等元数据）。
+- `src/lib/media.ts`（API 层 + 格式化 + 删除失败友好映射）、`media/actions.ts`（Server Actions，multipart 透传，JWT 不出服务端）、`media-library.tsx`（客户端组件）。
+- 侧边栏启用 Media 入口；middleware 增加 `/media/:path*` 保护。
+
+### 质量门（全部通过）
+
+- `npm run lint`、`npx tsc --noEmit`、`npm run build` 全绿；
+- 后端 **113/113** jest（其中 Media 单测 20 + e2e 11）；
+- 浏览器全流程 `docs/phase-4.3-browser-flow.sh` **全项 PASS**（登录 → /media → 拖拽上传 → 卡片 → 预览 → 两步删除）。
+
+### 排障记录（值得复用）
+
+- **413 而非 400**：`@nestjs/platform-express` 在拦截器内部已把 `MulterError` 转成 Nest 异常（`LIMIT_FILE_SIZE` → `PayloadTooLargeException`），到不了全局 filter；413 是 HTTP 语义正确的状态码，测试按 413 断言。
+- **浏览器图片"加载失败"误判**：测试用的 24 字节 PNG（仅签名 + IHDR 头，缺 CRC/IEND）curl 返回 200 但 **Chromium 解码失败触发 onerror**；换成 zlib + CRC32 生成的完整 PNG 后 naturalWidth=640 正常。教训：验证图片是否"真的能显示"必须用可解码的完整图片。
+
+### 未做（按阶段禁令）
+
+COS 正式接入、CDN 自动部署、视频处理、图片 AI 处理、Blog / Factory / Quality / Applications CMS。

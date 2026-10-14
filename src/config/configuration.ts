@@ -46,5 +46,13 @@ export default () => {
     uploadsBaseUrl:
       process.env.UPLOADS_BASE_URL ??
       `http://127.0.0.1:${process.env.PORT ?? '4000'}`,
+
+    /**
+     * 媒体库存储适配器开关（Phase 4.3）。
+     *   · LOCAL（默认）：本地磁盘 <cwd>/uploads/media
+     *   · TENCENT_COS：腾讯云 COS（预留，未配置前不可用——见 media/storage/cos-storage.provider.ts）
+     * 业务代码只依赖 StorageProvider 接口，切换存储无需改业务逻辑。
+     */
+    storageProvider: process.env.STORAGE_PROVIDER ?? 'LOCAL',
   };
 };

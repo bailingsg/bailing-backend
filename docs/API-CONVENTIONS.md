@@ -175,3 +175,32 @@ RFQ 后台接口将在后续阶段逐步迁移到 `JwtAuthGuard`；迁移完成�
 - 内容校验：落盘后服务端做**魔数校验**（JPEG `FF D8 FF` / PNG / `RIFF****WEBP` / `ftyp`+avif），失败即删文件并 400。
 - 入库 URL 基地址由 `UPLOADS_BASE_URL` 配置（默认后端自身地址，生产可指向 CDN）。
 - 主图唯一：同一产品同时最多一张 `isPrimary=true`；首图自动成为主图。
+
+## 11. Media CMS 媒体资源库（Phase 4.3 已落地）
+
+全部位于 `/api/v1/cms/media`，**控制器级 `JwtAuthGuard`**（`Authorization: Bearer <JWT>`）。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| POST | `/cms/media/upload` | 上传（`multipart/form-data`，字段 `file`）；成功 **201**，返回 `{ id, url, filename, mimeType, size, … }` |
+| GET | `/cms/media` | 列表：`page`（默认 1）、`limit`（默认 20，最大 100）、`keyword`（匹配 originalName/filename，不区分大小写）、`category`（`IMAGE` / `DOCUMENT`） |
+| GET | `/cms/media/:id` | 详情；不存在 → **404** |
+| DELETE | `/cms/media/:id` | 删除；**被业务引用时返回 400 `Media asset is in use.`**；成功返回 `{ id }` |
+
+### 存储抽象（Storage Adapter）
+
+业务模块 → `MediaService` → `StorageProvider` → Local / COS / CDN。
+`STORAGE_PROVIDER` 环境变量切换实现（`LOCAL` 默认；`TENCENT_COS` 为 Phase 4.3 预留接口，未实现前配置即启动失败并给出指引）。
+**业务代码不得直接操作文件系统**，一切落盘/删除都经 Provider。
+
+### 上传安全约定
+
+- 白名单 MIME：`image/jpeg` / `image/png` / `image/webp` / `image/avif`。
+- 大小限制：默认 10MB（`MEDIA_MAX_FILE_SIZE` 字节可配）；超限由平台层映射为 **413 Payload Too Large**。
+- 服务端生成存储键 `media/<YYYY>/<MM>/<uuid>.<ext>`（`storageKey`，逻辑命名空间；物理路径 `<MEDIA_UPLOAD_DIR>/<YYYY>/<MM>/<uuid>.<ext>`）。
+- 文件以**内存存储**接收，落盘由 Provider 完成；文件名一律 UUID，**绝不使用客户端原始文件名**（原始名仅清洗后存 `originalName` 供展示）。
+- **魔数校验**：确认真实图片格式（JPEG/PNG/WebP/AVIF 文件头），失败 → 400。
+- 尺寸解析：从文件头解析宽高（PNG IHDR / JPEG SOF / WebP VP8-VP8L-VP8X / AVIF ispe），失败置 `null`。
+- 防路径穿越：`storageKey` 先过白名单正则，再过 resolved-path 目录包含校验（双保险）。
+- 响应 DTO **不含服务器真实路径**（`storageKey` 是对象键，不是文件系统路径）。
+- 静态访问：`/uploads/media/**`（本地 Provider 生成的 URL 为 `${UPLOADS_BASE_URL}/uploads/<storageKey>`；未来切 CDN 只换 Provider 的 `getUrl`）。

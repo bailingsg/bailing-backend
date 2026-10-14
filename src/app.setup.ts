@@ -5,6 +5,7 @@ import { mkdirSync } from 'node:fs';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { UPLOAD_ROOT } from './modules/cms/products/upload.options';
+import { MEDIA_UPLOAD_ROOT } from './modules/media/media.module';
 
 /**
  * 应用装配：统一前缀、参数校验、异常处理、响应包装、CORS、静态资源。
@@ -21,6 +22,15 @@ export function setupApp(app: INestApplication): void {
   mkdirSync(UPLOAD_ROOT, { recursive: true });
   (app as unknown as NestExpressApplication).useStaticAssets(UPLOAD_ROOT, {
     prefix: '/uploads',
+    maxAge: '7d',
+  });
+
+  // 媒体库本地存储（Phase 4.3）：/uploads/media/** 静态可读。
+  // MEDIA_UPLOAD_DIR 指向任意目录时仍可解析（默认位于 <cwd>/uploads/media，
+  // 已被上面的 /uploads 挂载覆盖，此处显式挂载保证自定义目录同样可用）。
+  mkdirSync(MEDIA_UPLOAD_ROOT, { recursive: true });
+  (app as unknown as NestExpressApplication).useStaticAssets(MEDIA_UPLOAD_ROOT, {
+    prefix: '/uploads/media',
     maxAge: '7d',
   });
 

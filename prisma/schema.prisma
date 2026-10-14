@@ -192,21 +192,44 @@ model BlogPost {
   @@map("blog_posts")
 }
 
-// 媒体资源（产品图片等）。Phase 1 只登记 URL 与元数据；
-// provider 字段为腾讯云 COS 预留（Phase 2+ 再实现上传抽象层）。
+// 媒体资源（Phase 4.3 Media Library：Storage Adapter 模式落地）。
+//
+// 设计原则（业务模块 → MediaService → StorageProvider → Local / COS / CDN）：
+//   · 业务模块（Product 等）禁止直接操作文件系统，一律经 MediaService → StorageProvider
+//   · storageKey 为存储系统内的对象键（本地为相对路径、未来 COS 为 Object Key），
+//     统一形如 media/<YYYY>/<MM>/<uuid>.<ext>（见 API-CONVENTIONS URL 策略）
+//   · url 为当前访问地址（本地 /uploads/media/**），由 StorageProvider 按 provider 生成；
+//     未来切换 COS + CDN 只改 Provider 配置，业务数据不动
+//   · provider 自 Phase 1 预留（LOCAL / COS），当前仅 LOCAL 落地
+//   · createdBy 为上传管理员 ID（AdminUser.id）；不建外键——管理员注销
+//     不应级联删除媒体资产，历史归属信息保留即可
 model MediaAsset {
-  id         String        @id @default(cuid())
-  fileName   String
-  storageKey String // 存储路径/对象键
-  url        String // 对外访问地址（未来为 COS + CDN 域名）
-  mimeType   String
-  size       Int // 字节
-  altText    String? // 图片替代文本，SEO 需要
-  provider   MediaProvider @default(LOCAL)
+  id           String        @id @default(cuid())
+  filename     String // 存储文件名（UUID + 扩展名，防路径穿越）
+  originalName String // 客户端原始文件名（仅展示，不参与任何路径拼接）
+  storageKey   String        @unique // 存储对象键：media/<YYYY>/<MM>/<uuid>.<ext>
+  url          String // 对外访问地址（StorageProvider 生成；未来为 COS + CDN 域名）
+  mimeType     String // MIME（白名单：image/jpeg|png|webp|avif）
+  size         Int // 字节数
+  width        Int? // 像素宽（可解析时写入，解析失败为 null）
+  height       Int? // 像素高
+  altText      String? // 图片替代文本，SEO 需要
+  provider     MediaProvider @default(LOCAL) // 存储提供方（Storage Adapter 选择）
+  category     MediaCategory @default(IMAGE) // 资源分类（IMAGE / DOCUMENT）
+  createdBy    String // 上传管理员 ID（AdminUser.id）
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([provider])
+  @@index([category])
+  @@index([createdAt])
+  @@index([createdBy])
   @@map("media_assets")
+}
+
+// 媒体分类（当前上传仅开放 IMAGE；DOCUMENT 预留给未来的 PDF/规格书等）
+enum MediaCategory {
+  IMAGE
+  DOCUMENT
 }

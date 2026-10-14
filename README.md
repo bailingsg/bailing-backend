@@ -118,7 +118,7 @@ curl http://127.0.0.1:4000/api/v1/health/ready
 > **产品数据为 Demo/Placeholder**：`prisma/seed.ts` 写入的记录名称以 `Demo ·` 开头、描述标注 `[DEMO DATA]`，**不含**任何编造的规格、认证、价格或图片。CMS 阶段可直接删除。
 > 本产品线为 B2B 制造与出口，**不含** price / stock / sku / cart / payment / rating / review 等电商字段。
 
-## 当前状态（Phase 4.2）
+## 当前状态（Phase 4.3）
 
 - Phase 3.1：工程底座已验收（tsc / ESLint / Jest / 构建 / 健康检查）。
 - Phase 3.5：`Product` 模型扩展 + `ProductImage`，迁移 `20261013161709_add_product_details` 已应用；产品与分类只读 API 已上线。
@@ -134,6 +134,11 @@ curl http://127.0.0.1:4000/api/v1/health/ready
   - `POST /api/v1/cms/products/:id/images`（multipart 上传：类型/大小白名单 + 魔数校验 + UUID 文件名）、`DELETE /:id/images/:imageId`（删文件 + 主图自动提升）；
   - 本地存储 `uploads/products/`（`.gitignore` 排除），静态前缀 `/uploads/products`；迁移 `20261014120152_add_product_applications`（JSONB）。
   - `lint` / `typecheck` / `test`（82 项）/ `build` / `migrate status` / drift 校验全部通过。
+- Phase 4.3：Media Library 媒体资源库已上线——
+  - **Storage Adapter 模式**：`StorageProvider` 接口 + `LocalStorageProvider` 实现 + `TencentCosStorageProvider` 预留占位，`STORAGE_PROVIDER` 环境变量切换，业务代码零侵入；
+  - `POST /api/v1/cms/media/upload`（multipart，内存接收；MIME + **魔数** + 10MB 校验；UUID 存储键 `media/<年>/<月>/<uuid>.<ext>`）、`GET /api/v1/cms/media`（分页 + keyword/category）、`GET /:id`、`DELETE /:id`（**引用检查**：被 `ProductImage` 引用 → 400 `Media asset is in use.`），全部 `JwtAuthGuard`；
+  - 迁移 `20261014151500_add_media_assets`（演扩 Phase 1 预留模型，零漂移）；静态前缀 `/uploads/media`；
+  - `lint` / `typecheck` / `test`（**113 项**）/ `build` / drift 校验全部通过；浏览器全流程验证通过（`docs/phase-4.3-browser-flow.sh`）。
 
 ## 环境变量
 
@@ -144,6 +149,7 @@ curl http://127.0.0.1:4000/api/v1/health/ready
 - 前端 `NEXT_PUBLIC_API_BASE_URL` 指到本服务即可。
 - **认证（Phase 4.1）**：`JWT_SECRET`（必填强随机，生产缺失/过短启动失败）、`JWT_EXPIRES_IN`（默认 `15m`，仅 access token）、`ADMIN_EMAIL` / `ADMIN_PASSWORD`（seed 默认管理员，禁止硬编码口令）。
 - **图片上传（Phase 4.2）**：`UPLOADS_BASE_URL`（入库图片 URL 基地址，默认后端自身；生产可指向 CDN）、`UPLOAD_MAX_FILE_SIZE`（字节，默认 5MB）。
+- **媒体库（Phase 4.3）**：`STORAGE_PROVIDER`（`LOCAL` 默认 / `TENCENT_COS` 预留）、`MEDIA_MAX_FILE_SIZE`（字节，默认 10MB）、`MEDIA_UPLOAD_DIR`（媒体根目录，默认 `<backend>/uploads/media`）。
 
 ## 初始化默认管理员（Phase 4.1）
 
