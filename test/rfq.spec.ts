@@ -41,7 +41,6 @@ const validDto = {
 
 describe('RfqService', () => {
   let service: RfqService;
-  let controller: RfqController;
   let prisma: {
     rfq: { create: jest.Mock; count: jest.Mock; findMany: jest.Mock; findUnique: jest.Mock; update: jest.Mock };
     product: { findFirst: jest.Mock };
@@ -73,7 +72,6 @@ describe('RfqService', () => {
     }).compile();
 
     service = moduleRef.get(RfqService);
-    controller = moduleRef.get(RfqController);
   });
 
   describe('create', () => {

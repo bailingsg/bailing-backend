@@ -1,4 +1,5 @@
-import { PrismaClient, ProductStatus } from '@prisma/client';
+import { AdminRole, PrismaClient, ProductStatus } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
 
 /**
  * Phase 3.5 —— Demo / Placeholder 数据种子
@@ -12,9 +13,58 @@ import { PrismaClient, ProductStatus } from '@prisma/client';
  *
  * 幂等：按 slug upsert，可重复执行。
  * 运行：npm run prisma:seed
+ *
+ * Phase 4.1 —— 默认管理员初始化（见 seedDefaultAdmin）：
+ * 从环境变量 ADMIN_EMAIL / ADMIN_PASSWORD 读取，禁止硬编码口令。
  */
 
 const prisma = new PrismaClient();
+
+/**
+ * 初始化默认管理员。
+ *
+ * 规则：
+ *   · 仅从环境变量 ADMIN_EMAIL / ADMIN_PASSWORD / ADMIN_NAME 读取，缺失则跳过
+ *   · 口令以 bcrypt 哈希入库（passwordHash），禁止明文
+ *   · 幂等：账号存在时仅同步 name / isActive；
+ *     若 ADMIN_PASSWORD 与现有哈希不匹配则同步更新口令（支持轮换）
+ *   · 默认角色 ADMIN（系统中第一个账号）；如需 EDITOR 请在创建后于库中调整
+ */
+async function seedDefaultAdmin(): Promise<void> {
+  const email = (process.env.ADMIN_EMAIL ?? '').trim().toLowerCase();
+  const password = process.env.ADMIN_PASSWORD ?? '';
+  const name = process.env.ADMIN_NAME ?? 'Administrator';
+
+  if (email === '' || password === '') {
+    console.log('[seed] ADMIN_EMAIL / ADMIN_PASSWORD 未配置，跳过默认管理员创建');
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(password, 12);
+  const existing = await prisma.adminUser.findUnique({ where: { email } });
+
+  if (!existing) {
+    await prisma.adminUser.create({
+      data: { email, passwordHash, name, role: AdminRole.ADMIN, isActive: true },
+    });
+    console.log(`[seed] 已创建默认管理员: ${email} (ADMIN)`);
+    return;
+  }
+
+  const passwordMatches = await bcrypt.compare(password, existing.passwordHash);
+  await prisma.adminUser.update({
+    where: { email },
+    data: {
+      name,
+      isActive: true,
+      // 口令仅在环境变量与库中哈希不一致时更新（支持轮换，且不反复重哈希）
+      ...(passwordMatches ? {} : { passwordHash }),
+    },
+  });
+  console.log(
+    `[seed] 默认管理员已同步: ${email}${passwordMatches ? '' : '（口令已按 ADMIN_PASSWORD 更新）'}`,
+  );
+}
 
 /** 分类体系（沿用产品线规划，非编造数据；CMS 阶段可自由调整） */
 const DEMO_CATEGORIES = [
@@ -76,6 +126,8 @@ const DEMO_PRODUCTS = [
 ];
 
 async function main(): Promise<void> {
+  await seedDefaultAdmin();
+
   const categoryIdBySlug = new Map<string, string>();
 
   for (const category of DEMO_CATEGORIES) {
@@ -120,12 +172,15 @@ async function main(): Promise<void> {
     });
   }
 
-  const [categories, products] = await Promise.all([
+  const [categories, products, admins] = await Promise.all([
     prisma.category.count(),
     prisma.product.count(),
+    prisma.adminUser.count(),
   ]);
 
-  console.log(`[seed] categories: ${categories}, products: ${products} (demo/placeholder only)`);
+  console.log(
+    `[seed] categories: ${categories}, products: ${products} (demo/placeholder only), admins: ${admins}`,
+  );
 }
 
 main()

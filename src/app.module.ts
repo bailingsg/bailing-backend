@@ -7,6 +7,8 @@ import { HealthModule } from './modules/health/health.module';
 import { ProductsModule } from './modules/products/products.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { RfqModule } from './modules/rfq/rfq.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { CmsModule } from './modules/cms/cms.module';
 
 @Module({
   imports: [
@@ -21,6 +23,10 @@ import { RfqModule } from './modules/rfq/rfq.module';
     ProductsModule,
     CategoriesModule,
     RfqModule,
+    // Phase 4.1：管理员认证（login / me / JWT Guard）
+    AuthModule,
+    // Phase 4.1：CMS 接口（整体 JWT 保护）
+    CmsModule,
   ],
 })
 export class AppModule {}
