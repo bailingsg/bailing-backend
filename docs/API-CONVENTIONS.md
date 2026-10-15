@@ -276,3 +276,101 @@ RFQ 后台接口将在后续阶段逐步迁移到 `JwtAuthGuard`；迁移完成�
 | `twitterTitle` / `twitterDescription` | Twitter Card | 空则回落 `ogTitle` / `ogDescription` |
 
 > OG / Twitter 字段为 Phase 4.4 **预留**：本阶段只做存储与 API 透出，不接入第三方校验，公开站接入时直接消费。
+
+---
+
+## 13. Enterprise CMS：Factory / Quality / Applications（Phase 4.5 已落地）
+
+三大企业内容模块，**全部复用** Phase 4.1 JWT、Phase 4.2 Product、Phase 4.3 MediaAsset，
+不新建媒体/产品基表。管理端前缀 `/cms/{factory,quality,applications}`（**全部 JwtAuthGuard 保护**），
+公开端前缀 `/public/{factory,quality,applications}`（**无需鉴权，只读**）。
+
+### 通用内容状态
+
+新增独立枚举 `ContentStatus { DRAFT, PUBLISHED }`（**刻意**与博客的 `PostStatus` 分开，
+企业内容的发布语义与文章不同）。规则：
+
+- 管理端可读写任意状态；公开端 where 恒带 `status = PUBLISHED`
+- **详情按 slug 查询非 PUBLISHED 记录一律返回 404**（不泄露「存在但未发布」）
+- slug 唯一（`@unique`），重复创建/改名 → **409**
+- List 排序：`sortOrder asc, publishedAt desc, createdAt desc`
+- 发布语义由服务端 `resolvePublishedAt` 统一决定：显式传值优先；`PUBLISHED` 且无值 → 取
+  `existing ?? now`；`DRAFT` → **保留原值**（撤回不清空历史发布时间）
+
+### Factory `/cms/factory`（工厂实力）
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/cms/factory` | 列表（page/limit/keyword/sectionType/status） |
+| POST | `/cms/factory` | 创建（含图片、展会） |
+| GET | `/cms/factory/:id` | 详情 |
+| GET | `/cms/factory/:id/exhibitions` | 该分区展会列表 |
+| PATCH | `/cms/factory/:id` | 更新 |
+| DELETE | `/cms/factory/:id` | 删除（**只删分区与其关联行，绝不删 MediaAsset**） |
+
+- `sectionType ∈ OVERVIEW / FACILITY / EQUIPMENT / PRODUCTION / LOADING / EXHIBITION`
+- 媒体：`coverMediaId`（封面）+ `images[]`（图库，可 ALT / 排序 / 解除关联）
+- **`FactoryImage.exhibitionId` 为可空**：`null` = 通用图库；非空 = 归属某场展会照片
+- 展会为**结构化模型**（`FactoryExhibition` + `heldOn/location/description/isVisible/sortOrder`），
+  **不是一个大 JSON 字段**；不另建独立 Events/Exhibition CMS
+- 展示口径：图库计数只统计 `exhibitionId === null`；公开端展会仅返回 `isVisible = true`
+
+### Quality `/cms/quality`（质量体系）
+
+| 方法 | 路径 |
+| --- | --- |
+| GET / POST | `/cms/quality` |
+| GET / PATCH / DELETE | `/cms/quality/:id` |
+
+- `recordType ∈ CERTIFICATION / TEST_REPORT / QUALITY_CONTROL / STANDARD`
+- 字段 `issuer / certificateNumber / issueDate / expiryDate` **全部可空**——
+  `QUALITY_CONTROL` 类记录通常没有编号与有效期，**留空即存 null，禁止任何推断或占位**
+- 部分更新语义：仅当 `dto.expiryDate !== undefined` 才写入（`''` → `null`），
+  未提交的字段绝不被覆盖
+- 文件通过媒体库关联（`mediaId`，支持 PDF 与图片）；**未发布记录的证书不会从公开接口读出**
+- 到期提示（后台）为**克制文案**：仅有真实到期日时给出「已到期 / N 天后到期 / 安全」，
+  **缺失日期一律不提示**
+
+### Applications `/cms/applications`（产品应用场景）
+
+| 方法 | 路径 |
+| --- | --- |
+| GET / POST | `/cms/applications` |
+| GET / PATCH / DELETE | `/cms/applications/:id` |
+
+- 关联产品为**显式多对多** `ApplicationProduct(applicationId, productId, sortOrder)`，
+  `@@id([applicationId, productId])`；**不使用产品名称字符串匹配**
+- 更新时 `products[]` 为**整体替换**（差集删除 + `upsert` 保留 sortOrder），并做 `dedupeProducts`
+- **删除场景只级联删除关联行，绝不删除 Product**（Product 侧 `onDelete: Restrict`）
+- `featured` 布尔推荐位；列表可 `featured=true|false` 过滤
+
+### 公开只读接口 `/public/*`
+
+| 路径 | 说明 |
+| --- | --- |
+| `GET /public/factory` `?page&pageSize` | 已发布工厂分区列表（含图库/展会计数） |
+| `GET /public/factory/:slug` | 详情（图库 = `exhibitionId null`；展会仅 `isVisible`） |
+| `GET /public/quality` `?page&pageSize` | 已发布质量记录列表 |
+| `GET /public/applications` `?page&pageSize` | 已发布应用场景列表 |
+| `GET /public/applications/:slug` | 详情（关联产品仅 `status = PUBLISHED`） |
+
+- `pageSize` 上限 **48**；`page` 从 1 起
+- **响应字段显式白名单**：绝不透出 `storageKey / createdBy / provider / status / sortOrder / createdAt / updatedAt`
+  （已在 e2e 中用原始 JSON 字符串扫描断言）
+- 质量记录附带 `isExpired` 计算值：**无到期日时返回 `null`**（不臆断「已过期」）
+- 应用场景封面产品图取 `ProductImage.isPrimary`（**非** `isCover`）
+
+### 媒体引用保护（已扩展至三模块）
+
+`MediaService.countReferences` 现覆盖：Product 图片、Blog 封面、Factory（封面 + 图库）、
+Quality（文件）、Application（封面）。被任一引用时 `DELETE /cms/media/:id` → **400 `Media asset is in use.`**
+
+### 校验与安全约定
+
+- 所有写操作走全局 `ValidationPipe`（whitelist + forbidNonWhitelisted + transform），
+  DTO 校验失败 → **400**
+- slug 正则与消息共享 `src/common/validators/slug.ts`（`SLUG_PATTERN/SLUG_REGEX/SLUG_MESSAGE`）
+- Factory 正文 HTML 经自建白名单净化器 `sanitizeRichText`（同博客，无第三方依赖）
+- 媒体存在性校验：`coverMediaId/mediaId` 指向不存在的资产 → **400**（不落库悬空外键）
+- RBAC **本阶段不实现**，但在 controller 层级以注释标注未来接入点（避免散落硬编码权限判断）
+

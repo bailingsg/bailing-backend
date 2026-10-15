@@ -243,6 +243,19 @@ function makePrismaMock() {
     blogPost: {
       count: jest.fn(),
     },
+    // Phase 4.5：countReferences 扩展到 Factory / Quality / Applications
+    factorySection: {
+      count: jest.fn(),
+    },
+    factoryImage: {
+      count: jest.fn(),
+    },
+    qualityRecord: {
+      count: jest.fn(),
+    },
+    application: {
+      count: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
 }
@@ -292,6 +305,17 @@ describe('MediaService（unit）', () => {
   beforeEach(() => {
     prisma = makePrismaMock();
     prisma.$transaction.mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops));
+    // 引用计数默认全部为 0（各用例按需覆写单一来源）
+    for (const model of [
+      prisma.productImage,
+      prisma.blogPost,
+      prisma.factorySection,
+      prisma.factoryImage,
+      prisma.qualityRecord,
+      prisma.application,
+    ]) {
+      model.count.mockResolvedValue(0);
+    }
     storage = makeStorageMock();
     service = new MediaService(prisma as unknown as PrismaService, storage);
   });

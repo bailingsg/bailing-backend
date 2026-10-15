@@ -32,7 +32,7 @@ interface AuthedRequest {
 /**
  * 媒体资源 CMS API（Phase 4.3，控制器级 JwtAuthGuard，全部要求登录）。
  *
- *   POST   /api/v1/cms/media/upload   上传（multipart，字段 file）
+ *   POST   /api/v1/cms/media/upload   上传（multipart，字段 file；支持 JPEG/PNG/WebP/AVIF/PDF）
  *   GET    /api/v1/cms/media          列表（page/limit/keyword/category）
  *   GET    /api/v1/cms/media/:id      详情
  *   DELETE /api/v1/cms/media/:id      删除（引用检查：被业务引用 → 400）
@@ -59,7 +59,7 @@ export class MediaController {
     @Req() request: AuthedRequest,
   ): Promise<MediaAssetDto> {
     if (!file) {
-      throw new BadRequestException('请上传图片文件（字段名 file）');
+      throw new BadRequestException('请上传文件（字段名 file）');
     }
     return this.mediaService.upload(file, request.user.id);
   }

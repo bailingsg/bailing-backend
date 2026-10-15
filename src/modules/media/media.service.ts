@@ -4,6 +4,7 @@ import path from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
 import { ListMediaQueryDto } from './dto/list-media-query.dto';
 import {
+  isDocumentMime,
   parseImageDimensions,
   validateUpload,
   verifyImageSignature,
@@ -46,7 +47,9 @@ export class MediaService {
     validateUpload(file);
 
     if (!verifyImageSignature(file.buffer, file.mimetype)) {
-      throw new BadRequestException('文件内容不是受支持的图片格式（jpeg / png / webp / avif）');
+      throw new BadRequestException(
+        '文件内容与声明格式不符（支持 jpeg / png / webp / avif / pdf，须通过魔数校验）',
+      );
     }
 
     const dimensions = parseImageDimensions(file.buffer, file.mimetype);
@@ -67,7 +70,8 @@ export class MediaService {
         size: file.size,
         width: dimensions?.width ?? null,
         height: dimensions?.height ?? null,
-        category: MediaCategory.IMAGE,
+        // 文档（PDF）与图片分属不同 MediaCategory，供业务侧筛选与前台展示区分
+        category: isDocumentMime(file.mimetype) ? MediaCategory.DOCUMENT : MediaCategory.IMAGE,
         provider: this.storage.provider,
         createdBy: userId,
       },
@@ -141,14 +145,21 @@ export class MediaService {
   /**
    * 引用计数：业务表中引用该资产的记录数。
    *
-   * 覆盖范围（Phase 4.3 起 ProductImage，Phase 4.4 起 BlogPost 封面）：
-   *   · ProductImage.url —— 产品图片
-   *   · BlogPost.coverMediaId —— 博客封面（外键引用，最可靠）
-   *   · BlogPost.coverImageUrl —— 博客封面地址快照（兼容外链与历史数据）
+   * 覆盖范围：
+   *   · ProductImage.url —— 产品图片（Phase 4.3 起）
+   *   · BlogPost.coverMediaId / coverImageUrl —— 博客封面（Phase 4.4 起）
+   *   · FactorySection.coverMediaId / coverImageUrl —— 工厂分区封面（Phase 4.5）
+   *   · FactoryImage.mediaId —— 工厂图库 / 展会照片（Phase 4.5）
+   *   · QualityRecord.mediaId —— 质量证书 / 报告（Phase 4.5）
+   *   · Application.coverMediaId / coverImageUrl —— 应用场景封面（Phase 4.5）
    *
-   * 匹配策略（url 精确匹配 + 文件名后缀匹配双保险）：
+   * 匹配策略（外键 id 优先，url 精确 + 文件名后缀双保险）：
+   *   · 外键字段（*MediaId）直接按 id 计数——最可靠，不受地址变化影响
    *   · url 精确相等——同一 Provider 生成的地址一致
    *   · url 以 /<filename> 结尾——兼容基地址变化（如日后迁移 CDN 域名）
+   *
+   * 说明：任一命中即视为「被引用」，因此各来源数量**可重复计**（同一资产的
+   * url 与 filename 可能同时命中同一行），此处只关心「是否 > 0」，故直接求和。
    */
   private async countReferences(asset: {
     id: string;
@@ -162,13 +173,25 @@ export class MediaService {
       OR: [{ coverImageUrl: asset.url }, { coverImageUrl: { endsWith: `/${asset.filename}` } }],
     };
 
-    const [productImages, blogCovers, blogCoverUrls] = await this.prisma.$transaction([
+    const counts = await this.prisma.$transaction([
+      // Phase 4.3 产品图片
       this.prisma.productImage.count({ where: urlFilter }),
+      // Phase 4.4 博客封面
       this.prisma.blogPost.count({ where: { coverMediaId: asset.id } }),
       this.prisma.blogPost.count({ where: coverUrlFilter }),
+      // Phase 4.5 工厂分区封面（外键 + 地址快照）
+      this.prisma.factorySection.count({ where: { coverMediaId: asset.id } }),
+      this.prisma.factorySection.count({ where: coverUrlFilter }),
+      // Phase 4.5 工厂图库 / 展会照片（外键）
+      this.prisma.factoryImage.count({ where: { mediaId: asset.id } }),
+      // Phase 4.5 质量证书 / 报告（外键）
+      this.prisma.qualityRecord.count({ where: { mediaId: asset.id } }),
+      // Phase 4.5 应用场景封面（外键 + 地址快照）
+      this.prisma.application.count({ where: { coverMediaId: asset.id } }),
+      this.prisma.application.count({ where: coverUrlFilter }),
     ]);
 
-    return productImages + blogCovers + blogCoverUrls;
+    return counts.reduce((sum, value) => sum + value, 0);
   }
 }
 

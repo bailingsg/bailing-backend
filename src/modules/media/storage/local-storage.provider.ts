@@ -4,14 +4,15 @@ import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { StoredObject, StorageProvider, UploadObject } from './storage.interface';
+import { ALLOWED_MEDIA_MIME } from '../media-file.util';
 
-/** MIME → 扩展名白名单（上传接口仅开放这四种图片） */
-const MIME_TO_EXT: Record<string, string> = {
-  'image/jpeg': '.jpg',
-  'image/png': '.png',
-  'image/webp': '.webp',
-  'image/avif': '.avif',
-};
+/**
+ * MIME → 扩展名白名单。
+ *
+ * 直接复用 media-file.util 的单一来源（图片 + 文档），
+ * 避免「上传校验放行、落盘阶段拒绝」的两处白名单漂移。
+ */
+const MIME_TO_EXT: Record<string, string> = ALLOWED_MEDIA_MIME;
 
 /**
  * storageKey 白名单：media/<4位年>/<2位月>/<uuid>.<ext>
@@ -53,7 +54,7 @@ export class LocalStorageProvider implements StorageProvider {
   async upload(object: UploadObject): Promise<StoredObject> {
     const ext = MIME_TO_EXT[object.mimeType];
     if (!ext) {
-      throw new BadRequestException(`不支持的图片格式: ${object.mimeType || 'unknown'}`);
+      throw new BadRequestException(`不支持的文件格式: ${object.mimeType || 'unknown'}`);
     }
 
     const now = new Date();

@@ -118,7 +118,7 @@ curl http://127.0.0.1:4000/api/v1/health/ready
 > **产品数据为 Demo/Placeholder**：`prisma/seed.ts` 写入的记录名称以 `Demo ·` 开头、描述标注 `[DEMO DATA]`，**不含**任何编造的规格、认证、价格或图片。CMS 阶段可直接删除。
 > 本产品线为 B2B 制造与出口，**不含** price / stock / sku / cart / payment / rating / review 等电商字段。
 
-## 当前状态（Phase 4.4）
+## 当前状态（Phase 4.5）
 
 - Phase 3.1：工程底座已验收（tsc / ESLint / Jest / 构建 / 健康检查）。
 - Phase 3.5：`Product` 模型扩展 + `ProductImage`，迁移 `20261013161709_add_product_details` 已应用；产品与分类只读 API 已上线。
@@ -146,6 +146,14 @@ curl http://127.0.0.1:4000/api/v1/health/ready
   - **媒体引用保护扩展**：被 `ProductImage` **或** `BlogPost` 封面引用的媒体，`DELETE /cms/media/:id` 返回 400 `Media asset is in use.`；
   - **SEO**：`seoTitle` / `seoDescription` / `seoKeywords` / `canonicalUrl` + OG / Twitter Card 预留字段（本阶段仅存储与透出）；
   - `lint` / `typecheck` / `test`（**176 项**）/ `build` / `migrate status` / drift 校验全部通过；浏览器全流程验证 **38/38 PASS**（`docs/phase-4.4-browser-flow.mjs`）。
+- Phase 4.5：Factory / Quality / Applications 企业内容 CMS 已上线——
+  - **数据模型**（纯新增，迁移 `20261015112244_add_enterprise_cms`，零漂移）：枚举 `ContentStatus` / `FactorySectionType` / `QualityRecordType`；表 `factory_sections` / `factory_images` / `factory_exhibitions` / `quality_records` / `applications` / `application_products`；
+  - **Factory（工厂实力）**（`/api/v1/cms/factory`，`JwtAuthGuard`）：分区 CRUD + 图库（ALT / 排序 / 解除关联）+ **结构化展会模型**（非单一 JSON）+ 封面；六种 `sectionType`；
+  - **Quality（质量体系）**（`/api/v1/cms/quality`，`JwtAuthGuard`）：记录 CRUD；`issuer / certificateNumber / issueDate / expiryDate` **全部可空**（不编造任何认证信息，缺失不推断过期）；支持 PDF 证书；
+  - **Applications（产品应用场景）**（`/api/v1/cms/applications`，`JwtAuthGuard`）：场景 CRUD + **显式多对多 `ApplicationProduct` 关联产品**（基于 `productId`，非名称匹配）；删除场景**不删除产品**（产品侧 `Restrict`）；
+  - **公开只读接口**（`/api/v1/public/{factory,quality,applications}`，**免鉴权**）：仅返回 `PUBLISHED` 内容；非发布 slug 返回 404（不泄露存在性）；DTO 白名单映射，**不透出** `storageKey / createdBy / provider / status / sortOrder`；
+  - **媒体库扩展**：新增 `DOCUMENT` 类别与 PDF 支持；`countReferences` 扩展至三模块，被引用媒体删除返回 400 `Media asset is in use.`；
+  - `lint` / `typecheck` / `test`（**238 项**）/ `build` / `migrate status` / drift 校验全部通过；浏览器全流程验证 **34/34 PASS**（`docs/phase-4.5-admin-e2e.mjs`）。
 
 ## 环境变量
 

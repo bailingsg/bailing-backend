@@ -107,6 +107,10 @@ model Product {
   category  Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   images    ProductImage[]
   rfqs      Rfq[]
+  // Phase 4.5：被哪些应用场景引用。
+  // 注意命名——Product.applications（Json 字符串标签，Phase 4.2 遗留）已占用该字段名，
+  // 关系侧故命名为 applicationLinks，避免与之混淆。
+  applicationLinks ApplicationProduct[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -298,6 +302,12 @@ model MediaAsset {
 
   blogCovers BlogPost[] // 被博客文章引作封面的反向关系（引用检查用）
 
+  // Phase 4.5 企业内容 CMS 的反向关系（删除保护：被引用时不允许删除媒体）
+  factoryCovers     FactorySection[] @relation("FactorySectionCover")
+  factoryImages     FactoryImage[]   @relation("FactoryImageMedia")
+  qualityRecords    QualityRecord[]  @relation("QualityRecordMedia")
+  applicationCovers Application[]    @relation("ApplicationCover")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -308,8 +318,226 @@ model MediaAsset {
   @@map("media_assets")
 }
 
-// 媒体分类（当前上传仅开放 IMAGE；DOCUMENT 预留给未来的 PDF/规格书等）
+// 媒体分类（IMAGE 为图片，DOCUMENT 为 PDF 等文档）
+// Phase 4.5 起 DOCUMENT 正式启用：Quality CMS 的认证证书 / 检测报告以 PDF 承载。
 enum MediaCategory {
   IMAGE
   DOCUMENT
+}
+
+// ---------- Phase 4.5：企业内容 CMS（Factory / Quality / Applications） ----------
+
+// 内容发布状态（Factory / Quality / Applications 共用）
+//
+// 与 PostStatus 分开定义而非复用：三个模块未来可能各自演化
+// （如增加 ARCHIVED / SCHEDULED），共用枚举会让任一模块的扩展波及全部。
+enum ContentStatus {
+  DRAFT // 草稿（不进公开 API）
+  PUBLISHED // 已发布（可被公开 API 读取）
+}
+
+// 工厂内容分区类型（Factory CMS）
+enum FactorySectionType {
+  OVERVIEW // 工厂介绍
+  FACILITY // 厂房及生产设施
+  EQUIPMENT // 生产设备
+  PRODUCTION // 生产流程
+  LOADING // 装柜及装车
+  EXHIBITION // 参展记录
+}
+
+// 质量记录类型（Quality CMS）
+enum QualityRecordType {
+  CERTIFICATION // 体系认证
+  TEST_REPORT // 检测报告
+  QUALITY_CONTROL // 质量控制说明
+  STANDARD // 执行标准
+}
+
+// 工厂实力内容分区（Factory CMS 主体模型）
+//
+// 设计约束：
+//   · 一个分区由 sectionType 归类（工厂介绍 / 厂房 / 设备 / 生产流程 / 装柜 / 参展）
+//   · coverMediaId 关联 Media Library，不自行存文件；coverImageUrl 为 URL 快照兼容外链
+//   · 图集经 FactoryImage 关联（一对多，可排序、可设 ALT），删除分区时级联解绑
+//   · SEO 三件套（slug/seoTitle/seoDescription）供公开详情页 /sitemap 消费
+model FactorySection {
+  id      String             @id @default(cuid())
+  title   String
+  slug    String             @unique // SEO URL，公开详情页 /factory/[slug]
+  sectionType FactorySectionType
+  summary String?
+  content String?            @db.Text // 富文本（HTML），写入前经白名单净化
+  coverMediaId  String? // 封面媒体（Media Library）
+  coverImageUrl String? // 封面地址快照（由 coverMedia 回填，兼容历史外链）
+
+  status      ContentStatus @default(DRAFT)
+  sortOrder   Int           @default(0)
+  publishedAt DateTime?
+
+  seoTitle       String?
+  seoDescription String?
+
+  coverMedia MediaAsset?    @relation("FactorySectionCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
+  images     FactoryImage[]
+  exhibitions FactoryExhibition[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([sectionType])
+  @@index([sortOrder])
+  @@index([publishedAt])
+  @@index([coverMediaId])
+  @@map("factory_sections")
+}
+
+// 工厂图片（FactorySection 图库，一对多）
+//
+// 与 ProductImage 同构：仅登记 mediaId 与展示元数据，不复制文件。
+// 删除分区 → 级联删除关联行（媒体资产本身保留，由引用检查兜底）。
+model FactoryImage {
+  id        String  @id @default(cuid())
+  sectionId String
+  mediaId   String // 关联 Media Library 资产
+  // 可选归属展会：为空表示该图属于分区图库；有值表示是该展会的照片
+  exhibitionId String?
+  altText   String?
+  sortOrder Int     @default(0)
+
+  section    FactorySection    @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  exhibition FactoryExhibition? @relation("ExhibitionPhotos", fields: [exhibitionId], references: [id], onDelete: Cascade)
+  media      MediaAsset        @relation("FactoryImageMedia", fields: [mediaId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([sectionId])
+  @@index([exhibitionId])
+  @@index([mediaId])
+  @@map("factory_images")
+}
+
+// 参展记录（Factory CMS 子模型）
+//
+// 独立模型而非塞进 JSON：展会有明确字段（名称/日期/地点）且需要照片关联，
+// 结构化存储才能做前台排序、按时间展示与后续统计。
+// Phase 4.5 不开发独立 Events CMS——本模型仅服务于工厂实力的参展展示。
+model FactoryExhibition {
+  id          String    @id @default(cuid())
+  sectionId   String    // 归属的工厂分区（通常 sectionType = EXHIBITION）
+  name        String // 展会名称
+  heldOn      DateTime? // 展会日期
+  location    String? // 展会地点
+  description String?   @db.Text
+  sortOrder   Int       @default(0)
+  isVisible   Boolean   @default(true) // 是否在前台展示
+
+  section FactorySection  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  photos  FactoryImage[]  @relation("ExhibitionPhotos")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sectionId])
+  @@index([heldOn])
+  @@map("factory_exhibitions")
+}
+
+// 质量记录（Quality CMS）
+//
+// 设计约束：
+//   · recordType 区分体系认证 / 检测报告 / 质量控制说明 / 执行标准
+//   · 证书编号、颁发日期、有效期**允许为空**——质量控制说明与执行标准
+//     通常没有证书编号，不能强制要求（不虚构业务资料）
+//   · mediaId 关联证书图片或 PDF（Media Library 的 DOCUMENT 类型）
+//   · 公开 API 只输出 PUBLISHED 记录，草稿与停用内容不外露
+model QualityRecord {
+  id              String            @id @default(cuid())
+  title           String
+  slug            String            @unique
+  recordType      QualityRecordType
+  issuer          String? // 认证 / 检测机构
+  certificateNumber String? // 证书编号（可空）
+  issueDate       DateTime? // 颁发日期（可空）
+  expiryDate      DateTime? // 到期日期（可空；空 ≠ 已过期）
+  description     String?           @db.Text
+
+  mediaId String? // 证书图片 / PDF（Media Library）
+  status  ContentStatus @default(DRAFT)
+  sortOrder Int         @default(0)
+  publishedAt DateTime?
+
+  seoTitle       String?
+  seoDescription String?
+
+  media MediaAsset? @relation("QualityRecordMedia", fields: [mediaId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([recordType])
+  @@index([sortOrder])
+  @@index([publishedAt])
+  @@index([mediaId])
+  @@map("quality_records")
+}
+
+// 产品应用场景（Applications CMS）
+//
+// 设计约束：
+//   · 与产品为**显式多对多**（ApplicationProduct），而非存产品名字符串——
+//     字符串无法保证引用完整性，产品改名即失联
+//   · coverMediaId 关联封面图，不自行存文件
+//   · featured 用于前台推荐位 / 首页展示
+model Application {
+  id            String        @id @default(cuid())
+  name          String
+  slug          String        @unique // 公开详情页 /applications/[slug]
+  summary       String?
+  description   String?       @db.Text
+  coverMediaId  String?
+  coverImageUrl String?
+
+  status    ContentStatus @default(DRAFT)
+  featured  Boolean       @default(false)
+  sortOrder Int           @default(0)
+  publishedAt DateTime?
+
+  seoTitle       String?
+  seoDescription String?
+
+  coverMedia MediaAsset? @relation("ApplicationCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
+  products   ApplicationProduct[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([featured])
+  @@index([sortOrder])
+  @@index([publishedAt])
+  @@index([coverMediaId])
+  @@map("applications")
+}
+
+// 应用场景 ↔ 产品（显式多对多连接模型）
+//
+// 删除应用场景 → 级联删除关联行（**不删产品**）；
+// 产品侧用 Restrict：产品若仍被应用场景引用，禁止直接删除产品，
+// 由 Product 模块感知并给出明确提示（保证关系完整性）。
+model ApplicationProduct {
+  applicationId String
+  productId     String
+  sortOrder     Int    @default(0)
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@id([applicationId, productId])
+  @@index([productId])
+  @@map("application_products")
 }

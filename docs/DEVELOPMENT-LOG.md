@@ -303,3 +303,73 @@ Phase 1 初始迁移**已预留** `BlogPost` 模型与 `PostStatus` 枚举（注
 
 Factory / Quality / Applications CMS、页面 Builder、用户管理、角色权限（RBAC）、邮件营销、CRM —— 均未实现、未触碰。
 公开站（`bailing-ui`）消费端、Sitemap / RSS 生成、RBAC 权限码接入属后续阶段（预留设计见 PHASE-4.4-FINAL-REPORT §H）。
+
+---
+
+## 12. Phase 4.5 记录（2026-10-15，Factory / Quality / Applications 企业内容 CMS）
+
+> 说明：Phase 4.4 记录的「未做」清单中的 Factory / Quality / Applications CMS 已在本阶段全部实现。
+
+### 数据库（纯新增，零改动历史迁移）
+
+- 新增 3 枚举：`ContentStatus { DRAFT, PUBLISHED }`、`FactorySectionType`、`QualityRecordType`。
+- 新增 6 表：`factory_sections`、`factory_images`、`factory_exhibitions`、
+  `quality_records`、`applications`、`application_products`。
+- 迁移 `20261015112244_add_enterprise_cms`（212 行，3 枚举 + 6 表 + 索引 + 9 外键）。
+- 外键删除策略：Factory 图库/展会随分区 `Cascade`；`ApplicationProduct` 对 Application `Cascade`、
+  对 Product **`Restrict`**（保护产品不被误删）；MediaAsset 全部 `SetNull`。
+- 索引：`slug @unique`；`(status, sortOrder)`、`publishedAt` 均有索引。
+- 未新建媒体/产品基表——`MediaAsset` 增 4 条反向关系、`Product` 复用既有 `applications` JSON 字段
+  （关系改名 `applicationLinks`）。
+
+### 后端（`src/modules/cms/{factory,quality,applications}` + `src/modules/public`）
+
+- 三模块 controller 级 `@UseGuards(JwtAuthGuard)`；`cms.module.ts` 注册，`app.module.ts` 注册 `PublicModule`。
+- 媒体层扩展：`media-file.util.ts` 拆出 `ALLOWED_IMAGE_MIME` / `ALLOWED_DOCUMENT_MIME`，
+  `verifyImageSignature` 支持 `%PDF-`；上传按 MIME 归入 `IMAGE` / `DOCUMENT`。
+- `MediaService.countReferences` **扩展至三模块**，媒体删除保护真正生效。
+- 复杂点：Prisma 嵌套写限制——`FactoryImage.sectionId` 非空，嵌套在 `FactoryExhibition.photos`
+  下仍要求 `section` 关系。**解法**：create 拆为 `$transaction`（建分区 → `createMany` 图库 →
+  复用 `syncExhibitions`），消除深层嵌套歧义。
+- 公开端 5 个读接口，无鉴权；响应 DTO 白名单映射，杜绝内部字段泄漏。
+
+### Admin（中文界面，复用既有布局/设计系统）
+
+- 三个模块 × （列表 + 表单 + 新建 + 编辑 + 删除按钮 + 选择器）共 21 个文件。
+- Factory：封面 / 图库（ALT / 排序 / 移除）/ 展会（名称/日期/地点/可见性/照片）/ 发布 / SEO。
+- Quality：机构、编号、颁发/到期日期均可空（空即 null）；PDF 与图片均可关联。
+- Applications：封面 + **关联产品（显式多对多，productId JSON 提交）** + 推荐开关 + SEO。
+- 所有删除均为**页内两步确认**（「删除」→「确认」），不使用原生 `confirm()`。
+- 侧边栏 `/factory`、`/quality`、`/applications` 由 Coming Soon 改为可用（中文 hint）。
+
+### 质量门（全部通过，均为真实运行结果）
+
+- 后端：lint 0/0、`tsc --noEmit` exit 0、`nest build` exit 0、jest **238/238（13/13 套件）**。
+- Prisma：`migrate status` 7 个迁移「up to date」；`migrate diff` 输出 `-- This is an empty migration.`（零漂移）。
+- Admin：lint 0/0、`tsc --noEmit` exit 0、`next build` exit 0（新增 9 条路由）。
+- 浏览器全流程 `docs/phase-4.5-admin-e2e.mjs` **34/34 PASS**：登录 → 三模块中文界面 →
+  Factory 建/选图/发布/撤回 → Quality 建/关联文件 → Applications 建/关联产品 →
+  表单校验 → 重复 slug 友好错误 → 两步删除 → 移动端布局 → 控制台 0 严重错误。
+- 公开接口规则实测：列表仅含已发布（total=1）、已发布 slug 200 / 草稿 slug 404、
+  内部字段扫描**零泄漏**。
+
+### 排障记录（值得复用）
+
+- **跑 E2E 前必须先重建并重启 Admin**：首轮 `/factory` 等路由全 404，原因是 3001 上跑的是
+  **改动前的旧生产构建**。kill 旧进程 → `NODE_OPTIONS= npm run build` → `npm run start` 后恢复正常。
+  教训：Next 生产模式路由表在构建时固化，改了 `app/` 目录必须重建。
+- **登录表单不能用裸 `page.click('button[type=submit]')`**：若 React 尚未 hydrate，会退化为
+  原生 GET 提交并把凭据写进 URL。改为 `getByRole('button', { name: /Login/ })`，
+  并保留登录 API 兜底路径。
+- **弹窗未关闭会拦截后续点击**：媒体库为空时选择器弹窗不自动关闭，导致提交按钮被
+  「intercepts pointer events」。脚本改为无论是否选中都先 `Escape` 关闭。
+- **HTTP 404 不等于 DTO 校验失败**：`PATCH /cms/factory/nonexistent` 若传了不合法的
+  `title`（长度不足），会先触发全局 ValidationPipe 返回 **400**。测试应传合法长度的可选字段
+  （如 `summary`）才能命中 404 路径。
+
+### 未做（按阶段禁令）
+
+员工账号管理、自定义角色/权限、导航权限管理、员工联系配置、CRM、邮件营销、
+页面 Builder、媒体库重写、COS/CDN 接入、整站前端重构——均未实现、未触碰。
+公开站（`bailing-ui`）消费端接入、Sitemap 生成、RBAC 权限码接入属后续阶段。
+

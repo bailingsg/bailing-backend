@@ -15,23 +15,46 @@ export const MAX_MEDIA_FILE_SIZE = (() => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 10 * 1024 * 1024;
 })();
 
-/** MIME → 扩展名白名单（上传仅开放四种图片格式） */
-export const ALLOWED_MEDIA_MIME: Record<string, string> = {
+/** 图片 MIME → 扩展名白名单（Phase 4.3；不对外开放 PDF） */
+export const ALLOWED_IMAGE_MIME: Record<string, string> = {
   'image/jpeg': '.jpg',
   'image/png': '.png',
   'image/webp': '.webp',
   'image/avif': '.avif',
 };
 
+/**
+ * 文档 MIME → 扩展名白名单（Phase 4.5 起开放）。
+ *
+ * 用途：Quality CMS 的认证证书 / 检测报告需要 PDF 载体。
+ * 安全约束不变——仍走 MIME 白名单 + 大小限制 + **魔数校验**（`%PDF-`）。
+ */
+export const ALLOWED_DOCUMENT_MIME: Record<string, string> = {
+  'application/pdf': '.pdf',
+};
+
+/** 上传总白名单（图片 + 文档） */
+export const ALLOWED_MEDIA_MIME: Record<string, string> = {
+  ...ALLOWED_IMAGE_MIME,
+  ...ALLOWED_DOCUMENT_MIME,
+};
+
 export function isAllowedMediaMime(mimeType: string): boolean {
   return Object.hasOwn(ALLOWED_MEDIA_MIME, mimeType);
+}
+
+/** 该 MIME 是否为文档类（决定落库的 MediaCategory） */
+export function isDocumentMime(mimeType: string): boolean {
+  return Object.hasOwn(ALLOWED_DOCUMENT_MIME, mimeType);
 }
 
 /** 上传前置校验：MIME + 大小（魔数校验在 buffer 就绪后执行） */
 export function validateUpload(file: { mimetype?: string; size?: number }): void {
   const mime = file.mimetype ?? '';
   if (!isAllowedMediaMime(mime)) {
-    throw new BadRequestException(`不支持的图片格式: ${mime || 'unknown'}（仅支持 JPEG / PNG / WebP / AVIF）`);
+    throw new BadRequestException(
+      `不支持的文件格式: ${mime || 'unknown'}（仅支持 JPEG / PNG / WebP / AVIF / PDF）`,
+    );
   }
   if (typeof file.size === 'number' && file.size > MAX_MEDIA_FILE_SIZE) {
     throw new BadRequestException(`文件超过大小限制（最大 ${Math.floor(MAX_MEDIA_FILE_SIZE / (1024 * 1024))}MB）`);
@@ -41,8 +64,13 @@ export function validateUpload(file: { mimetype?: string; size?: number }): void
   }
 }
 
-/** 魔数（magic bytes）校验：确认 buffer 真的是声明格式的图片 */
+/** 魔数（magic bytes）校验：确认 buffer 真的是声明格式的文件 */
 export function verifyImageSignature(buffer: Buffer, mimeType: string): boolean {
+  // PDF 头较短（"%PDF-" 仅 5 字节），单独处理，不受图片 12 字节下限约束
+  if (mimeType === 'application/pdf') {
+    return buffer.length >= 5 && buffer.subarray(0, 5).toString('latin1') === '%PDF-';
+  }
+
   if (buffer.length < 12) return false;
 
   const ascii = (from: number, to: number): string => buffer.subarray(from, to).toString('latin1');

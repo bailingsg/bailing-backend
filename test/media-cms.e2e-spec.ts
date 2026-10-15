@@ -190,7 +190,8 @@ describe('Media CMS（e2e）', () => {
       .expect(400);
 
     expect(res.body.success).toBe(false);
-    expect(String(res.body.error.message)).toContain('不是受支持的图片格式');
+    // Phase 4.5：错误文案已扩展为「支持 jpeg / png / webp / avif / pdf」
+    expect(String(res.body.error.message)).toContain('文件内容与声明格式不符');
     expect(existsSync(mediaPhysicalPath(assetKey))).toBe(true); // 已有资产不受影响
   });
 

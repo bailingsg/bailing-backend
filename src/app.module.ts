@@ -9,6 +9,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { RfqModule } from './modules/rfq/rfq.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { CmsModule } from './modules/cms/cms.module';
+import { PublicModule } from './modules/public/public.module';
 
 @Module({
   imports: [
@@ -27,6 +28,8 @@ import { CmsModule } from './modules/cms/cms.module';
     AuthModule,
     // Phase 4.1：CMS 接口（整体 JWT 保护）
     CmsModule,
+    // Phase 4.5：公开只读 API（工厂 / 质量 / 应用场景，仅返回已发布内容）
+    PublicModule,
   ],
 })
 export class AppModule {}
