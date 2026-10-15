@@ -204,3 +204,75 @@ RFQ 后台接口将在后续阶段逐步迁移到 `JwtAuthGuard`；迁移完成�
 - 防路径穿越：`storageKey` 先过白名单正则，再过 resolved-path 目录包含校验（双保险）。
 - 响应 DTO **不含服务器真实路径**（`storageKey` 是对象键，不是文件系统路径）。
 - 静态访问：`/uploads/media/**`（本地 Provider 生成的 URL 为 `${UPLOADS_BASE_URL}/uploads/<storageKey>`；未来切 CDN 只换 Provider 的 `getUrl`）。
+
+---
+
+## 12. Blog CMS 博客内容管理（Phase 4.4 已落地）
+
+全部位于 `/api/v1/cms/blog`，**控制器级 `JwtAuthGuard`**（`Authorization: Bearer <JWT>`）。
+
+### 文章 `/cms/blog/posts`
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/cms/blog/posts` | 列表：`page`（默认 1）、`limit`（默认 20，最大 100）、`keyword`（匹配 title/slug/excerpt）、`status`（`DRAFT` / `PUBLISHED`）、`categoryId`、`tagId`、`featured` |
+| GET | `/cms/blog/posts/:id` | 详情（含 `content` / SEO / OG / Twitter / `tags` / `coverMedia`）；不存在 → **404** |
+| POST | `/cms/blog/posts` | 创建；成功 **201**。正文经白名单净化；状态置 `PUBLISHED` 且未传 `publishedAt` 时后端自动回填当前时间 |
+| PATCH | `/cms/blog/posts/:id` | 更新（仅传提供的字段；可选字段显式传 `null` 表示清空） |
+| DELETE | `/cms/blog/posts/:id` | 删除；级联移除 `blog_post_tags` 关联；成功返回 `{ id }` |
+
+### 分类 `/cms/blog/categories`
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/cms/blog/categories` | 列表，含 `postCount`，按 `sortOrder` 升序 |
+| POST | `/cms/blog/categories` | 创建；`slug` 唯一，冲突 → **409** |
+| PATCH | `/cms/blog/categories/:id` | 更新 |
+| DELETE | `/cms/blog/categories/:id` | 删除；**分类下仍有文章时返回 400**（先迁移或清空文章） |
+
+### 标签 `/cms/blog/tags`
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/cms/blog/tags` | 列表，含引用计数，按名称升序 |
+| POST | `/cms/blog/tags` | 创建；`slug` 唯一 |
+| PATCH | `/cms/blog/tags/:id` | 更新 |
+| DELETE | `/cms/blog/tags/:id` | 删除；级联解绑全部文章关联 |
+
+### Slug 约定（产品与博客共用）
+
+`src/common/validators/slug.ts` 为单一来源：
+
+- 正则：`^[a-z0-9]+(?:-[a-z0-9]+)*$`
+- 仅小写字母、数字与连字符；用于 `/blog/[slug]`、`/blog/category/[slug]` 等 SEO 友好 URL
+- `slug` 在各自表内唯一，冲突返回 **409**
+
+### 富文本安全约定
+
+正文写入前必须经 `rich-text.sanitizer.ts` 白名单净化（**不依赖第三方库**）：
+
+- **标签白名单**：`h1`–`h6` / `p` / `br` / `hr` / `strong` / `em` / `u` / `s` / `blockquote` / `ul` / `ol` / `li` / `a` / `img` / `code` / `pre` / `span` / `div` / 表格系列
+- **逐标签属性白名单**：`a` 仅 `href/title/target/rel`；`img` 仅 `src/alt/title/width/height`；其余标签仅保留 `class`
+- **URL 协议白名单**：仅 `http` / `https` / `mailto` / `tel` / 相对路径；`javascript:` / `vbscript:` / 非图片 `data:` 一律丢弃
+- **危险标签连同内容删除**：`script` / `style` / `iframe` / `object` / `embed` / `form` / `input` 等
+- **实体解码 + 控制字符过滤**：防 `java&#115;cript:` 类绕过
+- 文档外壳（`html`/`head`/`body`）**丢标签、保留正文**（兼容 Word / 网页粘贴）；void 元素自闭合处理，不吞后续内容
+
+### 图片与媒体关联约定
+
+- **博客模块不自行存储图片**：正文插图与封面一律通过 Phase 4.3 媒体库（`/cms/media`）选取，前端只读浏览、不在此上传
+- 封面双字段：`coverMediaId`（关联 `MediaAsset`，推荐）+ `coverImageUrl`（URL 快照，兼容历史外链 / CDN 直链）
+- **媒体删除保护已扩展**：被 `ProductImage` **或** `BlogPost.coverImageUrl` 引用的媒体，`DELETE /cms/media/:id` 返回 **400 `Media asset is in use.`**
+
+### SEO / Open Graph / Twitter Card 字段
+
+| 字段 | 用途 | 回落规则（公开站消费时） |
+| --- | --- | --- |
+| `seoTitle` | `<title>` | 空则回落 `title` |
+| `seoDescription` | `<meta name="description">` | 空则回落 `excerpt` |
+| `seoKeywords` | `<meta name="keywords">` | 逗号分隔，无回落 |
+| `canonicalUrl` | `<link rel="canonical">` | 跨站转载指向原文 |
+| `ogTitle` / `ogDescription` / `ogImage` | Open Graph | 空则分别回落 `seoTitle` / `seoDescription` / `coverImageUrl` |
+| `twitterTitle` / `twitterDescription` | Twitter Card | 空则回落 `ogTitle` / `ogDescription` |
+
+> OG / Twitter 字段为 Phase 4.4 **预留**：本阶段只做存储与 API 透出，不接入第三方校验，公开站接入时直接消费。

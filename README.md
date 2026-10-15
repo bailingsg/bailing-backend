@@ -118,7 +118,7 @@ curl http://127.0.0.1:4000/api/v1/health/ready
 > **产品数据为 Demo/Placeholder**：`prisma/seed.ts` 写入的记录名称以 `Demo ·` 开头、描述标注 `[DEMO DATA]`，**不含**任何编造的规格、认证、价格或图片。CMS 阶段可直接删除。
 > 本产品线为 B2B 制造与出口，**不含** price / stock / sku / cart / payment / rating / review 等电商字段。
 
-## 当前状态（Phase 4.3）
+## 当前状态（Phase 4.4）
 
 - Phase 3.1：工程底座已验收（tsc / ESLint / Jest / 构建 / 健康检查）。
 - Phase 3.5：`Product` 模型扩展 + `ProductImage`，迁移 `20261013161709_add_product_details` 已应用；产品与分类只读 API 已上线。
@@ -139,6 +139,13 @@ curl http://127.0.0.1:4000/api/v1/health/ready
   - `POST /api/v1/cms/media/upload`（multipart，内存接收；MIME + **魔数** + 10MB 校验；UUID 存储键 `media/<年>/<月>/<uuid>.<ext>`）、`GET /api/v1/cms/media`（分页 + keyword/category）、`GET /:id`、`DELETE /:id`（**引用检查**：被 `ProductImage` 引用 → 400 `Media asset is in use.`），全部 `JwtAuthGuard`；
   - 迁移 `20261014151500_add_media_assets`（演扩 Phase 1 预留模型，零漂移）；静态前缀 `/uploads/media`；
   - `lint` / `typecheck` / `test`（**113 项**）/ `build` / drift 校验全部通过；浏览器全流程验证通过（`docs/phase-4.3-browser-flow.sh`）。
+- Phase 4.4：Blog CMS + SEO 内容管理系统已上线——
+  - **数据结构**：演扩 Phase 1 预留 `BlogPost`（新增 `coverMediaId` / `categoryId` / `featured` / SEO 四字段 / OG 三字段 / Twitter 两字段，保留 `coverImageUrl` 作 URL 快照），新增 `BlogCategory` / `BlogTag` / `BlogPostTag`；迁移 `20261014171544_add_blog_cms`（零漂移）；
+  - **接口**（`/api/v1/cms/blog`，全部 `JwtAuthGuard`）：`posts` CRUD（分页 + keyword/status/categoryId/tagId/featured 筛选，发布时自动回填 `publishedAt`）、`categories` CRUD（含 postCount，分类下有文章禁删 400）、`tags` CRUD（显式 join 模型，级联解绑）；
+  - **富文本安全**：自研白名单净化器 `rich-text.sanitizer.ts`（标签 / 属性 / URL 协议三层白名单 + 实体解码 + 控制字符过滤，**零第三方依赖**）；
+  - **媒体引用保护扩展**：被 `ProductImage` **或** `BlogPost` 封面引用的媒体，`DELETE /cms/media/:id` 返回 400 `Media asset is in use.`；
+  - **SEO**：`seoTitle` / `seoDescription` / `seoKeywords` / `canonicalUrl` + OG / Twitter Card 预留字段（本阶段仅存储与透出）；
+  - `lint` / `typecheck` / `test`（**176 项**）/ `build` / `migrate status` / drift 校验全部通过；浏览器全流程验证 **38/38 PASS**（`docs/phase-4.4-browser-flow.mjs`）。
 
 ## 环境变量
 

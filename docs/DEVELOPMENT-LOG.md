@@ -247,3 +247,59 @@ Phase 1 已预留 `media_assets` 表（`fileName`/`altText`/`provider` + `enum M
 ### 未做（按阶段禁令）
 
 COS 正式接入、CDN 自动部署、视频处理、图片 AI 处理、Blog / Factory / Quality / Applications CMS。
+
+## 11. Phase 4.4 记录（2026-10-15，Blog CMS + SEO 内容管理系统）
+
+### 数据库（部分演扩 + 部分新建）
+
+Phase 1 初始迁移**已预留** `BlogPost` 模型与 `PostStatus` 枚举（注释「内容营销 / SEO」），但**没有** Category / Tag / PostTag。
+本阶段策略：
+
+- `BlogPost`：**演扩**（新增 `coverMediaId` / `categoryId` / `featured` / SEO 四字段 / OG 三字段 / Twitter 两字段，共 10 列；保留原 `coverImageUrl` 作 URL 快照兼容外链）
+- `BlogCategory`（name/slug 唯一/description/sortOrder/isActive）、`BlogTag`（name/slug 唯一）、`BlogPostTag`（显式多对多，复合主键 + Cascade）：**新增**
+
+新索引：`blog_posts` 的 `status`/`publishedAt`/`categoryId`/`featured`/`coverMediaId`，`blog_categories` 的 `isActive`/`sortOrder`，`blog_post_tags` 的 `tagId`。
+
+迁移 `20261014171544_add_blog_cms`（手写 SQL，92 行）→ `migrate deploy` → `generate` → `migrate status` 正常 + `migrate diff` 输出 `-- This is an empty migration.`（零漂移）。
+**注意**：`generate` 前需先 `taskkill` 占用 Prisma engine DLL 的 node 进程（Windows 文件锁）。
+
+### 后端（Blog CMS 模块）
+
+- `src/modules/cms/blog/`：三套 controller/service（posts / categories / tags，**控制器级 JWT Guard**）+ `entities/blog.entity.ts`（DTO + mapper）+ 5 个 dto 文件 + `blog.module.ts`。
+- `rich-text.sanitizer.ts`：**自研白名单净化器，零第三方依赖**。标签白名单 + 逐标签属性白名单 + URL 协议白名单 + 实体解码 + 控制字符过滤；危险标签（`script`/`style`/`iframe`/`form`…）连同内容整体删除。
+- `src/common/validators/slug.ts`（**新增**）：slug 常量/正则单一来源，products 的 `category.dto.ts` 改为再导出，消除重复定义。
+- 业务规则：状态置 `PUBLISHED` 且未传 `publishedAt` 时自动回填当前时间；分类下有文章禁止删除（400）。
+- 接线：`cms.module.ts` 引入 `BlogModule`；`media.service.ts` 的 `countReferences` **扩展至 BlogPost 封面**（URL 精确匹配 + `endsWith(/filename)` 双匹配），与 `ProductImage` 共同构成删除保护。
+
+**三处实测修复的净化器边界缺陷**：
+
+1. **文档外壳丢弃正文**：`<html><body>…</body></html>`（Word / 网页粘贴）原逻辑整体删除，连正文一起消失 → 改为「丢标签、保留正文」。
+2. **void 元素吞掉后续内容**：`<meta>` 之后全部正文消失 → void 元素（meta/link/base/br/hr/img…）改为自闭合处理，不再向后搜索闭合标签。此缺陷由全量测试发现。
+3. **`no-control-regex` lint 报错**：控制字符正则被 ESLint 拦截 → 改用 `charCodeAt` 判定。
+
+### Admin（中文博客管理页面）
+
+- `/blog` 文章列表：封面缩略图 / 标题 / 分类 / 状态 / 发布时间 / 更新时间 / 操作，含搜索 + 状态筛选 + 分类筛选 + 分页。
+- `/blog/create`、`/blog/[id]/edit`：共用 `post-form.tsx`；`rich-text-editor.tsx` 提供 H2/H3/段落/B/I/U/有序无序列表/引用/代码块/链接/图片/清除格式。
+- `/blog/categories`、`/blog/tags`：分类与标签管理（含编辑、两步删除确认）。
+- **博客不自建上传**：图片按钮调 `media-picker.tsx`（只读浏览 `/cms/media`），上传仍走「媒体资源」页面 —— 遵循任务书「不自行存储图片」。
+- `src/lib/blog.ts`（API 层，全部服务端调用）、`blog/actions.ts`（Server Actions）。
+- 侧边栏 Blog 由 Coming Soon 改为可用（提示「博客管理」）；`middleware.ts` matcher 增加 `/blog/:path*`。
+
+### 质量门（全部通过）
+
+- `npm run lint`、`npx tsc --noEmit`、`npm run build` 全绿（后端与 Admin 两侧）；
+- 后端 **176/176** jest（Blog 单测 46 + e2e 15；media 单测更新 mock 覆盖博客封面引用）；
+- 浏览器全流程 `docs/phase-4.4-browser-flow.mjs` **38/38 PASS**（登录 → 分类 → 标签 → 新建文章含 XSS 载荷 → 编辑页持久化校验 → 媒体上传 → 封面选择 → 列表缩略图 → 引用检查 → 两步删除），截图 `docs/phase-4.4-blog-list.png`。
+
+### 排障记录（值得复用）
+
+- **`playwright-cli` 多轮 eval 后会话失联**：旧脚本 `phase-4.4-browser-flow.sh` 用 `playwright-cli eval` 逐条取数，第 6 步起连续返回空串并误报大量 FAIL。根因是该工具每次 `eval` 为独立进程调用，长序列下会话不稳定。**改用 `playwright.mjs` 直连单会话脚本**后一次通过。
+- **断言 `<input>` 的 value 不能用 innerText**：首轮 `main.innerText.includes(seoTitle)` 对 SEO/OG/Twitter 全报 FAIL（输入框的值不在 innerText 里），改用 `inputValue()` / `element.value` 后全 PASS。教训：表单回显断言必须读 `value`。
+- **`playwright-cli` 使用 `channel: chrome`**（非下载的 Chromium）。写直连脚本时须显式 `chromium.launch({ channel: 'chrome' })`，否则报 `Executable doesn't exist`。ESM 脚本引包须用 `createRequire`（Windows 绝对路径不能被 ESM 直接 import）。
+- **异步列表必须等就绪再点击**：媒体选择弹窗打开后列表是异步加载的，此前的断言在"加载中…"阶段就去找卡片；需轮询等待目标项渲染出来。
+
+### 未做（按阶段禁令）
+
+Factory / Quality / Applications CMS、页面 Builder、用户管理、角色权限（RBAC）、邮件营销、CRM —— 均未实现、未触碰。
+公开站（`bailing-ui`）消费端、Sitemap / RSS 生成、RBAC 权限码接入属后续阶段（预留设计见 PHASE-4.4-FINAL-REPORT §H）。

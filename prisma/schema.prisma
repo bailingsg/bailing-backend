@@ -170,26 +170,104 @@ model Rfq {
   @@map("rfqs")
 }
 
+// 博客分类（Phase 4.4 内容营销 / SEO，支持排序与禁用）
+model BlogCategory {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique // SEO URL：/blog/category/[slug]
+  description String?
+  sortOrder   Int     @default(0)
+  isActive    Boolean @default(true)
+
+  posts BlogPost[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([sortOrder])
+  @@map("blog_categories")
+}
+
+// 博客标签（Phase 4.4）。标签仅登记名称与 slug，不做排序/禁用。
+model BlogTag {
+  id   String @id @default(cuid())
+  name String
+  slug String @unique
+
+  posts BlogPostTag[]
+
+  createdAt DateTime @default(now())
+
+  @@map("blog_tags")
+}
+
 // 博客文章（内容营销 / SEO）
+//
+// 设计约束：
+//   · 不自行存储图片——封面经 coverMediaId 关联 MediaAsset，业务模块禁止直接操作文件系统
+//   · coverImageUrl 为 Phase 1 预留字段，保留作"快照/外链"兼容（如历史 COS/CDN 地址）；
+//     新建内容以 coverMediaId 为准，写入时同步回填 coverImageUrl 便于公开站直接渲染
+//   · SEO 字段（seoTitle/seoDescription/seoKeywords/canonicalUrl）供 Google/Bing/Sitemap 消费
+//   · OG / Twitter Card 字段为预留：本阶段仅存储与透出，不接入第三方校验
 model BlogPost {
   id             String     @id @default(cuid())
   title          String
   slug           String     @unique
   excerpt        String?
-  content        String     @db.Text
-  coverImageUrl  String? // 指向 MediaAsset.url 或 COS/CDN 地址
+  content        String     @db.Text // 富文本（HTML），写入前经 sanitize 过滤
+  coverImageUrl  String? // 封面地址快照（可由 coverMedia 回填；兼容历史外链）
+  coverMediaId   String? // 封面媒体（关联 MediaAsset，Phase 4.3 Media Library）
+  categoryId     String? // 所属博客分类
   status         PostStatus @default(DRAFT)
+  featured       Boolean    @default(false) // 精选（首页 / 推荐位）
   publishedAt    DateTime?
   authorId       String?
 
-  author AdminUser? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  // SEO
+  seoTitle       String? // SEO 标题，空则回落 title
+  seoDescription String? // SEO 描述，空则回落 excerpt
+  seoKeywords    String? // 关键词，逗号分隔
+  canonicalUrl   String? // 规范链接（跨站转载时指向原文）
+
+  // Open Graph（预留：存储 + 透出，不接第三方校验）
+  ogTitle       String?
+  ogDescription String?
+  ogImage       String?
+
+  // Twitter Card（预留）
+  twitterTitle       String?
+  twitterDescription String?
+
+  author     AdminUser?     @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  category   BlogCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  coverMedia MediaAsset?    @relation(fields: [coverMediaId], references: [id], onDelete: SetNull)
+  tags       BlogPostTag[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([publishedAt])
+  @@index([categoryId])
+  @@index([featured])
+  @@index([coverMediaId])
   @@map("blog_posts")
+}
+
+// 博客文章 ↔ 标签 多对多连接模型（显式 join，便于未来加排序/权重字段）
+model BlogPostTag {
+  postId String
+  tagId  String
+
+  post BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag  BlogTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([postId, tagId])
+  @@index([tagId])
+  @@map("blog_post_tags")
 }
 
 // 媒体资源（Phase 4.3 Media Library：Storage Adapter 模式落地）。
@@ -217,6 +295,8 @@ model MediaAsset {
   provider     MediaProvider @default(LOCAL) // 存储提供方（Storage Adapter 选择）
   category     MediaCategory @default(IMAGE) // 资源分类（IMAGE / DOCUMENT）
   createdBy    String // 上传管理员 ID（AdminUser.id）
+
+  blogCovers BlogPost[] // 被博客文章引作封面的反向关系（引用检查用）
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

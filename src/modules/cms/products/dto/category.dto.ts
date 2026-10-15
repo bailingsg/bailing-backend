@@ -22,10 +22,14 @@ function toInt({ value }: { value: unknown }): unknown {
 /**
  * slug 格式：小写字母/数字/连字符，不允许连续连字符与首尾连字符。
  * 与公开产品 URL（/products/[slug]）约定一致。
+ *
+ * Phase 4.4：常量已上移到 src/common/validators/slug.ts（产品 / 博客共用），
+ * 此处保留同名再导出以兼容既有引用。
  */
-export const SLUG_PATTERN = '^[a-z0-9]+(?:-[a-z0-9]+)*$';
-export const SLUG_REGEX = new RegExp(SLUG_PATTERN);
-export const SLUG_MESSAGE = 'slug 只能包含小写字母、数字与连字符（如 wood-products）';
+import { SLUG_MESSAGE, SLUG_REGEX } from '../../../../common/validators/slug';
+
+export { SLUG_MESSAGE, SLUG_REGEX };
+export { SLUG_PATTERN } from '../../../../common/validators/slug';
 
 /**
  * 创建产品分类（POST /api/v1/cms/product-categories）。

@@ -121,14 +121,14 @@ export class MediaService {
   /* ------------------------------ 删除 ------------------------------ */
 
   /**
-   * 删除媒体：先做引用检查（被 ProductImage 等业务记录引用 → 400），
+   * 删除媒体：先做引用检查（被 ProductImage / BlogPost 封面等业务记录引用 → 400），
    * 再删数据库记录，最后委托 StorageProvider 删除文件。
    */
   async remove(id: string): Promise<{ id: string }> {
     const asset = await this.prisma.mediaAsset.findUnique({ where: { id } });
     if (!asset) throw new NotFoundException('媒体资源不存在');
 
-    const referenced = await this.countReferences(asset.url, asset.filename);
+    const referenced = await this.countReferences(asset);
     if (referenced > 0) {
       throw new BadRequestException('Media asset is in use.');
     }
@@ -139,17 +139,36 @@ export class MediaService {
   }
 
   /**
-   * 引用计数：业务表（当前为 ProductImage）中引用该资产的记录数。
+   * 引用计数：业务表中引用该资产的记录数。
+   *
+   * 覆盖范围（Phase 4.3 起 ProductImage，Phase 4.4 起 BlogPost 封面）：
+   *   · ProductImage.url —— 产品图片
+   *   · BlogPost.coverMediaId —— 博客封面（外键引用，最可靠）
+   *   · BlogPost.coverImageUrl —— 博客封面地址快照（兼容外链与历史数据）
+   *
    * 匹配策略（url 精确匹配 + 文件名后缀匹配双保险）：
    *   · url 精确相等——同一 Provider 生成的地址一致
    *   · url 以 /<filename> 结尾——兼容基地址变化（如日后迁移 CDN 域名）
    */
-  private async countReferences(url: string, filename: string): Promise<number> {
-    return this.prisma.productImage.count({
-      where: {
-        OR: [{ url }, { url: { endsWith: `/${filename}` } }],
-      },
-    });
+  private async countReferences(asset: {
+    id: string;
+    url: string;
+    filename: string;
+  }): Promise<number> {
+    const urlFilter = {
+      OR: [{ url: asset.url }, { url: { endsWith: `/${asset.filename}` } }],
+    };
+    const coverUrlFilter = {
+      OR: [{ coverImageUrl: asset.url }, { coverImageUrl: { endsWith: `/${asset.filename}` } }],
+    };
+
+    const [productImages, blogCovers, blogCoverUrls] = await this.prisma.$transaction([
+      this.prisma.productImage.count({ where: urlFilter }),
+      this.prisma.blogPost.count({ where: { coverMediaId: asset.id } }),
+      this.prisma.blogPost.count({ where: coverUrlFilter }),
+    ]);
+
+    return productImages + blogCovers + blogCoverUrls;
   }
 }
 

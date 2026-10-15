@@ -240,6 +240,9 @@ function makePrismaMock() {
     productImage: {
       count: jest.fn(),
     },
+    blogPost: {
+      count: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
 }
@@ -428,6 +431,7 @@ describe('MediaService（unit）', () => {
   it('remove：被 ProductImage 引用返回 400 "Media asset is in use."，不删行不删文件', async () => {
     prisma.mediaAsset.findUnique.mockResolvedValue(makeAssetRow());
     prisma.productImage.count.mockResolvedValue(1);
+    prisma.blogPost.count.mockResolvedValue(0);
 
     await expect(service.remove('media-1')).rejects.toThrow('Media asset is in use.');
     expect(prisma.mediaAsset.delete).not.toHaveBeenCalled();
@@ -441,9 +445,37 @@ describe('MediaService（unit）', () => {
     });
   });
 
+  it('remove：被 BlogPost 封面引用（coverMediaId 外键）返回 400 "Media asset is in use."', async () => {
+    prisma.mediaAsset.findUnique.mockResolvedValue(makeAssetRow());
+    prisma.productImage.count.mockResolvedValue(0);
+    // 第一次 blogPost.count = coverMediaId 外键引用，第二次 = coverImageUrl 快照匹配
+    prisma.blogPost.count.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+
+    await expect(service.remove('media-1')).rejects.toThrow('Media asset is in use.');
+    expect(prisma.mediaAsset.delete).not.toHaveBeenCalled();
+    expect(storage.delete).not.toHaveBeenCalled();
+    expect(prisma.blogPost.count).toHaveBeenCalledWith({
+      where: { coverMediaId: 'media-1' },
+    });
+  });
+
+  it('remove：被 BlogPost.coverImageUrl 快照引用（无外键）同样返回 400', async () => {
+    prisma.mediaAsset.findUnique.mockResolvedValue(makeAssetRow());
+    prisma.productImage.count.mockResolvedValue(0);
+    prisma.blogPost.count.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+
+    await expect(service.remove('media-1')).rejects.toThrow('Media asset is in use.');
+    expect(prisma.blogPost.count).toHaveBeenLastCalledWith({
+      where: {
+        OR: [{ coverImageUrl: STORED_URL }, { coverImageUrl: { endsWith: `/${STORED_UUID}.png` } }],
+      },
+    });
+  });
+
   it('remove：未被引用时先删数据库行再委托 StorageProvider 删文件', async () => {
     prisma.mediaAsset.findUnique.mockResolvedValue(makeAssetRow());
     prisma.productImage.count.mockResolvedValue(0);
+    prisma.blogPost.count.mockResolvedValue(0);
     prisma.mediaAsset.delete.mockResolvedValue(makeAssetRow());
 
     await expect(service.remove('media-1')).resolves.toEqual({ id: 'media-1' });
