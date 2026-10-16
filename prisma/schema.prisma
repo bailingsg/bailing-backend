@@ -50,7 +50,8 @@ model AdminUser {
   email        String    @unique
   passwordHash String // bcrypt 等哈希，禁止明文
   name         String
-  role         AdminRole @default(EDITOR)
+  jobTitle     String? // 岗位名称（Phase 4.6）
+  role         AdminRole @default(EDITOR) // 兼容旧枚举；新逻辑以 AdminUserRole 为准
   isActive     Boolean   @default(true)
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
@@ -58,6 +59,15 @@ model AdminUser {
 
   blogPosts BlogPost[]
 
+  // Phase 4.6：多角色、联系方式、询盘分配相关
+  userRoles          AdminUserRole[]
+  contact            EmployeeContact?
+  leadPlanItems      LeadDistributionItem[]
+  leadAssignments    LeadAssignment[]
+  assignedRfqs       Rfq[] @relation("RfqAssignee")
+
+  @@index([isActive])
+  @@index([role])
   @@map("admin_users")
 }
 
@@ -161,16 +171,24 @@ model Rfq {
   attachmentUrl String? // 附件地址（可选，本阶段仅登记）
   status        RfqStatus @default(NEW)
 
+  // Phase 4.6：询盘负责人（自动轮询分配）
+  assigneeId    String?
+  assignedAt    DateTime?
+  assignee      AdminUser? @relation("RfqAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
   sourceIp  String? // 风控：提交来源 IP
   userAgent String? // 风控：提交来源 UA
 
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  assignments LeadAssignment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([createdAt])
+  @@index([assigneeId])
   @@map("rfqs")
 }
 
@@ -541,3 +559,251 @@ model ApplicationProduct {
   @@index([productId])
   @@map("application_products")
 }
+
+// ==================== Phase 4.6：账号 / 角色权限 / 联系方式 / 询盘分配 ====================
+
+// 角色状态：启用 / 停用
+enum RoleStatus {
+  ACTIVE // 启用
+  DISABLED // 停用（不再生效，关联员工保留历史）
+}
+
+// 询盘轮询计划状态
+enum LeadPlanStatus {
+  ACTIVE // 生效中（倾斜分配进行中）
+  COMPLETED // 已完成（所有目标达成）
+  CLOSED // 已手动关闭
+}
+
+// 询盘分配来源：正常轮询 / 倾斜计划
+enum LeadAssignmentSource {
+  ROUND_ROBIN // 正常轮流分配
+  PRIORITY_PLAN // 倾斜计划分配
+}
+
+// 自定义角色（Phase 4.6 RBAC）
+//
+// 与旧枚举 AdminRole 共存（兼容迁移期）：
+//   · key 为稳定英文标识（如 SUPER_ADMIN / SALES_MANAGER），全局唯一
+//   · isSystem=true 的角色受保护，不允许删除 / 停用 / 改 key
+//   · 权限通过 RolePermission 关联到 Permission 定义
+model Role {
+  id          String     @id @default(cuid())
+  key         String     @unique // 稳定英文标识，如 SUPER_ADMIN
+  name        String // 展示名称（中文），如 超级管理员
+  description String? // 角色说明
+  status      RoleStatus @default(ACTIVE)
+  isSystem    Boolean    @default(false) // 系统内置角色（受保护）
+  sortOrder   Int        @default(0)
+
+  rolePermissions RolePermission[]
+  userRoles       AdminUserRole[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([sortOrder])
+  @@map("roles")
+}
+
+// 权限定义（Phase 4.6）
+//
+// 权限由代码中的注册表（PERMISSION_CATALOG）声明并 seed 入库，
+// 数据库仅作存储与关联，**授权判定以服务端代码注册表 + 库中关联为准**。
+// key 为稳定英文标识（如 accounts.read），不允许运行时随意新增。
+model Permission {
+  id          String  @id @default(cuid())
+  key         String  @unique // 如 accounts.read
+  module      String // 所属模块分组，如 accounts / roles / contacts / lead_distribution
+  action      String // 动作，如 read / create / update / disable / manage
+  name        String // 展示名称（中文）
+  description String? // 权限说明
+  isNav       Boolean @default(false) // 是否为导航权限（推导侧边栏菜单可见性）
+  sortOrder   Int     @default(0)
+
+  rolePermissions RolePermission[]
+
+  createdAt DateTime @default(now())
+
+  @@index([module])
+  @@index([isNav])
+  @@map("permissions")
+}
+
+// 角色 ↔ 权限 关联
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+// 管理员 ↔ 角色 关联（多角色）
+//
+// 保留 AdminUser.role 枚举字段作为兼容兜底（旧 JWT / 旧逻辑），
+// 新逻辑以本表分配的多个角色之并集判定权限。
+model AdminUserRole {
+  adminUserId String
+  roleId      String
+
+  adminUser AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+  role      Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([adminUserId, roleId])
+  @@index([roleId])
+  @@map("admin_user_roles")
+}
+
+// 员工对外销售联系方式（Phase 4.6）
+//
+// 与 AdminUser 一一对应（adminUserId 唯一）：联系方式必须挂在真实员工账号上，
+// 不允许创建与账号脱节的虚假员工。
+// 登录邮箱（AdminUser.email）与对外展示邮箱（displayEmail）严格区分。
+model EmployeeContact {
+  id          String  @id @default(cuid())
+  adminUserId String  @unique // 关联员工账号（一对一）
+  displayName String // 对外显示姓名
+  jobTitle    String? // 销售职务
+  displayEmail String? // 对外展示工作邮箱（可与登录邮箱不同）
+  whatsapp    String? // WhatsApp 号码（含国际区号，如 +8613800138000）
+  showOnSite  Boolean @default(false) // 是否展示在网站前台
+  isLeadContact Boolean @default(false) // 是否作为询盘联系人（参与分配）
+  sortOrder   Int     @default(0) // 展示顺序
+  internalNote String? // 内部备注（仅供后台，绝不出现在公开 API）
+
+  adminUser AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([showOnSite])
+  @@index([isLeadContact])
+  @@index([sortOrder])
+  @@map("employee_contacts")
+}
+
+// 询盘轮询计划（Phase 4.6）
+//
+// 两种形态：
+//   · 默认 Round Robin 无需持久化计划（按员工队列顺序循环）
+//   · 倾斜计划（PRIORITY）持久化本表：指定若干员工在目标数量内优先接单
+// 手动关闭（CLOSED）后进入冷却窗口，冷却时长由 closedAt + cooldownSeconds 决定；
+// 冷却结束后自动恢复倾斜（或按管理员设置）。
+model LeadDistributionPlan {
+  id         String         @id @default(cuid())
+  name       String // 计划名称
+  status     LeadPlanStatus @default(ACTIVE)
+  mode       String         @default("PRIORITY") // 分配模式标识（PRIORITY 倾斜）
+  startAt    DateTime       @default(now()) // 生效时间
+  endAt      DateTime? // 计划截止（可空表示按目标数量结束）
+  totalTarget Int           @default(0) // 计划目标总量（各项之和的快照）
+  cooldownSeconds Int       @default(0) // 手动关闭后的冷却秒数（0=需管理员手动恢复）
+  closedAt   DateTime? // 手动关闭时间
+  resumeAt   DateTime? // 预计自动恢复时间（closedAt + cooldown）
+  closedBy   String? // 关闭操作者 AdminUser.id（不建外键，保留历史）
+  createdBy  String? // 创建者 AdminUser.id
+
+  items      LeadDistributionItem[]
+  assignments LeadAssignment[]
+  logs       AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("lead_distribution_plans")
+}
+
+// 倾斜计划条目：某员工的目标数量与已分配数量
+model LeadDistributionItem {
+  id         String @id @default(cuid())
+  planId     String
+  adminUserId String // 倾斜员工（AdminUser.id）
+  targetCount Int   @default(0) // 目标数量
+  assignedCount Int @default(0) // 已成功分配数量
+  sortOrder  Int    @default(0)
+
+  plan      LeadDistributionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  adminUser AdminUser            @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([planId, adminUserId])
+  @@index([planId])
+  @@index([adminUserId])
+  @@map("lead_distribution_items")
+}
+
+// 正常轮询指针状态（Phase 4.6，单例表）。
+// 独立成表而非从分配明细推算：队列成员增减时指针仍能确定性地推进，
+// 「下一位是谁」随时可复算、可校验，不依赖历史记录的完整性。
+model LeadRoundRobinState {
+  id String @id @default(cuid())
+  lastAssigneeId String? // 最近一次正常轮询的承接人（null = 尚未分配过）
+  lastIndex Int @default(-1) // 承接人在当时队列中的序号（-1 = 尚未分配）
+  cycleCount Int @default(0) // 正常轮询累计分配次数（统计用，不参与指针计算）
+  updatedAt DateTime @updatedAt
+
+  @@map("lead_round_robin_state")
+}
+
+// 询盘分配记录（每次分配落库，供历史与审计）
+model LeadAssignment {
+  id            String @id @default(cuid())
+  rfqId         String
+  assigneeId    String // 接收员工 AdminUser.id
+  source        LeadAssignmentSource @default(ROUND_ROBIN)
+  roundRobinIndex Int? // 正常轮询时的队列位置（便于核对顺序）
+  planId        String? // 若来自倾斜计划，记录计划 ID
+
+  rfq   Rfq     @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  assignee AdminUser @relation(fields: [assigneeId], references: [id], onDelete: Restrict)
+  plan  LeadDistributionPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([rfqId])
+  @@index([assigneeId])
+  @@index([source])
+  @@index([createdAt])
+  @@map("lead_assignments")
+}
+
+// 操作审计日志（角色 / 权限 / 账号 / 计划等关键变更）
+//
+// 记录操作者、对象类型与 ID、变更前后差异（JSON）、时间。
+// 不记录任何口令或令牌。
+model AuditLog {
+  id         String @id @default(cuid())
+  actorId    String? // 操作者 AdminUser.id（系统操作可为空）
+  actorEmail String? // 操作者邮箱快照（便于历史追溯，账号删除后仍可读）
+  action     String // 动作标识，如 role.update / account.disable / plan.close
+  targetType String // 对象类型，如 role / account / plan / contact
+  targetId   String? // 对象 ID
+  diff       Json? // 变更前后差异
+  summary    String? // 人类可读摘要（中文）
+
+  planId String? // 若与计划相关，便于按计划查询
+  plan   LeadDistributionPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+

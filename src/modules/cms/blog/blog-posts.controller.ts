@@ -13,6 +13,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../../rbac/permissions.guard';
+import { RequirePermissions } from '../../rbac/require-permissions.decorator';
 import { CreateBlogPostDto, UpdateBlogPostDto } from './dto/blog-post.dto';
 import { ListBlogPostsQueryDto } from './dto/list-blog-posts-query.dto';
 import { BlogPostsService } from './blog-posts.service';
@@ -37,17 +39,19 @@ interface AuthedRequest {
  * 即可，服务层与数据层无需改动。
  */
 @Controller('cms/blog/posts')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class BlogPostsController {
   constructor(private readonly postsService: BlogPostsService) {}
 
   @Get()
+  @RequirePermissions('blog.read')
   list(@Query() query: ListBlogPostsQueryDto): Promise<PaginatedBlogPostsDto> {
     return this.postsService.list(query);
   }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('blog.create')
   create(
     @Body() dto: CreateBlogPostDto,
     @Req() request: AuthedRequest,
@@ -56,17 +60,20 @@ export class BlogPostsController {
   }
 
   @Get(':id')
+  @RequirePermissions('blog.read')
   detail(@Param('id') id: string): Promise<BlogPostDetailDto> {
     return this.postsService.findById(id);
   }
 
   @Patch(':id')
+  @RequirePermissions('blog.update')
   update(@Param('id') id: string, @Body() dto: UpdateBlogPostDto): Promise<BlogPostDetailDto> {
     return this.postsService.update(id, dto);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
+  @RequirePermissions('blog.delete')
   remove(@Param('id') id: string): Promise<{ id: string }> {
     return this.postsService.remove(id);
   }

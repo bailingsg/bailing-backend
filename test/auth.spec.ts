@@ -6,6 +6,7 @@ import * as bcrypt from 'bcryptjs';
 import { Test } from '@nestjs/testing';
 import { AuthService } from '../src/modules/auth/auth.service';
 import { PrismaService } from '../src/modules/prisma/prisma.service';
+import { RbacService } from '../src/modules/rbac/rbac.service';
 
 /** 测试口令与低成本的测试哈希（避免测试被 bcrypt 成本拖慢） */
 const TEST_PASSWORD = 'Test-pass-2026';
@@ -32,12 +33,29 @@ describe('AuthService（单元）', () => {
     adminUser: { findUnique: jest.Mock; update: jest.Mock };
   };
   let jwt: { signAsync: jest.Mock };
+  let rbac: { resolveAccess: jest.Mock };
+
+  /** 默认访问上下文：未分配角色的历史账号按旧枚举 ADMIN → SUPER_ADMIN 兼容 */
+  function makeAccess(overrides: Record<string, unknown> = {}) {
+    return {
+      adminUserId: 'admin_test_1',
+      email: 'admin@bailingwooden.com',
+      name: 'Administrator',
+      isActive: true,
+      roleKeys: ['SUPER_ADMIN'],
+      permissions: new Set<string>(['dashboard.read']),
+      isSuperAdmin: true,
+      isLegacyFallback: true,
+      ...overrides,
+    };
+  }
 
   beforeEach(async () => {
     prisma = {
       adminUser: { findUnique: jest.fn(), update: jest.fn() },
     };
     jwt = { signAsync: jest.fn().mockResolvedValue('signed.jwt.token') };
+    rbac = { resolveAccess: jest.fn().mockResolvedValue(makeAccess()) };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -45,6 +63,7 @@ describe('AuthService（单元）', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: JwtService, useValue: jwt },
         { provide: ConfigService, useValue: { getOrThrow: jest.fn().mockReturnValue('15m') } },
+        { provide: RbacService, useValue: rbac },
       ],
     }).compile();
 

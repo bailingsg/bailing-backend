@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { AdminRole, PrismaClient, ProductStatus } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { migrateLegacyRoles, seedBuiltinRoles, seedPermissions } from './seed-rbac';
 
 /**
  * Phase 3.5 —— Demo / Placeholder 数据种子
@@ -129,6 +130,12 @@ const DEMO_PRODUCTS = [
 async function main(): Promise<void> {
   await seedDefaultAdmin();
 
+  // Phase 4.6：RBAC 权限清单 + 内置角色 + 历史角色迁移
+  // 顺序要求：先同步权限（角色绑定需要 permissionId），再建角色，最后迁移账号关联
+  const permissionIdByKey = await seedPermissions(prisma);
+  const roleIdByKey = await seedBuiltinRoles(prisma, permissionIdByKey);
+  await migrateLegacyRoles(prisma, roleIdByKey);
+
   const categoryIdBySlug = new Map<string, string>();
 
   for (const category of DEMO_CATEGORIES) {
@@ -173,14 +180,16 @@ async function main(): Promise<void> {
     });
   }
 
-  const [categories, products, admins] = await Promise.all([
+  const [categories, products, admins, permissions, roles] = await Promise.all([
     prisma.category.count(),
     prisma.product.count(),
     prisma.adminUser.count(),
+    prisma.permission.count(),
+    prisma.role.count(),
   ]);
 
   console.log(
-    `[seed] categories: ${categories}, products: ${products} (demo/placeholder only), admins: ${admins}`,
+    `[seed] categories: ${categories}, products: ${products} (demo/placeholder only), admins: ${admins}, permissions: ${permissions}, roles: ${roles}`,
   );
 }
 

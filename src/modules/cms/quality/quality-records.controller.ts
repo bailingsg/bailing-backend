@@ -12,6 +12,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../../rbac/permissions.guard';
+import { RequirePermissions } from '../../rbac/require-permissions.decorator';
 import {
   CreateQualityRecordDto,
   UpdateQualityRecordDto,
@@ -36,27 +38,31 @@ import type {
  * 引入 RBAC 时在此挂 `@RequirePermission('QUALITY_READ' | 'QUALITY_WRITE' | ...)`。
  */
 @Controller('cms/quality')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class QualityRecordsController {
   constructor(private readonly recordsService: QualityRecordsService) {}
 
   @Get()
+  @RequirePermissions('quality.read')
   list(@Query() query: ListQualityRecordsQueryDto): Promise<PaginatedQualityRecordsDto> {
     return this.recordsService.list(query);
   }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('quality.create')
   create(@Body() dto: CreateQualityRecordDto): Promise<QualityRecordDetailDto> {
     return this.recordsService.create(dto);
   }
 
   @Get(':id')
+  @RequirePermissions('quality.read')
   detail(@Param('id') id: string): Promise<QualityRecordDetailDto> {
     return this.recordsService.findById(id);
   }
 
   @Patch(':id')
+  @RequirePermissions('quality.update')
   update(
     @Param('id') id: string,
     @Body() dto: UpdateQualityRecordDto,
@@ -66,6 +72,7 @@ export class QualityRecordsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
+  @RequirePermissions('quality.delete')
   remove(@Param('id') id: string): Promise<{ id: string }> {
     return this.recordsService.remove(id);
   }

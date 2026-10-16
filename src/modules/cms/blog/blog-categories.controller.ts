@@ -1,5 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../../rbac/permissions.guard';
+import { RequirePermissions } from '../../rbac/require-permissions.decorator';
 import { CreateBlogCategoryDto, UpdateBlogCategoryDto } from './dto/blog-category.dto';
 import { BlogCategoriesService } from './blog-categories.service';
 import type { BlogCategoryDto } from './entities/blog.entity';
@@ -15,28 +17,32 @@ import type { BlogCategoryDto } from './entities/blog.entity';
  * 未来权限扩展：RBAC 落地时挂 @RequirePermission('BLOG_CATEGORY_MANAGE')。
  */
 @Controller('cms/blog/categories')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class BlogCategoriesController {
   constructor(private readonly categoriesService: BlogCategoriesService) {}
 
   @Get()
+  @RequirePermissions('blog.read')
   list(): Promise<BlogCategoryDto[]> {
     return this.categoriesService.list();
   }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('blog.create')
   create(@Body() dto: CreateBlogCategoryDto): Promise<BlogCategoryDto> {
     return this.categoriesService.create(dto);
   }
 
   @Patch(':id')
+  @RequirePermissions('blog.update')
   update(@Param('id') id: string, @Body() dto: UpdateBlogCategoryDto): Promise<BlogCategoryDto> {
     return this.categoriesService.update(id, dto);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
+  @RequirePermissions('blog.delete')
   remove(@Param('id') id: string): Promise<{ id: string }> {
     return this.categoriesService.remove(id);
   }

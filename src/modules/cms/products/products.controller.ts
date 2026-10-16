@@ -16,6 +16,8 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../../rbac/permissions.guard';
+import { RequirePermissions } from '../../rbac/require-permissions.decorator';
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
 import { ListProductsQueryDto } from './dto/list-products-query.dto';
 import { AddProductImageDto } from './dto/product-image.dto';
@@ -42,32 +44,37 @@ const IMAGE_FIELD = 'file';
  *   DELETE /api/v1/cms/products/:id/images/:imageId  删除图片
  */
 @Controller('cms/products')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Get()
+  @RequirePermissions('products.read')
   list(@Query() query: ListProductsQueryDto): Promise<PaginatedCmsProductsDto> {
     return this.productsService.list(query);
   }
 
   @Post()
+  @RequirePermissions('products.create')
   create(@Body() dto: CreateProductDto): Promise<CmsProductDetailDto> {
     return this.productsService.create(dto);
   }
 
   @Get(':id')
+  @RequirePermissions('products.read')
   detail(@Param('id') id: string): Promise<CmsProductDetailDto> {
     return this.productsService.findById(id);
   }
 
   @Patch(':id')
+  @RequirePermissions('products.update')
   update(@Param('id') id: string, @Body() dto: UpdateProductDto): Promise<CmsProductDetailDto> {
     return this.productsService.update(id, dto);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
+  @RequirePermissions('products.delete')
   remove(@Param('id') id: string): Promise<{ id: string }> {
     return this.productsService.remove(id);
   }
@@ -75,6 +82,7 @@ export class ProductsController {
   /** 上传产品图片（multipart/form-data：file + alt + sortOrder + isPrimary） */
   @Post(':id/images')
   @UseInterceptors(FileInterceptor(IMAGE_FIELD, productImageUploadOptions()))
+  @RequirePermissions('products.update')
   addImage(
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File | undefined,
@@ -89,6 +97,7 @@ export class ProductsController {
   /** 删除产品图片 */
   @Delete(':id/images/:imageId')
   @HttpCode(HttpStatus.OK)
+  @RequirePermissions('products.delete')
   removeImage(
     @Param('id') id: string,
     @Param('imageId') imageId: string,

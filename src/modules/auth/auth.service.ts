@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../prisma/prisma.service';
+import { RbacService } from '../rbac/rbac.service';
 import type { AuthUser, JwtExpiresIn, JwtPayload } from './auth.types';
 import { LoginDto } from './dto/login.dto';
 import type { AdminProfileDto, LoginResponseDto } from './auth.dto';
@@ -46,6 +47,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
+    private readonly rbac: RbacService,
   ) {}
 
   /** 登录：校验口令 → 更新 lastLoginAt → 签发 JWT */
@@ -76,6 +78,9 @@ export class AuthService {
 
     this.logger.log(`管理员登录成功: ${admin.email} (${admin.role})`);
 
+    // Phase 4.6：登录响应即带出生效角色与权限，前端首屏即可正确渲染菜单
+    const access = await this.rbac.resolveAccess(admin.id);
+
     return {
       accessToken,
       user: {
@@ -83,6 +88,10 @@ export class AuthService {
         email: admin.email,
         name: admin.name,
         role: admin.role,
+        roles: access.roleKeys,
+        permissions: [...access.permissions].sort(),
+        isSuperAdmin: access.isSuperAdmin,
+        jobTitle: admin.jobTitle,
         isActive: admin.isActive,
         lastLoginAt,
       },
@@ -92,17 +101,24 @@ export class AuthService {
   /**
    * 当前登录管理员（GET /auth/me）。
    * 以数据库实时状态为准：账号被停用或删除后，既有令牌立即失效。
+   *
+   * Phase 4.6：同时返回生效角色与权限（停用角色立即从列表中消失）。
    */
   async me(auth: AuthUser): Promise<AdminProfileDto> {
     const admin = await this.prisma.adminUser.findUnique({ where: { id: auth.id } });
     if (!admin || !admin.isActive) {
       throw new UnauthorizedException('Account is no longer active');
     }
+    const access = await this.rbac.resolveAccess(admin.id);
     return {
       id: admin.id,
       email: admin.email,
       name: admin.name,
       role: admin.role,
+      roles: access.roleKeys,
+      permissions: [...access.permissions].sort(),
+      isSuperAdmin: access.isSuperAdmin,
+      jobTitle: admin.jobTitle,
       isActive: admin.isActive,
       lastLoginAt: admin.lastLoginAt,
     };

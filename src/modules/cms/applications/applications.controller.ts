@@ -12,6 +12,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../../rbac/permissions.guard';
+import { RequirePermissions } from '../../rbac/require-permissions.decorator';
 import {
   CreateApplicationDto,
   UpdateApplicationDto,
@@ -36,27 +38,31 @@ import type {
  * 引入 RBAC 时在此挂 `@RequirePermission('APPLICATION_READ' | ...)`。
  */
 @Controller('cms/applications')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class ApplicationsController {
   constructor(private readonly applicationsService: ApplicationsService) {}
 
   @Get()
+  @RequirePermissions('applications.read')
   list(@Query() query: ListApplicationsQueryDto): Promise<PaginatedApplicationsDto> {
     return this.applicationsService.list(query);
   }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('applications.create')
   create(@Body() dto: CreateApplicationDto): Promise<ApplicationDetailDto> {
     return this.applicationsService.create(dto);
   }
 
   @Get(':id')
+  @RequirePermissions('applications.read')
   detail(@Param('id') id: string): Promise<ApplicationDetailDto> {
     return this.applicationsService.findById(id);
   }
 
   @Patch(':id')
+  @RequirePermissions('applications.update')
   update(
     @Param('id') id: string,
     @Body() dto: UpdateApplicationDto,
@@ -66,6 +72,7 @@ export class ApplicationsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
+  @RequirePermissions('applications.delete')
   remove(@Param('id') id: string): Promise<{ id: string }> {
     return this.applicationsService.remove(id);
   }

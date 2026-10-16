@@ -12,6 +12,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../../rbac/permissions.guard';
+import { RequirePermissions } from '../../rbac/require-permissions.decorator';
 import {
   CreateFactorySectionDto,
   UpdateFactorySectionDto,
@@ -39,32 +41,37 @@ import type {
  * 服务层与数据层无需改动。
  */
 @Controller('cms/factory')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class FactorySectionsController {
   constructor(private readonly sectionsService: FactorySectionsService) {}
 
   @Get()
+  @RequirePermissions('factory.read')
   list(@Query() query: ListFactorySectionsQueryDto): Promise<PaginatedFactorySectionsDto> {
     return this.sectionsService.list(query);
   }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions('factory.create')
   create(@Body() dto: CreateFactorySectionDto): Promise<FactorySectionDetailDto> {
     return this.sectionsService.create(dto);
   }
 
   @Get(':id')
+  @RequirePermissions('factory.read')
   detail(@Param('id') id: string): Promise<FactorySectionDetailDto> {
     return this.sectionsService.findById(id);
   }
 
   @Get(':id/exhibitions')
+  @RequirePermissions('factory.read')
   listExhibitions(@Param('id') id: string): Promise<FactoryExhibitionDto[]> {
     return this.sectionsService.listExhibitions(id);
   }
 
   @Patch(':id')
+  @RequirePermissions('factory.update')
   update(
     @Param('id') id: string,
     @Body() dto: UpdateFactorySectionDto,
@@ -74,6 +81,7 @@ export class FactorySectionsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
+  @RequirePermissions('factory.delete')
   remove(@Param('id') id: string): Promise<{ id: string }> {
     return this.sectionsService.remove(id);
   }

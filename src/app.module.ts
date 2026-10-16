@@ -8,6 +8,7 @@ import { ProductsModule } from './modules/products/products.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { RfqModule } from './modules/rfq/rfq.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { RbacModule } from './modules/rbac/rbac.module';
 import { CmsModule } from './modules/cms/cms.module';
 import { PublicModule } from './modules/public/public.module';
 
@@ -26,6 +27,8 @@ import { PublicModule } from './modules/public/public.module';
     RfqModule,
     // Phase 4.1：管理员认证（login / me / JWT Guard）
     AuthModule,
+    // Phase 4.6：RBAC（权限注册表 / PermissionsGuard / 提权防护 / 审计日志），@Global
+    RbacModule,
     // Phase 4.1：CMS 接口（整体 JWT 保护）
     CmsModule,
     // Phase 4.5：公开只读 API（工厂 / 质量 / 应用场景，仅返回已发布内容）

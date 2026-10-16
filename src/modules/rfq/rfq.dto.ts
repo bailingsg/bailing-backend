@@ -41,6 +41,11 @@ export interface RfqListItemDto {
   status: RfqStatus;
   createdAt: string;
   updatedAt: string;
+  /** 承接人（Phase 4.6 自动分配；未分配时全部为 null） */
+  assigneeId: string | null;
+  assigneeName: string | null;
+  assigneeEmail: string | null;
+  assignedAt: string | null;
 }
 
 /** 详情：列表项 + 需求正文与附件 */
@@ -60,9 +65,18 @@ export interface PaginatedRfqDto {
 
 /* -------------------------------- mappers -------------------------------- */
 
-type RfqRow = Rfq;
+/** 询盘 + 承接人关联（Phase 4.6；不带关联查询时该字段缺省为 undefined） */
+type RfqRow = Rfq & {
+  assignee?: { id: string; name: string | null; email: string } | null;
+};
+
+/** 后台接口统一的承接人关联查询 */
+export const RFQ_ASSIGNEE_SELECT = {
+  assignee: { select: { id: true, name: true, email: true } },
+} as const;
 
 export function toRfqListItem(rfq: RfqRow): RfqListItemDto {
+  const assignee = rfq.assignee ?? null;
   return {
     id: rfq.id,
     name: rfq.name,
@@ -76,6 +90,10 @@ export function toRfqListItem(rfq: RfqRow): RfqListItemDto {
     status: rfq.status,
     createdAt: rfq.createdAt.toISOString(),
     updatedAt: rfq.updatedAt.toISOString(),
+    assigneeId: assignee?.id ?? rfq.assigneeId ?? null,
+    assigneeName: assignee?.name ?? null,
+    assigneeEmail: assignee?.email ?? null,
+    assignedAt: rfq.assignedAt ? rfq.assignedAt.toISOString() : null,
   };
 }
 

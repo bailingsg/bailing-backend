@@ -44,7 +44,13 @@ describe('RfqService', () => {
   let prisma: {
     rfq: { create: jest.Mock; count: jest.Mock; findMany: jest.Mock; findUnique: jest.Mock; update: jest.Mock };
     product: { findFirst: jest.Mock };
+    leadAssignment: { create: jest.Mock; findFirst: jest.Mock };
+    leadRoundRobinState: { upsert: jest.Mock };
+    leadDistributionItem: { update: jest.Mock; findMany: jest.Mock };
+    adminUser: { findUniqueOrThrow: jest.Mock };
     $transaction: jest.Mock;
+    $executeRaw: jest.Mock;
+    $queryRaw: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -57,7 +63,19 @@ describe('RfqService', () => {
         update: jest.fn(),
       },
       product: { findFirst: jest.fn() },
-      $transaction: jest.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
+      leadAssignment: { create: jest.fn(), findFirst: jest.fn() },
+      leadRoundRobinState: { upsert: jest.fn() },
+      leadDistributionItem: { update: jest.fn(), findMany: jest.fn() },
+      adminUser: { findUniqueOrThrow: jest.fn() },
+      // 数组形式（批量）与回调形式（交互式事务）都要支持：
+      // RfqService.create 自 Phase 4.6 起用回调式事务包裹「建询盘 + 自动分配」。
+      $transaction: jest.fn((arg: unknown) =>
+        typeof arg === 'function'
+          ? (arg as (tx: unknown) => unknown)(prisma)
+          : Promise.all(arg as Promise<unknown>[]),
+      ),
+      $executeRaw: jest.fn(),
+      $queryRaw: jest.fn(),
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -181,10 +199,13 @@ describe('RfqService', () => {
       const detail = await service.updateStatus('rfq_1', RfqStatus.CONTACTED);
 
       expect(detail.status).toBe(RfqStatus.CONTACTED);
-      expect(prisma.rfq.update).toHaveBeenCalledWith({
-        where: { id: 'rfq_1' },
-        data: { status: RfqStatus.CONTACTED },
-      });
+      // Phase 4.6 起响应带出承接人关联（include），故用 objectContaining 断言
+      expect(prisma.rfq.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'rfq_1' },
+          data: { status: RfqStatus.CONTACTED },
+        }),
+      );
     });
   });
 });

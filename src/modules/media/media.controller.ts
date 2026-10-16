@@ -16,6 +16,8 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../rbac/permissions.guard';
+import { RequirePermissions } from '../rbac/require-permissions.decorator';
 import { MediaService } from './media.service';
 import { ListMediaQueryDto } from './dto/list-media-query.dto';
 import { MAX_MEDIA_FILE_SIZE } from './media-file.util';
@@ -41,7 +43,7 @@ interface AuthedRequest {
  * 控制器与服务层都不直接接触文件系统路径。
  */
 @Controller('cms/media')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class MediaController {
   constructor(private readonly mediaService: MediaService) {}
 
@@ -54,6 +56,7 @@ export class MediaController {
       limits: { fileSize: MAX_MEDIA_FILE_SIZE, files: 1 },
     }),
   )
+  @RequirePermissions('media.upload')
   upload(
     @UploadedFile() file: Express.Multer.File | undefined,
     @Req() request: AuthedRequest,
@@ -66,12 +69,14 @@ export class MediaController {
 
   /** 媒体列表（分页 + keyword / category 筛选） */
   @Get()
+  @RequirePermissions('media.read')
   list(@Query() query: ListMediaQueryDto): Promise<PaginatedMediaDto> {
     return this.mediaService.list(query);
   }
 
   /** 媒体详情 */
   @Get(':id')
+  @RequirePermissions('media.read')
   detail(@Param('id') id: string): Promise<MediaAssetDto> {
     return this.mediaService.findById(id);
   }
@@ -79,6 +84,7 @@ export class MediaController {
   /** 删除媒体（被 ProductImage 等引用时返回 400 Media asset is in use.） */
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
+  @RequirePermissions('media.delete')
   remove(@Param('id') id: string): Promise<{ id: string }> {
     return this.mediaService.remove(id);
   }
