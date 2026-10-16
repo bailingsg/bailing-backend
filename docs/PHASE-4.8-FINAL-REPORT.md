@@ -355,7 +355,17 @@ migrate diff → "This is an empty migration."（无漂移）
 ### L.1 Git
 
 - 分支：`261017`（三仓库一致，未动 `master`，未 force push）
-- 提交内容：见 N 节提交清单
+- 推送并 `ls-remote` 复核（remote == local）：
+
+| 仓库 | 提交 | 哈希 | 远程复核 |
+| --- | --- | --- | --- |
+| bailing-backend | `feat(cache): Phase 4.8 发布即刷新 + Cache-Control + 缓存治理验证` | `3d70f0d` | ✅ MATCH |
+| bailing-ui | `feat(cms+seo): Phase 4.8 前台分层缓存 + 发布即刷新 + SEO/404/性能治理` | `bf9ece8` | ✅ MATCH |
+| bailing-admin | — | — | **Admin code unchanged.** |
+
+推送前本地哈希：
+`bailing-backend 3d70f0dd712001cbb555e2260cea6dbe187d64f6`
+`bailing-ui bf9ece8ea7f01cdc6eac717f042606f0b187858f`
 
 ### L.2 最终服务状态（生产模式）
 
@@ -386,4 +396,10 @@ migrate diff → "This is an empty migration."（无漂移）
 
 ## 附：提交清单
 
-见 `git log --oneline -3` 于 `261017` 分支（提交哈希记录于推送复核输出）。
+| 仓库 | 分支 | 提交哈希 | 远程复核 |
+| --- | --- | --- | --- |
+| bailing-backend | `261017` | `3d70f0d` | ✅ `ls-remote` MATCH |
+| bailing-ui | `261017` | `bf9ece8` | ✅ `ls-remote` MATCH |
+| bailing-admin | `261017` | — | 无改动（Admin code unchanged.） |
+
+> 说明：本报告自身的哈希补充以紧随其后的小提交落地，不影响上述代码提交的远程一致性。
