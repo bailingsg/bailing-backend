@@ -46,6 +46,17 @@ export function validateEnv(config: Record<string, unknown>): Record<string, unk
     logger.warn('ADMIN_EMAIL / ADMIN_PASSWORD 未配置：prisma seed 将跳过默认管理员创建。');
   }
 
+  // Phase 4.8：前台内容缓存失效。两者必须同时配置才启用；缺失时仅告警（不阻断启动）。
+  const revalidateUrl = String(config.FRONTEND_REVALIDATE_URL ?? '').trim();
+  const revalidateSecret = String(config.REVALIDATE_SECRET ?? '').trim();
+  if (!revalidateUrl || !revalidateSecret) {
+    logger.warn(
+      'FRONTEND_REVALIDATE_URL / REVALIDATE_SECRET 未同时配置：CMS 变更后不会主动通知前台失效缓存（前台仍会按 ISR 窗口自然过期）。',
+    );
+  } else if (revalidateSecret.length < 16) {
+    logger.warn('REVALIDATE_SECRET 长度不足 16 字符：生产环境应使用足够长的强随机密钥。');
+  }
+
   logger.log(`环境变量校验通过 (NODE_ENV=${config.NODE_ENV ?? 'development'})`);
   return config;
 }

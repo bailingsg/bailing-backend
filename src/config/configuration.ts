@@ -54,5 +54,18 @@ export default () => {
      * 业务代码只依赖 StorageProvider 接口，切换存储无需改业务逻辑。
      */
     storageProvider: process.env.STORAGE_PROVIDER ?? 'LOCAL',
+
+    /**
+     * 前台内容缓存失效（Phase 4.8）。
+     *
+     * CMS 内容发布 / 下架 / 删除后，后端调用前台的安全失效端点
+     * （bailing-ui 的 POST /api/revalidate），使前台下一次访问即拿到最新内容，
+     * 不再依赖「重建 + 手动清 .next/cache」。
+     *
+     * 两者**必须同时配置**才启用；任一缺失则自动降级为「不通知」（仅记日志），
+     * 保证本地开发 / 测试环境不会因缺少前台而失败。
+     */
+    frontendRevalidateUrl: process.env.FRONTEND_REVALIDATE_URL ?? '',
+    revalidateSecret: process.env.REVALIDATE_SECRET ?? '',
   };
 };

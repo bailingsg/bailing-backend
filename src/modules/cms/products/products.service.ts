@@ -10,6 +10,8 @@ import { Prisma } from '@prisma/client';
 import { unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RevalidationService } from '../../revalidation/revalidation.service';
+import { CmsTags } from '../../revalidation/cms-tags';
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
 import { ListProductsQueryDto } from './dto/list-products-query.dto';
 import { AddProductImageDto } from './dto/product-image.dto';
@@ -49,7 +51,22 @@ export class ProductsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly revalidation: RevalidationService,
   ) {}
+
+  /**
+   * 产品变更后通知前台失效（Phase 4.8）。
+   *
+   * 同时失效列表 tag 与实体 tag：产品改名/换图会影响列表卡片，
+   * 单个产品页也需要重新渲染。路径覆盖列表页与详情页。
+   */
+  private notifyFrontend(slug?: string): void {
+    void this.revalidation.invalidate({
+      tags: [CmsTags.products, ...(slug ? [CmsTags.product(slug)] : [])],
+      // sitemap 含产品详情 URL，必须一并失效
+      paths: ['/products', '/sitemap.xml', ...(slug ? [`/products/${slug}`] : [])],
+    });
+  }
 
   /** 上传图片的对外 URL 基地址（生产可指向 CDN 域名） */
   private get uploadsBaseUrl(): string {
@@ -127,6 +144,7 @@ export class ProductsService {
         },
         include: PRODUCT_INCLUDE,
       });
+      this.notifyFrontend(created.slug);
       return toCmsProductDetail(created as ProductWithRelations);
     } catch (error) {
       throw this.mapWriteError(error, dto.slug);
@@ -166,6 +184,7 @@ export class ProductsService {
         data,
         include: PRODUCT_INCLUDE,
       });
+      this.notifyFrontend(updated.slug);
       return toCmsProductDetail(updated as ProductWithRelations);
     } catch (error) {
       throw this.mapWriteError(error, dto.slug);
@@ -188,6 +207,8 @@ export class ProductsService {
     }
 
     await this.prisma.product.delete({ where: { id } });
+    // 删除后前台必须立即 404：同时失效列表 tag 与（已删除的）详情页路径。
+    this.notifyFrontend(product.slug);
     return { id };
   }
 
@@ -241,6 +262,13 @@ export class ProductsService {
         },
       });
 
+      // 新增图片会影响产品详情页与列表卡片，通知前台失效
+      const owner = await this.prisma.product.findUnique({
+        where: { id: productId },
+        select: { slug: true },
+      });
+      this.notifyFrontend(owner?.slug);
+
       return {
         id: image.id,
         url: image.url,
@@ -278,6 +306,13 @@ export class ProductsService {
         await this.prisma.productImage.update({ where: { id: next.id }, data: { isPrimary: true } });
       }
     }
+
+    // 图片变更会影响产品详情页展示，通知前台失效（含该产品详情路径）
+    const owner = await this.prisma.product.findUnique({
+      where: { id: productId },
+      select: { slug: true },
+    });
+    this.notifyFrontend(owner?.slug);
 
     return { id: image.id };
   }

@@ -1,6 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RevalidationService } from '../../revalidation/revalidation.service';
+import { CmsTags } from '../../revalidation/cms-tags';
 import type { CmsCategoryDto } from './entities/product.entity';
 import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
 
@@ -12,7 +14,18 @@ import { CreateCategoryDto, UpdateCategoryDto } from './dto/category.dto';
  */
 @Injectable()
 export class ProductCategoriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly revalidation: RevalidationService,
+  ) {}
+
+  /** 分类变更后通知前台失效（分类筛选器与产品列表都依赖分类数据） */
+  private notifyFrontend(): void {
+    void this.revalidation.invalidate({
+      tags: [CmsTags.categories, CmsTags.products],
+      paths: ['/products'],
+    });
+  }
 
   /** 分类列表（含各分类产品计数，按 sortOrder 升序） */
   async list(): Promise<CmsCategoryDto[]> {
@@ -48,6 +61,7 @@ export class ProductCategoriesService {
           isActive: dto.isActive ?? true,
         },
       });
+      this.notifyFrontend();
       return this.toDto(created, 0);
     } catch (error) {
       throw this.mapWriteError(error, dto.slug);
@@ -72,6 +86,7 @@ export class ProductCategoriesService {
       });
 
       const productCount = await this.prisma.product.count({ where: { categoryId: id } });
+      this.notifyFrontend();
       return this.toDto(updated, productCount);
     } catch (error) {
       throw this.mapWriteError(error, dto.slug);
@@ -91,6 +106,7 @@ export class ProductCategoriesService {
     }
 
     await this.prisma.category.delete({ where: { id } });
+    this.notifyFrontend();
     return { id };
   }
 

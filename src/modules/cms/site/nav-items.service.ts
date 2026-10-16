@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditLogService } from '../../rbac/audit-log.service';
 import type { ActorContext } from '../../rbac/actor-context';
+import { RevalidationService } from '../../revalidation/revalidation.service';
+import { CmsTags } from '../../revalidation/cms-tags';
 import { normalizeSiteUrl } from './site-url';
 import { CreateNavItemDto, ListNavItemsQueryDto, UpdateNavItemDto } from './dto/nav-item.dto';
 import { NavItemDto, NavItemListDto, toNavItemDto } from './entities/site.entity';
@@ -23,7 +25,22 @@ export class NavItemsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditLogService,
+    private readonly revalidation: RevalidationService,
   ) {}
+
+  /**
+   * 导航变更后通知前台失效（Phase 4.8）。
+   *
+   * 导航渲染在根布局（Header / Footer / 移动端菜单），影响**全站每一页**，
+   * 因此以 layout 粒度失效根路径 —— 一次调用覆盖整站。
+   */
+  private notifyFrontend(): void {
+    void this.revalidation.invalidate({
+      tags: [CmsTags.navigation],
+      paths: ['/'],
+      revalidateLayout: true,
+    });
+  }
 
   async list(query: ListNavItemsQueryDto): Promise<NavItemListDto> {
     const where: Prisma.NavItemWhereInput = {};
@@ -66,6 +83,8 @@ export class NavItemsService {
       summary: `新建${dto.location === 'HEADER' ? '页眉' : '页脚'}导航「${dto.label}」→ ${url}`,
     });
 
+    this.notifyFrontend();
+
     return toNavItemDto(row);
   }
 
@@ -103,6 +122,8 @@ export class NavItemsService {
       summary: `更新导航「${row.label}」→ ${row.url}`,
     });
 
+    this.notifyFrontend();
+
     return toNavItemDto(row);
   }
 
@@ -119,6 +140,8 @@ export class NavItemsService {
       targetId: id,
       summary: `删除导航「${existing.label}」→ ${existing.url}`,
     });
+
+    this.notifyFrontend();
 
     return { id };
   }

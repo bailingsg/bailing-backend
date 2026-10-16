@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { ContentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RevalidationService } from '../../revalidation/revalidation.service';
+import { CmsTags } from '../../revalidation/cms-tags';
 import {
   CreateQualityRecordDto,
   UpdateQualityRecordDto,
@@ -42,7 +44,18 @@ const QUALITY_RECORD_INCLUDE = {
  */
 @Injectable()
 export class QualityRecordsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly revalidation: RevalidationService,
+  ) {}
+
+  /** 质量记录变更后通知前台失效（质量页展示已发布认证与报告） */
+  private notifyFrontend(): void {
+    void this.revalidation.invalidate({
+      tags: [CmsTags.quality],
+      paths: ['/quality'],
+    });
+  }
 
   /* ------------------------------ 查询 ------------------------------ */
 
@@ -122,6 +135,7 @@ export class QualityRecordsService {
       include: QUALITY_RECORD_INCLUDE,
     });
 
+    this.notifyFrontend();
     return toQualityRecordDetail(created as QualityRecordWithRelations);
   }
 
@@ -177,6 +191,7 @@ export class QualityRecordsService {
       include: QUALITY_RECORD_INCLUDE,
     });
 
+    this.notifyFrontend();
     return this.findById(id);
   }
 
@@ -196,6 +211,7 @@ export class QualityRecordsService {
     if (!existing) throw new NotFoundException('Quality record not found.');
 
     await this.prisma.qualityRecord.delete({ where: { id } });
+    this.notifyFrontend();
     return { id };
   }
 

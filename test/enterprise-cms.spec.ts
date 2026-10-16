@@ -4,6 +4,7 @@ import { FactorySectionsService } from '../src/modules/cms/factory/factory-secti
 import { QualityRecordsService } from '../src/modules/cms/quality/quality-records.service';
 import { ApplicationsService } from '../src/modules/cms/applications/applications.service';
 import type { PrismaService } from '../src/modules/prisma/prisma.service';
+import { makeRevalidationMock } from './helpers/revalidation-mock';
 
 /**
  * Enterprise CMS 单元测试（Phase 4.5：Factory / Quality / Applications）。
@@ -110,7 +111,10 @@ describe('FactorySectionsService', () => {
   beforeEach(() => {
     prisma = makeFactoryPrismaMock();
     wireTransaction(prisma as unknown as AnyMock);
-    service = new FactorySectionsService(prisma as unknown as PrismaService);
+    service = new FactorySectionsService(
+      prisma as unknown as PrismaService,
+      makeRevalidationMock(),
+    );
   });
 
   function sectionRow(overrides: Record<string, unknown> = {}) {
@@ -363,7 +367,10 @@ describe('QualityRecordsService', () => {
   beforeEach(() => {
     prisma = makeQualityPrismaMock();
     wireTransaction(prisma as unknown as AnyMock);
-    service = new QualityRecordsService(prisma as unknown as PrismaService);
+    service = new QualityRecordsService(
+      prisma as unknown as PrismaService,
+      makeRevalidationMock(),
+    );
   });
 
   function recordRow(overrides: Record<string, unknown> = {}) {
@@ -573,7 +580,10 @@ describe('ApplicationsService', () => {
   beforeEach(() => {
     prisma = makeApplicationsPrismaMock();
     wireTransaction(prisma as unknown as AnyMock);
-    service = new ApplicationsService(prisma as unknown as PrismaService);
+    service = new ApplicationsService(
+      prisma as unknown as PrismaService,
+      makeRevalidationMock(),
+    );
   });
 
   function appRow(overrides: Record<string, unknown> = {}) {

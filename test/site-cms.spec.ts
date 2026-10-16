@@ -4,6 +4,7 @@ import { SiteSectionsService } from '../src/modules/cms/site/site-sections.servi
 import { NavItemsService } from '../src/modules/cms/site/nav-items.service';
 import { AuditLogService } from '../src/modules/rbac/audit-log.service';
 import type { ActorContext } from '../src/modules/rbac/actor-context';
+import { makeRevalidationMock } from './helpers/revalidation-mock';
 import {
   parseSiteSectionItems,
   parseSiteSectionStats,
@@ -79,6 +80,7 @@ function makeService(prisma: ReturnType<typeof makePrismaMock>): SiteSectionsSer
   return new SiteSectionsService(
     prisma as unknown as PrismaService,
     { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditLogService,
+    makeRevalidationMock(),
   );
 }
 
@@ -253,6 +255,7 @@ describe('NavItemsService URL 校验（Phase 4.7）', () => {
     return new NavItemsService(
       prisma as unknown as PrismaService,
       { record: jest.fn().mockResolvedValue(undefined) } as unknown as AuditLogService,
+      makeRevalidationMock(),
     );
   }
 

@@ -7,6 +7,8 @@ import {
 } from '@nestjs/common';
 import { PostStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RevalidationService } from '../../revalidation/revalidation.service';
+import { CmsTags } from '../../revalidation/cms-tags';
 import { CreateBlogPostDto, UpdateBlogPostDto } from './dto/blog-post.dto';
 import { ListBlogPostsQueryDto } from './dto/list-blog-posts-query.dto';
 import { sanitizeRichText } from './rich-text.sanitizer';
@@ -39,7 +41,24 @@ const BLOG_POST_INCLUDE = {
  */
 @Injectable()
 export class BlogPostsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly revalidation: RevalidationService,
+  ) {}
+
+  /**
+   * 文章变更后通知前台失效（Phase 4.8）。
+   *
+   * 覆盖：文章列表、分类计数、文章详情路径。删除时传 slug，
+   * 保证已删除文章的详情页立即 404（而非继续命中旧缓存）。
+   */
+  private notifyFrontend(slug?: string): void {
+    void this.revalidation.invalidate({
+      tags: [CmsTags.blog, CmsTags.blogCategories, ...(slug ? [CmsTags.blogPost(slug)] : [])],
+      // sitemap 含文章详情 URL，必须一并失效
+      paths: ['/blog', '/sitemap.xml', ...(slug ? [`/blog/${slug}`] : [])],
+    });
+  }
 
   /* ------------------------------ 查询 ------------------------------ */
 
@@ -126,6 +145,7 @@ export class BlogPostsService {
         },
         include: BLOG_POST_INCLUDE,
       });
+      this.notifyFrontend(created.slug);
       return toBlogPostDetail(created as BlogPostWithRelations);
     } catch (error) {
       throw this.mapWriteError(error, dto.slug);
@@ -192,6 +212,7 @@ export class BlogPostsService {
         }
         return tx.blogPost.update({ where: { id }, data, include: BLOG_POST_INCLUDE });
       });
+      this.notifyFrontend(updated.slug);
       return toBlogPostDetail(updated as BlogPostWithRelations);
     } catch (error) {
       throw this.mapWriteError(error, dto.slug);
@@ -200,10 +221,14 @@ export class BlogPostsService {
 
   /** 删除文章（BlogPostTag 由 schema 级联删除） */
   async remove(id: string): Promise<{ id: string }> {
-    const existing = await this.prisma.blogPost.findUnique({ where: { id }, select: { id: true } });
+    const existing = await this.prisma.blogPost.findUnique({
+      where: { id },
+      select: { id: true, slug: true },
+    });
     if (!existing) throw new NotFoundException('文章不存在');
 
     await this.prisma.blogPost.delete({ where: { id } });
+    this.notifyFrontend(existing.slug);
     return { id };
   }
 

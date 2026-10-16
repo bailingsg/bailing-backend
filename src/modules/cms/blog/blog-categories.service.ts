@@ -1,6 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RevalidationService } from '../../revalidation/revalidation.service';
+import { CmsTags } from '../../revalidation/cms-tags';
 import { CreateBlogCategoryDto, UpdateBlogCategoryDto } from './dto/blog-category.dto';
 import { toBlogCategoryDto, type BlogCategoryDto } from './entities/blog.entity';
 
@@ -12,7 +14,18 @@ import { toBlogCategoryDto, type BlogCategoryDto } from './entities/blog.entity'
  */
 @Injectable()
 export class BlogCategoriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly revalidation: RevalidationService,
+  ) {}
+
+  /** 分类变更后通知前台失效（博客列表筛选器 + 分类计数） */
+  private notifyFrontend(): void {
+    void this.revalidation.invalidate({
+      tags: [CmsTags.blogCategories, CmsTags.blog],
+      paths: ['/blog'],
+    });
+  }
 
   /** 分类列表（含各分类文章计数，按 sortOrder 升序） */
   async list(): Promise<BlogCategoryDto[]> {
@@ -42,6 +55,7 @@ export class BlogCategoriesService {
           isActive: dto.isActive ?? true,
         },
       });
+      this.notifyFrontend();
       return toBlogCategoryDto(created, 0);
     } catch (error) {
       throw this.mapWriteError(error, dto.slug);
@@ -66,6 +80,7 @@ export class BlogCategoriesService {
       });
 
       const postCount = await this.prisma.blogPost.count({ where: { categoryId: id } });
+      this.notifyFrontend();
       return toBlogCategoryDto(updated, postCount);
     } catch (error) {
       throw this.mapWriteError(error, dto.slug);
@@ -85,6 +100,7 @@ export class BlogCategoriesService {
     }
 
     await this.prisma.blogCategory.delete({ where: { id } });
+    this.notifyFrontend();
     return { id };
   }
 

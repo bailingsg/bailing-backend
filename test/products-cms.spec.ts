@@ -10,6 +10,7 @@ import { ProductCategoriesService } from '../src/modules/cms/products/product-ca
 import { CreateProductDto, UpdateProductDto } from '../src/modules/cms/products/dto/product.dto';
 import { CreateCategoryDto, UpdateCategoryDto } from '../src/modules/cms/products/dto/category.dto';
 import { PrismaService } from '../src/modules/prisma/prisma.service';
+import { makeRevalidationMock } from './helpers/revalidation-mock';
 
 /**
  * Products CMS 单元测试（Phase 4.2）。
@@ -129,7 +130,10 @@ describe('ProductCategoriesService（unit）', () => {
 
   beforeEach(() => {
     prisma = makePrismaMock();
-    service = new ProductCategoriesService(prisma as unknown as PrismaService);
+    service = new ProductCategoriesService(
+      prisma as unknown as PrismaService,
+      makeRevalidationMock(),
+    );
   });
 
   it('list：返回分类列表并附带各分类产品计数（groupBy 聚合）', async () => {
@@ -218,7 +222,11 @@ describe('ProductsService（unit）', () => {
   beforeEach(() => {
     prisma = makePrismaMock();
     prisma.$transaction.mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops));
-    service = new ProductsService(prisma as unknown as PrismaService, makeConfigMock());
+    service = new ProductsService(
+      prisma as unknown as PrismaService,
+      makeConfigMock(),
+      makeRevalidationMock(),
+    );
   });
 
   /* ------------------------- 查询 ------------------------- */

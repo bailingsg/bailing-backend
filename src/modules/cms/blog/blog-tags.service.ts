@@ -1,6 +1,8 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RevalidationService } from '../../revalidation/revalidation.service';
+import { CmsTags } from '../../revalidation/cms-tags';
 import { CreateBlogTagDto, UpdateBlogTagDto } from './dto/blog-tag.dto';
 import { toBlogTagDto, type BlogTagDto } from './entities/blog.entity';
 
@@ -12,7 +14,23 @@ import { toBlogTagDto, type BlogTagDto } from './entities/blog.entity';
  */
 @Injectable()
 export class BlogTagsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly revalidation: RevalidationService,
+  ) {}
+
+  /**
+   * 标签变更后通知前台失效。
+   *
+   * 标签名展示在文章详情页，且前台所有博客请求都挂了 `blog` tag，
+   * 因此失效该 tag 即可覆盖列表与全部详情页（无需逐页失效）。
+   */
+  private notifyFrontend(): void {
+    void this.revalidation.invalidate({
+      tags: [CmsTags.blog],
+      paths: ['/blog'],
+    });
+  }
 
   /** 标签列表（含引用计数，按名称升序） */
   async list(): Promise<BlogTagDto[]> {
@@ -32,6 +50,7 @@ export class BlogTagsService {
       const created = await this.prisma.blogTag.create({
         data: { name: dto.name, slug: dto.slug },
       });
+      this.notifyFrontend();
       return toBlogTagDto(created, 0);
     } catch (error) {
       throw this.mapWriteError(error, dto.slug);
@@ -53,6 +72,7 @@ export class BlogTagsService {
       });
 
       const postCount = await this.prisma.blogPostTag.count({ where: { tagId: id } });
+      this.notifyFrontend();
       return toBlogTagDto(updated, postCount);
     } catch (error) {
       throw this.mapWriteError(error, dto.slug);
@@ -65,6 +85,7 @@ export class BlogTagsService {
     if (!existing) throw new NotFoundException('博客标签不存在');
 
     await this.prisma.blogTag.delete({ where: { id } });
+    this.notifyFrontend();
     return { id };
   }
 

@@ -5,6 +5,7 @@ import { BlogPostsService } from '../src/modules/cms/blog/blog-posts.service';
 import { BlogCategoriesService } from '../src/modules/cms/blog/blog-categories.service';
 import { BlogTagsService } from '../src/modules/cms/blog/blog-tags.service';
 import { PrismaService } from '../src/modules/prisma/prisma.service';
+import { makeRevalidationMock } from './helpers/revalidation-mock';
 import type { CreateBlogPostDto, UpdateBlogPostDto } from '../src/modules/cms/blog/dto/blog-post.dto';
 import type { ListBlogPostsQueryDto } from '../src/modules/cms/blog/dto/list-blog-posts-query.dto';
 
@@ -265,7 +266,10 @@ describe('BlogPostsService（unit）', () => {
   beforeEach(() => {
     prisma = makePrismaMock();
     wireTransaction(prisma);
-    service = new BlogPostsService(prisma as unknown as PrismaService);
+    service = new BlogPostsService(
+      prisma as unknown as PrismaService,
+      makeRevalidationMock(),
+    );
   });
 
   /* ------------------------- 列表 ------------------------- */
@@ -556,7 +560,10 @@ describe('BlogCategoriesService（unit）', () => {
 
   beforeEach(() => {
     prisma = makePrismaMock();
-    service = new BlogCategoriesService(prisma as unknown as PrismaService);
+    service = new BlogCategoriesService(
+      prisma as unknown as PrismaService,
+      makeRevalidationMock(),
+    );
   });
 
   it('list：按 sortOrder 升序返回并附带文章计数', async () => {
@@ -637,7 +644,10 @@ describe('BlogTagsService（unit）', () => {
 
   beforeEach(() => {
     prisma = makePrismaMock();
-    service = new BlogTagsService(prisma as unknown as PrismaService);
+    service = new BlogTagsService(
+      prisma as unknown as PrismaService,
+      makeRevalidationMock(),
+    );
   });
 
   it('list：按名称升序返回并附带引用计数', async () => {

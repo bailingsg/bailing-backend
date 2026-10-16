@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { ContentStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RevalidationService } from '../../revalidation/revalidation.service';
+import { CmsTags } from '../../revalidation/cms-tags';
 import {
   ApplicationProductItemDto,
   CreateApplicationDto,
@@ -41,7 +43,23 @@ const APPLICATION_INCLUDE = {
  */
 @Injectable()
 export class ApplicationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly revalidation: RevalidationService,
+  ) {}
+
+  /**
+   * 应用场景变更后通知前台失效。
+   *
+   * 同时失效列表 tag 与实体 tag（详情页含关联产品）。
+   */
+  private notifyFrontend(slug?: string): void {
+    void this.revalidation.invalidate({
+      tags: [CmsTags.applications, ...(slug ? [CmsTags.application(slug)] : [])],
+      // sitemap 含应用场景详情 URL，必须一并失效
+      paths: ['/applications', '/sitemap.xml', ...(slug ? [`/applications/${slug}`] : [])],
+    });
+  }
 
   /* ------------------------------ 查询 ------------------------------ */
 
@@ -139,6 +157,7 @@ export class ApplicationsService {
       });
     });
 
+    this.notifyFrontend(created.slug);
     return toApplicationDetail(created as ApplicationWithRelations);
   }
 
@@ -196,6 +215,7 @@ export class ApplicationsService {
       }
     });
 
+    this.notifyFrontend();
     return this.findById(id);
   }
 
@@ -209,11 +229,12 @@ export class ApplicationsService {
   async remove(id: string): Promise<{ id: string }> {
     const existing = await this.prisma.application.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, slug: true },
     });
     if (!existing) throw new NotFoundException('Application not found.');
 
     await this.prisma.application.delete({ where: { id } });
+    this.notifyFrontend(existing.slug);
     return { id };
   }
 

@@ -48,6 +48,31 @@ export function setupApp(app: INestApplication): void {
   app.useGlobalFilters(new HttpExceptionFilter());
   app.useGlobalInterceptors(new TransformInterceptor());
 
+  /*
+   * HTTP 缓存策略（Phase 4.8）—— 全站唯一出口，避免各控制器各写一套。
+   *
+   * 链路现状：Browser → Next.js（Data Cache + tag，权威缓存层）→ Backend。
+   * 本阶段**没有 CDN**，因此这里只声明「浏览器/未来 CDN 可以怎么缓存」，
+   * 真正的失效由前台 /api/revalidate（tag / path）负责，两者不冲突：
+   *   · 公开只读内容（GET /api/v1/public/**、/products、/categories）
+   *     → public, max-age=60, stale-while-revalidate=300（短窗口，可被 CDN 复用）
+   *   · 其余（后台 CMS、认证、询盘 RFQ 等）
+   *     → no-store（**绝不缓存**：含凭据、内部数据与客户询盘）
+   */
+  const PUBLIC_READ_RE = /^\/api\/v1\/(?:public\/|products(?:\?|\/|$)|categories(?:\?|\/|$))/;
+  app.use((req: { method: string; originalUrl: string }, res: { setHeader: (k: string, v: string) => void }, next: () => void) => {
+    if (!req.originalUrl.startsWith('/api/v1/')) {
+      next();
+      return;
+    }
+    if (req.method === 'GET' && PUBLIC_READ_RE.test(req.originalUrl)) {
+      res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    } else {
+      res.setHeader('Cache-Control', 'no-store');
+    }
+    next();
+  });
+
   // CORS：显式 Origin 白名单，禁止使用 *
   const origins = (config.get<string>('corsOrigins') ?? '')
     .split(',')

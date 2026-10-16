@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RevalidationService } from '../../revalidation/revalidation.service';
+import { CmsTags } from '../../revalidation/cms-tags';
 import { AuditLogService } from '../../rbac/audit-log.service';
 import type { ActorContext } from '../../rbac/actor-context';
 import { ListContactsQueryDto, UpsertContactDto } from './dto/contact.dto';
@@ -39,7 +41,22 @@ export class ContactsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditLogService,
+    private readonly revalidation: RevalidationService,
   ) {}
+
+  /**
+   * 公开联系方式变更后通知前台失效（Phase 4.8）。
+   *
+   * 前台对 /public/contacts 采用 no-store（实时敏感内容），因此**即使不通知**
+   * 下一次访问也已是新数据；这里额外通知是为了双保险，并覆盖
+   * 「未来若将联系方式改为 ISR」的情形。
+   */
+  private notifyFrontend(): void {
+    void this.revalidation.invalidate({
+      tags: [CmsTags.contacts],
+      paths: ['/contact'],
+    });
+  }
 
   /** 后台列表：联系方式 + 未绑定员工 */
   async list(query: ListContactsQueryDto): Promise<ContactListDto> {
@@ -164,6 +181,7 @@ export class ContactsService {
     this.logger.log(
       `员工联系方式${existing ? '更新' : '创建'}: ${employee.email} by ${actor.email}`,
     );
+    this.notifyFrontend();
     return this.findById(contact);
   }
 
@@ -193,6 +211,7 @@ export class ContactsService {
       diff: { before: { showOnSite: contact.showOnSite }, after: { showOnSite } },
     });
 
+    this.notifyFrontend();
     return this.findById(id);
   }
 
@@ -219,6 +238,7 @@ export class ContactsService {
       diff: { before: { displayName: contact.displayName, adminUserId: contact.adminUserId } },
     });
 
+    this.notifyFrontend();
     return { id };
   }
 

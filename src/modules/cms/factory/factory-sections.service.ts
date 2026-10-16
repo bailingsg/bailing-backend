@@ -6,6 +6,8 @@ import {
 } from '@nestjs/common';
 import { ContentStatus, FactorySectionType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { RevalidationService } from '../../revalidation/revalidation.service';
+import { CmsTags } from '../../revalidation/cms-tags';
 import { sanitizeRichText } from '../blog/rich-text.sanitizer';
 import {
   CreateFactorySectionDto,
@@ -46,7 +48,18 @@ const FACTORY_SECTION_INCLUDE = {
  */
 @Injectable()
 export class FactorySectionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly revalidation: RevalidationService,
+  ) {}
+
+  /** 工厂内容变更后通知前台失效（工厂页含分区正文、图库与展会照片） */
+  private notifyFrontend(): void {
+    void this.revalidation.invalidate({
+      tags: [CmsTags.factory],
+      paths: ['/factory'],
+    });
+  }
 
   /* ------------------------------ 查询 ------------------------------ */
 
@@ -157,6 +170,7 @@ export class FactorySectionsService {
       });
     });
 
+    this.notifyFrontend();
     return toFactorySectionDetail(created as FactorySectionWithRelations);
   }
 
@@ -236,6 +250,7 @@ export class FactorySectionsService {
       }
     });
 
+    this.notifyFrontend();
     return this.findById(id);
   }
 
@@ -307,6 +322,7 @@ export class FactorySectionsService {
     if (!existing) throw new NotFoundException('Factory section not found.');
 
     await this.prisma.factorySection.delete({ where: { id } });
+    this.notifyFrontend();
     return { id };
   }
 

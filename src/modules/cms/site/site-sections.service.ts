@@ -8,6 +8,8 @@ import { ContentStatus, Prisma, SitePage } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditLogService } from '../../rbac/audit-log.service';
 import type { ActorContext } from '../../rbac/actor-context';
+import { RevalidationService } from '../../revalidation/revalidation.service';
+import { CmsTags, SITE_PAGE_PATH } from '../../revalidation/cms-tags';
 import { normalizeSiteUrl } from './site-url';
 import {
   CreateSiteSectionDto,
@@ -38,7 +40,22 @@ export class SiteSectionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditLogService,
+    private readonly revalidation: RevalidationService,
   ) {}
+
+  /**
+   * 站点分区变更后通知前台失效对应页面（Phase 4.8）。
+   *
+   * 采用「page 路径级 + site tag」双重失效：路径保证该页重新渲染，
+   * tag 兜底所有引用 site 数据的视图（如首页聚合区块）。
+   */
+  private notifyFrontend(page: SitePage): void {
+    const path = SITE_PAGE_PATH[page] ?? '/';
+    void this.revalidation.invalidate({
+      tags: [CmsTags.site],
+      paths: [path],
+    });
+  }
 
   async list(query: ListSiteSectionsQueryDto): Promise<SiteSectionListDto> {
     const page = Math.max(1, query.pageNum ?? 1);
@@ -127,6 +144,8 @@ export class SiteSectionsService {
       summary: `新建站点分区 ${dto.page}/${dto.sectionKey}（${status}）`,
     });
 
+    this.notifyFrontend(row.page);
+
     return toSiteSectionDto(row);
   }
 
@@ -210,6 +229,8 @@ export class SiteSectionsService {
         : `更新站点分区 ${row.page}/${row.sectionKey}`,
     });
 
+    this.notifyFrontend(row.page);
+
     return toSiteSectionDto(row);
   }
 
@@ -226,6 +247,8 @@ export class SiteSectionsService {
       targetId: id,
       summary: `删除站点分区 ${existing.page}/${existing.sectionKey}`,
     });
+
+    this.notifyFrontend(existing.page);
 
     return { id };
   }
