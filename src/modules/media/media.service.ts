@@ -152,6 +152,7 @@ export class MediaService {
    *   · FactoryImage.mediaId —— 工厂图库 / 展会照片（Phase 4.5）
    *   · QualityRecord.mediaId —— 质量证书 / 报告（Phase 4.5）
    *   · Application.coverMediaId / coverImageUrl —— 应用场景封面（Phase 4.5）
+   *   · SiteSection.mediaId —— 站点结构化内容分区配图（Phase 4.7）
    *
    * 匹配策略（外键 id 优先，url 精确 + 文件名后缀双保险）：
    *   · 外键字段（*MediaId）直接按 id 计数——最可靠，不受地址变化影响
@@ -189,6 +190,8 @@ export class MediaService {
       // Phase 4.5 应用场景封面（外键 + 地址快照）
       this.prisma.application.count({ where: { coverMediaId: asset.id } }),
       this.prisma.application.count({ where: coverUrlFilter }),
+      // Phase 4.7 站点结构化内容分区配图（外键）
+      this.prisma.siteSection.count({ where: { mediaId: asset.id } }),
     ]);
 
     return counts.reduce((sum, value) => sum + value, 0);

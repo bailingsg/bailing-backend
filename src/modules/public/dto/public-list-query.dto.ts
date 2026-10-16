@@ -56,3 +56,27 @@ export class PublicQualityListQueryDto extends PublicListQueryDto {
   @MaxLength(40)
   recordType?: string;
 }
+
+/** 公开博客列表查询 */
+export class PublicBlogListQueryDto extends PublicListQueryDto {
+  /** 按分类 slug 筛选（如 material-guide） */
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MaxLength(60)
+  category?: string;
+
+  /** 按标签 slug 筛选 */
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MaxLength(60)
+  tag?: string;
+
+  /** 只看精选（'true'） */
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MaxLength(10)
+  featured?: string;
+}

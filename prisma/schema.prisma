@@ -24,9 +24,13 @@ enum ProductStatus {
   ARCHIVED // 已归档
 }
 
+// 博客文章发布状态（Phase 4.7 起与 ProductStatus/ContentStatus 统一为三态）：
+//   DRAFT → PUBLISHED → ARCHIVED
+// 公开 API 只返回 PUBLISHED；ARCHIVED 与 DRAFT 一律不可见（且不泄漏存在性）。
 enum PostStatus {
-  DRAFT
-  PUBLISHED
+  DRAFT // 草稿（不进公开 API）
+  PUBLISHED // 已发布（可被公开 API 读取）
+  ARCHIVED // 已归档（不进公开 API；区别于草稿：已结束生命周期）
 }
 
 // RFQ（Request For Quotation）状态流转：新询盘 → 已联系 → 已报价 → 已关闭
@@ -326,6 +330,9 @@ model MediaAsset {
   qualityRecords    QualityRecord[]  @relation("QualityRecordMedia")
   applicationCovers Application[]    @relation("ApplicationCover")
 
+  // Phase 4.7 站点结构化内容分区的媒体引用（删除保护同覆盖）
+  siteSectionMedia SiteSection[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -347,11 +354,13 @@ enum MediaCategory {
 
 // 内容发布状态（Factory / Quality / Applications 共用）
 //
-// 与 PostStatus 分开定义而非复用：三个模块未来可能各自演化
-// （如增加 ARCHIVED / SCHEDULED），共用枚举会让任一模块的扩展波及全部。
+// Phase 4.7 统一为全站三态（与 ProductStatus 对齐）：
+//   DRAFT → PUBLISHED → ARCHIVED
+// 公开 API 只返回 PUBLISHED；ARCHIVED / DRAFT 一律不可见。
 enum ContentStatus {
   DRAFT // 草稿（不进公开 API）
   PUBLISHED // 已发布（可被公开 API 读取）
+  ARCHIVED // 已归档（不进公开 API；区别于草稿：已结束生命周期）
 }
 
 // 工厂内容分区类型（Factory CMS）
@@ -805,5 +814,81 @@ model AuditLog {
   @@index([targetType, targetId])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ---------- Phase 4.7：站点结构化内容（首页 / 关于我们 / 联系页 + 导航） ----------
+
+// 站点页面标识。当前仅三个静态页面允许 CMS 结构化内容。
+// 产品 / 博客 / 工厂 / 质量 / 应用各有专门模型，不走本表。
+enum SitePage {
+  HOME // 首页
+  ABOUT // 关于我们
+  CONTACT // 联系页
+}
+
+// 站内导航位置
+enum NavLocation {
+  HEADER // 页眉主导航
+  FOOTER // 页脚链接组
+}
+
+// 站点页面的结构化内容分区（首页 / 关于我们 / 联系页）。
+//
+// 设计约束（硬性，对应任务书「禁止页面构建器」）：
+//   · **没有** block 流 / 任意 HTML / 自由拖拽布局；
+//     每个 sectionKey 对应一组固定语义字段（标题 / 副标题 / 正文 / 媒体 / CTA / 统计项）
+//   · sectionKey 在同一页面内唯一（如 home.hero / home.stats / about.intro）
+//   · 媒体引用统一走 MediaAsset（mediaId 外键 → 删除保护自动覆盖）
+//   · stats 为结构化统计项 [{label, value}]，DTO 白名单校验，绝不承载富文本
+//   · ctaUrl 必须通过 URL 安全校验（同 NavItem，见 site-url.ts）
+model SiteSection {
+  id         String        @id @default(cuid())
+  page       SitePage
+  sectionKey String // 页内唯一标识，如 home.hero / about.intro
+  eyebrow    String? // 小节眉题（如 Capabilities / Products）
+  title      String?
+  subtitle   String?
+  body       String? // 受限正文（编辑器约束，不承载脚本）
+  mediaId    String? // 关联媒体库（封面 / 配图）
+  ctaLabel   String? // 行动按钮文案
+  ctaUrl     String? // 行动按钮链接（经 URL 安全校验）
+  items      Json? // 结构化卡片数组 [{title, description?, href?}]，DTO 白名单校验
+  stats      Json? // 结构化统计项 [{label, value}]
+  status     ContentStatus @default(DRAFT)
+  sortOrder  Int           @default(0)
+  createdBy  String // 操作管理员 AdminUser.id
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  publishedAt DateTime?
+
+  media MediaAsset? @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+
+  @@unique([page, sectionKey])
+  @@index([status])
+  @@index([page, sortOrder])
+  @@map("site_sections")
+}
+
+// 站内导航项（页眉 / 页脚），由 CMS 驱动，替换前台硬编码链接。
+//
+// 安全约束：
+//   · url 必须经 URL 安全校验（site-url.ts）：仅允许①站内相对路径（/xxx，
+//     不以 // 开头，防 protocol-relative 外跳）②https 白名单外链；
+//     拒绝 javascript: / data: / http: 混合内容等一切危险协议
+//   · openInNewTab=true 的前台必须同时 rel="noopener noreferrer"
+model NavItem {
+  id           String      @id @default(cuid())
+  location     NavLocation
+  label        String
+  url          String // 经安全校验的相对路径或 https 外链
+  sortOrder    Int         @default(0)
+  isActive     Boolean     @default(true)
+  openInNewTab Boolean     @default(false)
+  createdBy    String // 操作管理员 AdminUser.id
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([location, isActive, sortOrder])
+  @@map("nav_items")
 }
 

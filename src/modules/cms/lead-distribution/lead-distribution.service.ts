@@ -247,7 +247,6 @@ export class LeadDistributionService {
     let planId: string | null = null;
     let planName: string | null = null;
     let tiltItemId: string | null = null;
-    let queueIndex: number | null = null;
 
     if (plan && isPlanInEffect(plan, now)) {
       const picked = await this.pickTiltAssignee(db, plan);
@@ -275,7 +274,6 @@ export class LeadDistributionService {
       }
       assigneeId = queue[idx].adminUserId;
       roundRobinIndex = idx;
-      queueIndex = idx;
       source = LeadAssignmentSource.ROUND_ROBIN;
     }
 

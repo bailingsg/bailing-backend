@@ -256,6 +256,9 @@ function makePrismaMock() {
     application: {
       count: jest.fn(),
     },
+    siteSection: {
+      count: jest.fn(),
+    },
     $transaction: jest.fn(),
   };
 }
@@ -313,6 +316,7 @@ describe('MediaService（unit）', () => {
       prisma.factoryImage,
       prisma.qualityRecord,
       prisma.application,
+      prisma.siteSection,
     ]) {
       model.count.mockResolvedValue(0);
     }
@@ -496,10 +500,25 @@ describe('MediaService（unit）', () => {
     });
   });
 
+  it('remove：被 SiteSection 分区配图引用（mediaId 外键）同样返回 400', async () => {
+    prisma.mediaAsset.findUnique.mockResolvedValue(makeAssetRow());
+    prisma.productImage.count.mockResolvedValue(0);
+    prisma.blogPost.count.mockResolvedValue(0);
+    prisma.siteSection.count.mockResolvedValue(1);
+
+    await expect(service.remove('media-1')).rejects.toThrow('Media asset is in use.');
+    expect(prisma.mediaAsset.delete).not.toHaveBeenCalled();
+    expect(storage.delete).not.toHaveBeenCalled();
+    expect(prisma.siteSection.count).toHaveBeenCalledWith({
+      where: { mediaId: 'media-1' },
+    });
+  });
+
   it('remove：未被引用时先删数据库行再委托 StorageProvider 删文件', async () => {
     prisma.mediaAsset.findUnique.mockResolvedValue(makeAssetRow());
     prisma.productImage.count.mockResolvedValue(0);
     prisma.blogPost.count.mockResolvedValue(0);
+    prisma.siteSection.count.mockResolvedValue(0);
     prisma.mediaAsset.delete.mockResolvedValue(makeAssetRow());
 
     await expect(service.remove('media-1')).resolves.toEqual({ id: 'media-1' });

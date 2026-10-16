@@ -11,11 +11,13 @@ import { RolesModule } from './roles/roles.module';
 import { AccountsModule } from './accounts/accounts.module';
 import { ContactsModule } from './contacts/contacts.module';
 import { LeadDistributionModule } from './lead-distribution/lead-distribution.module';
+import { SiteModule } from './site/site.module';
 import { MediaModule } from '../media/media.module';
 
 /**
  * CMS 模块（Phase 4.1 起步，4.2 纳入 Products，4.3 纳入 Media，4.4 纳入 Blog，
- * 4.5 纳入 Factory / Quality / Applications，4.6 纳入 Roles / Accounts / Contacts / LeadDistribution）。
+ * 4.5 纳入 Factory / Quality / Applications，4.6 纳入 Roles / Accounts / Contacts / LeadDistribution，
+ * 4.7 纳入 Site（站点结构化内容 + 导航））。
  * 控制器级挂 JwtAuthGuard：本模块所有接口默认要求登录。
  */
 @Module({
@@ -31,6 +33,7 @@ import { MediaModule } from '../media/media.module';
     AccountsModule,
     ContactsModule,
     LeadDistributionModule,
+    SiteModule,
   ],
   controllers: [CmsController],
   providers: [CmsService],

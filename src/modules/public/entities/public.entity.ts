@@ -7,6 +7,10 @@ import type {
   ApplicationProduct,
   Product,
   Application,
+  BlogPost,
+  BlogPostTag,
+  BlogCategory,
+  BlogTag,
 } from '@prisma/client';
 
 /**
@@ -248,5 +252,106 @@ export function toPublicApplicationDetail(row: ApplicationPublicRow): PublicAppl
       })),
     seoTitle: row.seoTitle,
     seoDescription: row.seoDescription,
+  };
+}
+
+/* ============================== Blog（Phase 4.7） ============================== */
+
+export interface PublicBlogTagRef {
+  name: string;
+  slug: string;
+}
+
+export interface PublicBlogCategoryRef {
+  name: string;
+  slug: string;
+}
+
+export interface PublicBlogPostSummary {
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  coverImageUrl: string | null;
+  coverImageAlt: string | null;
+  category: PublicBlogCategoryRef | null;
+  tags: PublicBlogTagRef[];
+  featured: boolean;
+  publishedAt: string | null;
+  updatedAt: string | null;
+  /** 预计阅读时长（分钟）——由正文纯文本词数估算，非虚构数据 */
+  readingMinutes: number;
+  seoTitle: string | null;
+  seoDescription: string | null;
+}
+
+export interface PublicBlogPostDetail extends PublicBlogPostSummary {
+  /**
+   * 正文（HTML 子集）。
+   *
+   * 安全说明：内容在**写入时**已经 rich-text.sanitizer 白名单净化
+   * （无 script/style/iframe、无事件属性、URL 协议白名单），
+   * 公开站可据此直接渲染（dangerouslySetInnerHTML）。
+   */
+  contentHtml: string;
+}
+
+export interface PublicBlogCategory {
+  slug: string;
+  name: string;
+  description: string | null;
+  /** 该分类下已发布文章数（草稿 / 归档不计入） */
+  postCount: number;
+}
+
+type BlogPostPublicRow = BlogPost & {
+  category: BlogCategory | null;
+  tags: (BlogPostTag & { tag: BlogTag })[];
+  coverMedia: MediaAsset | null;
+};
+
+/** 从 HTML 正文提取纯文本（去标签 + 实体解码），用于估算阅读时长 */
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+/** 阅读时长估算：中文按字、英文按词，200 单位/分钟（至少 1 分钟） */
+export function estimateReadingMinutes(html: string): number {
+  const text = htmlToPlainText(html);
+  const cjk = (text.match(/[\u4e00-\u9fff]/g) ?? []).length;
+  const latin = (text.replace(/[\u4e00-\u9fff]/g, ' ').match(/[A-Za-z0-9']+/g) ?? []).length;
+  return Math.max(1, Math.round((cjk + latin) / 200));
+}
+
+export function toPublicBlogPostSummary(row: BlogPostPublicRow): PublicBlogPostSummary {
+  return {
+    slug: row.slug,
+    title: row.title,
+    excerpt: row.excerpt,
+    coverImageUrl: row.coverMedia?.url ?? row.coverImageUrl,
+    coverImageAlt: row.coverMedia?.altText ?? null,
+    category: row.category ? { name: row.category.name, slug: row.category.slug } : null,
+    tags: [...row.tags]
+      .sort((a, b) => a.tag.name.localeCompare(b.tag.name))
+      .map((link) => ({ name: link.tag.name, slug: link.tag.slug })),
+    featured: row.featured,
+    publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
+    updatedAt: row.updatedAt ? row.updatedAt.toISOString() : null,
+    readingMinutes: estimateReadingMinutes(row.content),
+    seoTitle: row.seoTitle,
+    seoDescription: row.seoDescription,
+  };
+}
+
+export function toPublicBlogPostDetail(row: BlogPostPublicRow): PublicBlogPostDetail {
+  return {
+    ...toPublicBlogPostSummary(row),
+    contentHtml: row.content,
   };
 }

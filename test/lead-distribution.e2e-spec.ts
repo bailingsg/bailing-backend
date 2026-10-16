@@ -101,7 +101,7 @@ describe('询盘分配引擎（e2e）', () => {
     // 主账号：显式绑定 SUPER_ADMIN（走真实 RBAC，而非旧枚举回退）
     await prisma.adminUser.deleteMany({ where: { email: ADMIN_EMAIL } });
     const superRole = await prisma.role.findUniqueOrThrow({ where: { key: 'SUPER_ADMIN' } });
-    const admin = await prisma.adminUser.create({
+    await prisma.adminUser.create({
       data: {
         email: ADMIN_EMAIL,
         passwordHash: bcrypt.hashSync(ADMIN_PASSWORD, 4),

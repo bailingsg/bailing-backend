@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { AdminRole, PrismaClient, ProductStatus } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import { migrateLegacyRoles, seedBuiltinRoles, seedPermissions } from './seed-rbac';
+import { seedSiteContent } from './seed-site-content';
 
 /**
  * Phase 3.5 —— Demo / Placeholder 数据种子
@@ -135,6 +136,9 @@ async function main(): Promise<void> {
   const permissionIdByKey = await seedPermissions(prisma);
   const roleIdByKey = await seedBuiltinRoles(prisma, permissionIdByKey);
   await migrateLegacyRoles(prisma, roleIdByKey);
+
+  // Phase 4.7：站点结构化内容种子（首页 / 关于我们分区 + 导航，迁移既有真实文案）
+  await seedSiteContent(prisma);
 
   const categoryIdBySlug = new Map<string, string>();
 

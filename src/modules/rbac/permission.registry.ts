@@ -79,6 +79,9 @@ export const PERMISSION_MODULES: readonly PermissionModuleDefinition[] = [
   { key: 'factory', name: '工厂实力', sortOrder: 100 },
   { key: 'quality', name: '质量体系', sortOrder: 110 },
   { key: 'applications', name: '应用场景', sortOrder: 120 },
+  // Phase 4.7：站点结构化内容（首页 / 关于我们 / 联系页）与站内导航
+  { key: 'site', name: '站点内容', sortOrder: 130 },
+  { key: 'nav', name: '导航管理', sortOrder: 140 },
 ] as const;
 
 /**
@@ -486,6 +489,82 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
     action: 'delete',
     name: '删除应用场景',
     description: '删除应用场景',
+    isNav: false,
+    sortOrder: 40,
+  },
+
+  // ── 站点内容（Phase 4.7：首页 / 关于我们 / 联系页结构化分区） ──
+  {
+    key: 'site.read',
+    module: 'site',
+    action: 'read',
+    name: '查看站点内容',
+    description: '查看首页 / 关于我们 / 联系页的结构化内容分区',
+    isNav: true,
+    sortOrder: 10,
+  },
+  {
+    key: 'site.create',
+    module: 'site',
+    action: 'create',
+    name: '新建站点分区',
+    description: '新建站点内容分区（分区键页内唯一）',
+    isNav: false,
+    sortOrder: 20,
+  },
+  {
+    key: 'site.update',
+    module: 'site',
+    action: 'update',
+    name: '编辑站点内容',
+    description: '修改分区内容、排序与发布状态（草稿 / 已发布 / 已归档）',
+    isNav: false,
+    sortOrder: 30,
+  },
+  {
+    key: 'site.delete',
+    module: 'site',
+    action: 'delete',
+    name: '删除站点分区',
+    description: '删除站点内容分区',
+    isNav: false,
+    sortOrder: 40,
+  },
+
+  // ── 导航管理（Phase 4.7：页眉 / 页脚链接） ──
+  {
+    key: 'nav.read',
+    module: 'nav',
+    action: 'read',
+    name: '查看导航',
+    description: '查看页眉 / 页脚导航项',
+    isNav: true,
+    sortOrder: 10,
+  },
+  {
+    key: 'nav.create',
+    module: 'nav',
+    action: 'create',
+    name: '新建导航项',
+    description: '新建页眉 / 页脚导航项（链接经安全校验）',
+    isNav: false,
+    sortOrder: 20,
+  },
+  {
+    key: 'nav.update',
+    module: 'nav',
+    action: 'update',
+    name: '编辑导航项',
+    description: '修改导航文案、链接、排序与启用状态',
+    isNav: false,
+    sortOrder: 30,
+  },
+  {
+    key: 'nav.delete',
+    module: 'nav',
+    action: 'delete',
+    name: '删除导航项',
+    description: '删除页眉 / 页脚导航项',
     isNav: false,
     sortOrder: 40,
   },

@@ -44,6 +44,11 @@ const CONTENT_EDITOR_PERMISSIONS: readonly string[] = [
   'applications.read',
   'applications.create',
   'applications.update',
+  // Phase 4.7：站点结构化内容（首页 / 关于我们 / 联系页文案维护）。
+  // 与 factory/quality/applications 同边界：不含 delete；导航管理（nav.*）不授予。
+  'site.read',
+  'site.create',
+  'site.update',
 ];
 
 /** 销售（询盘跟进）角色默认权限：看询盘分发 + 联系方式只读 */
