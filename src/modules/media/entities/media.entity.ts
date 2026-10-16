@@ -20,6 +20,10 @@ export interface MediaAssetDto {
   width: number | null;
   height: number | null;
   altText: string | null;
+  /** Phase 5.0：图片 SEO 元数据 */
+  title: string | null;
+  caption: string | null;
+  description: string | null;
   provider: MediaProvider;
   category: MediaCategory;
   createdBy: string;
@@ -47,6 +51,9 @@ export function toMediaAssetDto(asset: MediaAsset): MediaAssetDto {
     width: asset.width,
     height: asset.height,
     altText: asset.altText,
+    title: asset.title,
+    caption: asset.caption,
+    description: asset.description,
     provider: asset.provider,
     category: asset.category,
     createdBy: asset.createdBy,

@@ -12,6 +12,7 @@ import { RbacModule } from './modules/rbac/rbac.module';
 import { CmsModule } from './modules/cms/cms.module';
 import { PublicModule } from './modules/public/public.module';
 import { RevalidationModule } from './modules/revalidation/revalidation.module';
+import { SeoModule } from './modules/seo/seo.module';
 
 @Module({
   imports: [
@@ -36,6 +37,8 @@ import { RevalidationModule } from './modules/revalidation/revalidation.module';
     PublicModule,
     // Phase 4.8：前台缓存失效（CMS 变更 → 通知 bailing-ui revalidate），@Global
     RevalidationModule,
+    // Phase 5.0：全站 SEO 基础设施（档案 / 设置 / 重定向 / 审计 / sitemap / robots / 公开解析）
+    SeoModule,
   ],
 })
 export class AppModule {}

@@ -1,11 +1,13 @@
 import {
   BadRequestException,
+  Body,
   Controller,
   Delete,
   Get,
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -20,6 +22,7 @@ import { PermissionsGuard } from '../rbac/permissions.guard';
 import { RequirePermissions } from '../rbac/require-permissions.decorator';
 import { MediaService } from './media.service';
 import { ListMediaQueryDto } from './dto/list-media-query.dto';
+import { UpdateMediaDto } from './dto/update-media.dto';
 import { MAX_MEDIA_FILE_SIZE } from './media-file.util';
 import type { MediaAssetDto, PaginatedMediaDto } from './entities/media.entity';
 
@@ -79,6 +82,16 @@ export class MediaController {
   @RequirePermissions('media.read')
   detail(@Param('id') id: string): Promise<MediaAssetDto> {
     return this.mediaService.findById(id);
+  }
+
+  /**
+   * 更新媒体 SEO 元数据（Phase 5.0 图片 SEO：alt / title / caption / description）。
+   * SEO → Media SEO 与媒体库详情页均使用本端点。
+   */
+  @Patch(':id')
+  @RequirePermissions('media.update')
+  updateMetadata(@Param('id') id: string, @Body() dto: UpdateMediaDto): Promise<MediaAssetDto> {
+    return this.mediaService.updateMetadata(id, dto);
   }
 
   /** 删除媒体（被 ProductImage 等引用时返回 400 Media asset is in use.） */

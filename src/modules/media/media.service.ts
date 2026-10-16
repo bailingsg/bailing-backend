@@ -3,6 +3,7 @@ import { MediaCategory, Prisma } from '@prisma/client';
 import path from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
 import { ListMediaQueryDto } from './dto/list-media-query.dto';
+import { UpdateMediaDto } from './dto/update-media.dto';
 import {
   isDocumentMime,
   parseImageDimensions,
@@ -128,8 +129,27 @@ export class MediaService {
    * 删除媒体：先做引用检查（被 ProductImage / BlogPost 封面等业务记录引用 → 400），
    * 再删数据库记录，最后委托 StorageProvider 删除文件。
    */
-  async remove(id: string): Promise<{ id: string }> {
+  /**
+   * 更新媒体 SEO 元数据（Phase 5.0 图片 SEO：alt / title / caption / description）。
+   * 仅更新显式传入的字段；空串 = 清除该字段。
+   */
+  async updateMetadata(id: string, dto: UpdateMediaDto): Promise<MediaAssetDto> {
     const asset = await this.prisma.mediaAsset.findUnique({ where: { id } });
+    if (!asset) {
+      throw new NotFoundException('媒体资源不存在');
+    }
+
+    const data: Prisma.MediaAssetUpdateInput = {};
+    if (dto.altText !== undefined) data.altText = dto.altText === '' ? null : dto.altText;
+    if (dto.title !== undefined) data.title = dto.title === '' ? null : dto.title;
+    if (dto.caption !== undefined) data.caption = dto.caption === '' ? null : dto.caption;
+    if (dto.description !== undefined) data.description = dto.description === '' ? null : dto.description;
+
+    const updated = await this.prisma.mediaAsset.update({ where: { id }, data });
+    return toMediaAssetDto(updated);
+  }
+
+  async remove(id: string): Promise<{ id: string }> {    const asset = await this.prisma.mediaAsset.findUnique({ where: { id } });
     if (!asset) throw new NotFoundException('媒体资源不存在');
 
     const referenced = await this.countReferences(asset);

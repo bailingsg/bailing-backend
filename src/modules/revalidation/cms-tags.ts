@@ -24,6 +24,9 @@ export const CmsTags = {
   site: 'site',
   navigation: 'navigation',
   contacts: 'contacts',
+
+  // Phase 5.0：SEO 元数据 / 设置 / 重定向变更后，全站 metadata 需刷新
+  seo: 'seo',
 } as const;
 
 /** 站点页面前台路径（用于 site 分区变更后的路径级失效） */

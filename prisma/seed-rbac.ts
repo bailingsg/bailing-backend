@@ -49,6 +49,9 @@ const CONTENT_EDITOR_PERMISSIONS: readonly string[] = [
   'site.read',
   'site.create',
   'site.update',
+  // Phase 5.0：内容编辑者维护所辖内容的 SEO 元数据（不含全局设置 / 重定向 / 审计触发）
+  'seo.read',
+  'seo.manage',
 ];
 
 /** 销售（询盘跟进）角色默认权限：看询盘分发 + 联系方式只读 */

@@ -82,6 +82,8 @@ export const PERMISSION_MODULES: readonly PermissionModuleDefinition[] = [
   // Phase 4.7：站点结构化内容（首页 / 关于我们 / 联系页）与站内导航
   { key: 'site', name: '站点内容', sortOrder: 130 },
   { key: 'nav', name: '导航管理', sortOrder: 140 },
+  // Phase 5.0：全站 SEO 基础设施（管理中心 / 审计 / 重定向 / 全局设置）
+  { key: 'seo', name: 'SEO 管理', sortOrder: 150 },
 ] as const;
 
 /**
@@ -567,6 +569,52 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
     description: '删除页眉 / 页脚导航项',
     isNav: false,
     sortOrder: 40,
+  },
+  // ── SEO 管理（Phase 5.0）────────────────────────────────────────
+  {
+    key: 'seo.read',
+    module: 'seo',
+    action: 'read',
+    name: '查看 SEO 管理',
+    description: '进入 SEO 管理中心，查看页面 / 产品 / 博客 SEO 状态与审计结果',
+    isNav: true,
+    sortOrder: 10,
+  },
+  {
+    key: 'seo.manage',
+    module: 'seo',
+    action: 'manage',
+    name: '管理页面 SEO',
+    description: '编辑页面 / 产品 / 博客 / 分类的 SEO 元数据与结构化数据',
+    isNav: false,
+    sortOrder: 20,
+  },
+  {
+    key: 'seo.audit',
+    module: 'seo',
+    action: 'manage',
+    name: '运行 SEO 审计',
+    description: '触发全站 SEO 审计（只读检查，不自动修改任何内容）',
+    isNav: false,
+    sortOrder: 30,
+  },
+  {
+    key: 'seo.redirect',
+    module: 'seo',
+    action: 'manage',
+    name: '管理重定向',
+    description: '新建 / 编辑 / 停用 301 / 302 重定向规则',
+    isNav: false,
+    sortOrder: 40,
+  },
+  {
+    key: 'seo.settings',
+    module: 'seo',
+    action: 'manage',
+    name: '管理 SEO 全局设置',
+    description: '维护站点信息、标题模板、公司资料、社交链接与站长工具配置',
+    isNav: false,
+    sortOrder: 50,
   },
 ] as const;
 

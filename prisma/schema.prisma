@@ -318,6 +318,10 @@ model MediaAsset {
   width        Int? // 像素宽（可解析时写入，解析失败为 null）
   height       Int? // 像素高
   altText      String? // 图片替代文本，SEO 需要
+  // Phase 5.0：图片 SEO 元数据（alt 已存在于上方；此处补齐 title/caption/description）
+  title        String? // 图片标题（<img title> / 图库展示）
+  caption      String? // 图注（前台图片说明）
+  description  String? // 图片详细描述（SEO / 无障碍）
   provider     MediaProvider @default(LOCAL) // 存储提供方（Storage Adapter 选择）
   category     MediaCategory @default(IMAGE) // 资源分类（IMAGE / DOCUMENT）
   createdBy    String // 上传管理员 ID（AdminUser.id）
@@ -890,5 +894,178 @@ model NavItem {
 
   @@index([location, isActive, sortOrder])
   @@map("nav_items")
+}
+
+// ==================== Phase 5.0：全站 SEO 基础设施 ====================
+//
+// 设计原则（任务书第四节「SEO 数据与业务内容模型解耦」）：
+//   · SEO 元数据集中在一张 SeoProfile 表，按 (entityType, entityId) 唯一，
+//     产品 / 博客 / 页面 / 分类等所有可索引实体共用一套字段与一套解析逻辑，
+//     不在各业务模型上重复长出一片 SEO 字段；
+//   · 业务模型上既有的 legacy SEO 字段（Product.seoTitle 等）保持只读兼容，
+//     新数据一律写入 SeoProfile；解析时 SeoProfile 优先；
+//   · 静态页面用稳定 key 作 entityId（如 home / about / contact），
+//     动态实体用业务主键 cuid，实体删除后 profile 行随业务流程清理。
+
+// SEO 实体类型（统一 SEO 表的解耦键）
+enum SeoEntityType {
+  PAGE // 静态页面（entityId = 稳定 key：home / products / applications / factory / quality / about / contact / blog）
+  PRODUCT // 产品（entityId = Product.id）
+  PRODUCT_CATEGORY // 产品分类（entityId = Category.id）
+  BLOG_POST // 博客文章（entityId = BlogPost.id）
+  BLOG_CATEGORY // 博客分类（entityId = BlogCategory.id）
+  APPLICATION // 应用场景（entityId = Application.id）
+  FACTORY_SECTION // 工厂分区（entityId = FactorySection.id）
+  QUALITY_RECORD // 质量记录（entityId = QualityRecord.id）
+}
+
+// Schema.org 结构化数据类型（后台按页面类型选择，默认 NONE 不输出）
+enum SchemaType {
+  NONE
+  WEB_PAGE
+  PRODUCT
+  ARTICLE
+  FAQ_PAGE
+}
+
+// SEO 健康状态（Audit 引擎按分数归档，人工只读）
+enum SeoStatus {
+  UNAUDITED // 尚未审计
+  GOOD // 90–100 Excellent
+  NEEDS_IMPROVEMENT // 50–89 Needs Improvement
+  POOR // 0–49 Poor
+}
+
+// 统一 SEO 档案（Phase 5.0）
+//
+// 字段与任务书 4.1 节逐条对应：title / metaTitle / metaDescription / canonicalUrl /
+// robotsIndex / robotsFollow / focusKeyword / keywords / og* / twitter* /
+// schemaType / schemaData + 审计结果（seoScore / seoStatus / lastAuditAt）。
+model SeoProfile {
+  id         String        @id @default(cuid())
+  entityType SeoEntityType
+  entityId   String // 动态实体为 cuid；静态页面为稳定 key（如 about）
+  entityName String? // 实体名称快照（列表展示，实体改名后仍可读）
+  routePath  String? // 前台路由（如 /products/abc；静态页为固定路径）
+
+  metaTitle       String?
+  metaDescription String?
+  canonicalUrl    String?
+  robotsIndex     Boolean @default(true) // 默认 index
+  robotsFollow    Boolean @default(true) // 默认 follow
+  focusKeyword    String? // 焦点关键词（仅 SEO 分析参考，禁止堆砌）
+  keywords        String? // 逗号分隔（内部管理；不作为主要 SEO 机制）
+
+  ogTitle       String?
+  ogDescription String?
+  ogImage       String?
+  twitterTitle       String?
+  twitterDescription String?
+  twitterImage       String?
+
+  schemaType SchemaType @default(NONE)
+  schemaData Json? // 附加结构化数据（如 FAQ 条目）；写入前后端双重白名单校验
+
+  relatedData Json? // 内联管理：{ products?: [slug], posts?: [slug], applications?: [slug] }
+
+  // Audit 结果（仅 SEO Audit 引擎写入，管理员只读）
+  seoScore    Int?
+  seoStatus   SeoStatus @default(UNAUDITED)
+  lastAuditAt DateTime?
+
+  updatedById String? // 最后修改人 AdminUser.id（不建外键，保留历史）
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([entityType, entityId])
+  @@index([entityType])
+  @@index([seoStatus])
+  @@map("seo_profiles")
+}
+
+// SEO 全局设置（单例表，id 固定为 'global'）
+//
+// 对应任务书十九~二十节 + 三十七节（站长工具预留）。
+// 公司信息字段只存运营确认过的数据，**严禁虚构**；未填空 = 前台不输出。
+model SeoSettings {
+  id String @id @default("global")
+
+  siteName        String  @default("Bailing Wooden")
+  siteTitle       String? // 站点标题（缺省 siteName）
+  siteDescription String? // 站点默认描述
+  defaultOgImage  String? // 默认 OG 图
+  defaultTwitterImage String? // 默认 Twitter 图（缺省回落 defaultOgImage）
+  canonicalDomain String? // https://bailingwooden.com（robots sitemap / canonical 基准）
+
+  // 标题模板（%title% 占位符；空串按系统默认）
+  pageTitleTemplate     String @default("%title% | Bailing Wooden")
+  productTitleTemplate  String @default("%title% | Bailing Wooden")
+  blogTitleTemplate     String @default("%title% | Bailing Wooden")
+  categoryTitleTemplate String @default("%title% | Bailing Wooden")
+
+  // 公司信息（Organization / LocalBusiness Schema 消费；不虚构）
+  companyName    String?
+  companyLogo    String?
+  companyWebsite String?
+  companyEmail   String?
+  companyPhone   String?
+  companyAddress String?
+  companyCountry String?
+
+  // Social（允许为空）
+  linkedin  String?
+  facebook  String?
+  instagram String?
+  youtube   String?
+  whatsapp  String?
+
+  // 站长工具（允许为空；未配置时前台不输出空标签）
+  googleSiteVerification String? // <meta name="google-site-verification">
+  googleAnalyticsId     String? // GA Measurement ID（仅配置能力，不强制加载）
+  googleTagManagerId    String? // GTM ID（同上）
+
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("seo_settings")
+}
+
+// SEO 重定向（任务书二十八节）
+//
+// 安全约束（后端强制）：
+//   · sourcePath 必须是站内相对路径（/xxx，不允许 // 开头与外部 URL）；
+//   · targetPath 允许站内相对路径或 http(s) 绝对 URL，禁止 javascript:/data: 等危险协议；
+//   · 禁止自指向（source === target，归一化后比较）；
+//   · 禁止成环（source → target 链条不得回到 source 或形成链式环）。
+model SeoRedirect {
+  id         String  @id @default(cuid())
+  sourcePath String  @unique // 站内路径，如 /old-product-page
+  targetPath String // 站内路径或 https 绝对地址
+  statusCode Int     @default(301) // 301（默认，永久）/ 302（临时）
+  isActive   Boolean @default(true)
+  note       String? // 迁移备注
+  hits       Int     @default(0) // 命中次数（middleware 递增，仅统计）
+
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive])
+  @@map("seo_redirects")
+}
+
+// SEO 审计记录（任务书三十节；最近一次可供 Dashboard / 列表页展示）
+model SeoAuditRun {
+  id          String   @id @default(cuid())
+  summary     Json // { total, passed, warnings, errors, critical }
+  issues      Json // 问题明细 [{severity, check, entityType, entityId, routePath, message, suggestion}]
+  triggerType String   @default("MANUAL") // MANUAL（本阶段仅手动触发；Audit 只读，不自动修复）
+  durationMs  Int      @default(0)
+  createdById String? // 触发人 AdminUser.id
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("seo_audit_runs")
 }
 
