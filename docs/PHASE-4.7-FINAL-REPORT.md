@@ -282,7 +282,7 @@ Time:        56.6 s
 
 | 仓库 | 基线 | 新分支 | 提交 | 远程 |
 | --- | --- | --- | --- | --- |
-| bailing-backend | `261016` (bd8f0be) | `261017` | `aff34d1` feat(cms) + 文档提交 | 已推送 |
+| bailing-backend | `261016` (bd8f0be) | `261017` | `aff34d1` feat(cms) → `e81304a` docs（报告 + 验证脚本 + 截图） | 已推送 |
 | bailing-admin | `261016` (121a7ad) | `261017` | `eb0182e` feat(admin) | 已推送 |
 | bailing-ui | `261013` (eb4f3b9) | `261017` | `0787612` feat(ui) | 已推送 |
 
