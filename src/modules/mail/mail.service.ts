@@ -224,6 +224,23 @@ function formatTime(date: Date): string {
   }).format(date);
 }
 
+/**
+ * 生成「回复该客户」按钮的 mailto 链接。
+ *
+ * 背景：部分邮件客户端（如 QQ 邮箱网页版）的回复按钮不按 Reply-To 预填客户地址，
+ * 业务员点回复会回到系统发件箱。mailto 链接由客户端原生处理，点击即打开写信窗口
+ * 并预填收件人与主题，是最可靠的回复通道（Reply-To 仍然保留，作为双保险）。
+ */
+function buildReplyMailto(payload: InquiryMailPayload): string {
+  const subject = `Re: 您来自百灵木业官网的询盘${payload.productName ? `（${payload.productName}）` : ''}`;
+  const body = `${payload.name} 您好，\n\n感谢您通过百灵木业官网提交询盘，我们已收到您的需求：\n\n---\n${payload.message}\n---\n\n现将报价与产品资料发送给您，如有疑问欢迎随时联系。\n\n百灵木业`;
+  return (
+    `mailto:${payload.email}` +
+    `?subject=${encodeURIComponent(subject)}` +
+    `&body=${encodeURIComponent(body)}`
+  );
+}
+
 function buildTextBody(payload: InquiryMailPayload): string {
   const lines = [
     `★ 客户邮箱：${payload.email} —— 点「回复」即可直接回信给该客户（若回复地址显示异常，请复制上面的地址）`,
@@ -296,8 +313,12 @@ function buildHtmlBody(payload: InquiryMailPayload): string {
         <div style="font-size:13px;opacity:.9;margin-top:4px;">编号 ${escapeHtml(payload.rfqId)}</div>
       </div>
       <div style="padding:20px 24px;">
-        <div style="padding:10px 14px;margin-bottom:16px;background:#fff7e6;border:1px solid #f0c36d;border-radius:6px;color:#8a5a00;font-size:14px;line-height:1.6;">
-          <strong>客户邮箱：${escapeHtml(payload.email)}</strong> —— 点邮件客户端的「回复」即可直接回信给该客户；若回复地址显示异常，请复制上面的地址手动发送。
+        <div style="padding:12px 14px;margin-bottom:16px;background:#fff7e6;border:1px solid #f0c36d;border-radius:6px;color:#8a5a00;font-size:14px;line-height:1.6;">
+          <div><strong>客户邮箱：${escapeHtml(payload.email)}</strong></div>
+          <div style="margin-top:10px;">
+            <a href="${buildReplyMailto(payload)}" style="display:inline-block;padding:8px 18px;background:#8b5e3c;color:#ffffff;border-radius:5px;text-decoration:none;font-weight:600;font-size:14px;">✉ 回复该客户</a>
+            <span style="margin-left:10px;font-size:13px;">点击按钮直接打开写信窗口，收件人已填好；也可复制上面的地址手动发送。</span>
+          </div>
         </div>
         <table style="width:100%;border-collapse:collapse;font-size:14px;">
           ${tableRows}
