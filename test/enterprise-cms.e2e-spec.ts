@@ -230,7 +230,6 @@ describe('Enterprise CMS（e2e）', () => {
         summary: '生产车间简介',
         content: '<p>正文</p><script>alert(1)</script>',
         coverMediaId: imageMediaId,
-        status: ContentStatus.PUBLISHED,
         images: [{ mediaId: imageMediaId, altText: '车间图', sortOrder: 0 }],
         exhibitions: [{ name: '广州建博会', location: '广州', photos: [{ mediaId: imageMediaId }] }],
       })
@@ -239,10 +238,11 @@ describe('Enterprise CMS（e2e）', () => {
     expect(created.body.data).toMatchObject({
       slug: FACTORY_SLUG,
       sectionType: 'PRODUCTION',
-      status: ContentStatus.PUBLISHED,
+      // Phase 1：创建恒为 DRAFT，上线必须走独立发布动作
+      status: ContentStatus.DRAFT,
       coverMediaId: imageMediaId,
     });
-    expect(created.body.data.publishedAt).toBeTruthy();
+    expect(created.body.data.publishedAt).toBeNull();
     expect(created.body.data.imageCount).toBe(1);
     expect(created.body.data.exhibitionCount).toBe(1);
     // content 经 XSS 净化
@@ -299,6 +299,17 @@ describe('Enterprise CMS（e2e）', () => {
       .expect(200);
     expect(Array.isArray(exhibitions.body.data)).toBe(true);
     expect(exhibitions.body.data[0]).toMatchObject({ name: '广州建博会' });
+
+    // 发布（独立权限 + 服务端完整性校验）：发布后公开站才可见
+    const published = await request(app.getHttpServer())
+      .post(`/api/v1/cms/factory/${factoryId}/publish`)
+      .set(auth())
+      .expect(200);
+    expect(published.body.data).toMatchObject({
+      status: ContentStatus.PUBLISHED,
+      summary: '更新后的简介',
+    });
+    expect(published.body.data.publishedAt).toBeTruthy();
   });
 
   /* ========================= Quality ========================= */
@@ -306,8 +317,8 @@ describe('Enterprise CMS（e2e）', () => {
   let qualityId: string;
   let qualityDraftId: string;
 
-  it('Quality：创建已发布（PDF 证书）→ 草稿（无证书号）→ 重名 409', async () => {
-    const published = await request(app.getHttpServer())
+  it('Quality：创建（PDF 证书）→ 发布 → 草稿（无证书号）→ 重名 409', async () => {
+    const created = await request(app.getHttpServer())
       .post('/api/v1/cms/quality')
       .set(auth())
       .send({
@@ -319,17 +330,26 @@ describe('Enterprise CMS（e2e）', () => {
         issueDate: '2025-01-01',
         expiryDate: '2027-01-01',
         mediaId: pdfMediaId,
-        status: ContentStatus.PUBLISHED,
       })
       .expect(201);
-    expect(published.body.data).toMatchObject({
+    expect(created.body.data).toMatchObject({
       slug: QUALITY_SLUG,
       certificateNumber: 'FSC-C123456',
       mediaId: pdfMediaId,
-      status: ContentStatus.PUBLISHED,
+      // Phase 1：创建恒为 DRAFT
+      status: ContentStatus.DRAFT,
+      publishedAt: null,
     });
-    expect(published.body.data.media.isDocument).toBe(true);
-    qualityId = published.body.data.id as string;
+    expect(created.body.data.media.isDocument).toBe(true);
+    qualityId = created.body.data.id as string;
+
+    // 发布后才进入公开站
+    const published = await request(app.getHttpServer())
+      .post(`/api/v1/cms/quality/${qualityId}/publish`)
+      .set(auth())
+      .expect(200);
+    expect(published.body.data).toMatchObject({ status: ContentStatus.PUBLISHED });
+    expect(published.body.data.publishedAt).toBeTruthy();
 
     // 草稿 + 无证书号 / 无日期（数据诚实：允许全空）
     const draft = await request(app.getHttpServer())
@@ -372,8 +392,8 @@ describe('Enterprise CMS（e2e）', () => {
   let appId: string;
   let appDraftId: string;
 
-  it('Applications：创建已发布（关联产品）→ 草稿 → 重名 409', async () => {
-    const published = await request(app.getHttpServer())
+  it('Applications：创建（关联产品）→ 发布 → 草稿 → 重名 409', async () => {
+    const created = await request(app.getHttpServer())
       .post('/api/v1/cms/applications')
       .set(auth())
       .send({
@@ -381,19 +401,30 @@ describe('Enterprise CMS（e2e）', () => {
         slug: APP_SLUG,
         summary: '家具制造场景',
         coverMediaId: imageMediaId,
-        status: ContentStatus.PUBLISHED,
         featured: true,
         products: [{ productId }],
       })
       .expect(201);
-    expect(published.body.data).toMatchObject({
+    expect(created.body.data).toMatchObject({
       slug: APP_SLUG,
-      status: ContentStatus.PUBLISHED,
+      // Phase 1：创建恒为 DRAFT
+      status: ContentStatus.DRAFT,
+      publishedAt: null,
       featured: true,
       productCount: 1,
     });
-    expect(published.body.data.products[0].id).toBe(productId);
-    appId = published.body.data.id as string;
+    expect(created.body.data.products[0].id).toBe(productId);
+    appId = created.body.data.id as string;
+
+    // 发布后才进入公开站
+    const published = await request(app.getHttpServer())
+      .post(`/api/v1/cms/applications/${appId}/publish`)
+      .set(auth())
+      .expect(200);
+    expect(published.body.data).toMatchObject({
+      status: ContentStatus.PUBLISHED,
+      productCount: 1,
+    });
 
     const draft = await request(app.getHttpServer())
       .post('/api/v1/cms/applications')
@@ -427,14 +458,47 @@ describe('Enterprise CMS（e2e）', () => {
       .expect(404);
   });
 
-  it('Applications：products 整体替换（清空关联）', async () => {
-    const updated = await request(app.getHttpServer())
+  it('Applications：已发布后 products 变更只进编辑稿，发布后才生效', async () => {
+    const draftRes = await request(app.getHttpServer())
       .patch(`/api/v1/cms/applications/${appId}`)
       .set(auth())
       .send({ products: [] })
       .expect(200);
-    expect(updated.body.data.productCount).toBe(0);
-    expect(updated.body.data.products).toEqual([]);
+
+    // 核心保证：保存 ≠ 发布，线上版本不受影响
+    expect(draftRes.body.data.productCount).toBe(1);
+    expect(draftRes.body.data.hasUnpublishedChanges).toBe(true);
+
+    // 预览可读到编辑稿内容
+    const preview = await request(app.getHttpServer())
+      .get(`/api/v1/cms/applications/${appId}/preview`)
+      .set(auth())
+      .expect(200);
+    expect(preview.body.data.hasUnpublishedChanges).toBe(true);
+    expect(preview.body.data.draft).toMatchObject({ products: [] });
+
+    // 发布后关联被清空，编辑稿随之清除
+    const published = await request(app.getHttpServer())
+      .post(`/api/v1/cms/applications/${appId}/publish`)
+      .set(auth())
+      .expect(200);
+    expect(published.body.data.productCount).toBe(0);
+    expect(published.body.data.products).toEqual([]);
+
+    // 发布后编辑稿已清除
+    const afterPreview = await request(app.getHttpServer())
+      .get(`/api/v1/cms/applications/${appId}/preview`)
+      .set(auth())
+      .expect(200);
+    expect(afterPreview.body.data.hasUnpublishedChanges).toBe(false);
+    expect(afterPreview.body.data.draft).toBeNull();
+
+    // 发布历史留痕
+    const revisions = await request(app.getHttpServer())
+      .get(`/api/v1/cms/applications/${appId}/revisions`)
+      .set(auth())
+      .expect(200);
+    expect((revisions.body.data as Array<{ version: number }>).length).toBeGreaterThanOrEqual(2);
   });
 
   /* ========================= 媒体删除保护 ========================= */

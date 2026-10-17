@@ -13,6 +13,7 @@ import {
   toRfqReceipt,
 } from './rfq.dto';
 import { LeadDistributionService } from '../cms/lead-distribution/lead-distribution.service';
+import { MailService } from '../mail/mail.service';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -42,6 +43,13 @@ export class RfqService {
      * 此时退化为「不自动分配」，既有测试行为不变。
      */
     @Optional() private readonly leadDistribution?: LeadDistributionService,
+    /**
+     * 询盘邮件通知（SMTP）。
+     *
+     * 同样用 @Optional() 注入：单元测试未注入 MailService 时不发信，既有测试行为不变。
+     * 发送失败也绝不回滚询盘——线索优先。
+     */
+    @Optional() private readonly mailService?: MailService,
   ) {}
 
   /**
@@ -109,7 +117,91 @@ export class RfqService {
       return rfq;
     });
 
+    // 邮件通知：异步发出，不阻塞访客回执；失败只记日志（询盘已入库，线索不丢）
+    void this.dispatchInquiryEmail(created.id);
+
     return toRfqReceipt(created);
+  }
+
+  /**
+   * 询盘入库后发送邮件通知给业务员（异步 / 失败降级）。
+   *
+   * 收件人规则：
+   *   1. 有承接人 → 发给承接人：优先「员工对外工作邮箱」EmployeeContact.displayEmail，
+   *      未配置时回落其登录邮箱 AdminUser.email（两者在系统中是分开维护的）；
+   *   2. 无承接人（未启用分配 / 暂无员工）→ 发给 INQUIRY_NOTIFY_EMAIL，
+   *      仍未配置则退化为发件邮箱自身，保证线索至少有一封可追溯的邮件；
+   *   3. 有承接人且配置了 INQUIRY_NOTIFY_EMAIL → 同时抄送，便于管理层同步掌握线索。
+   */
+  private async dispatchInquiryEmail(rfqId: string): Promise<void> {
+    if (!this.mailService) return;
+
+    try {
+      const rfq = await this.prisma.rfq.findUnique({
+        where: { id: rfqId },
+        select: {
+          id: true,
+          name: true,
+          company: true,
+          email: true,
+          phone: true,
+          country: true,
+          productName: true,
+          quantity: true,
+          message: true,
+          attachmentUrl: true,
+          status: true,
+          createdAt: true,
+          sourceIp: true,
+          userAgent: true,
+          assignee: {
+            select: {
+              name: true,
+              email: true,
+              contact: { select: { displayEmail: true } },
+            },
+          },
+        },
+      });
+      if (!rfq) return;
+
+      const assigneeEmail =
+        rfq.assignee?.contact?.displayEmail?.trim() || rfq.assignee?.email?.trim() || null;
+
+      const recipients = assigneeEmail
+        ? { to: [assigneeEmail], cc: this.mailService.notifyRecipients() }
+        : { to: this.mailService.fallbackRecipients(), cc: [] };
+
+      const result = await this.mailService.sendInquiryNotification(recipients, {
+        rfqId: rfq.id,
+        name: rfq.name,
+        company: rfq.company,
+        email: rfq.email,
+        phone: rfq.phone,
+        country: rfq.country,
+        productName: rfq.productName,
+        quantity: rfq.quantity,
+        message: rfq.message,
+        attachmentUrl: rfq.attachmentUrl,
+        status: rfq.status,
+        createdAt: rfq.createdAt,
+        assigneeName: rfq.assignee?.name ?? null,
+        sourceIp: rfq.sourceIp,
+        userAgent: rfq.userAgent,
+      });
+
+      if (!result.sent) {
+        this.logger.warn(
+          `询盘 ${rfq.id} 未发出邮件通知（原因：${result.reason ?? 'unknown'}），请在后台查看该询盘。`,
+        );
+      }
+    } catch (error) {
+      // 邮件链路异常绝不影响询盘本身
+      this.logger.error(
+        `询盘 ${rfqId} 邮件通知处理异常（询盘已入库）：` +
+          (error instanceof Error ? error.message : String(error)),
+      );
+    }
   }
 
   /** 后台列表：分页 + 状态/承接人筛选，最新提交在前 */

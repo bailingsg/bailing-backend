@@ -1,9 +1,12 @@
 import { NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Reflector } from '@nestjs/core';
+import { JwtService } from '@nestjs/jwt';
 import { Test } from '@nestjs/testing';
 import { ProductStatus, RfqStatus } from '@prisma/client';
 import { PrismaService } from '../src/modules/prisma/prisma.service';
-import { AdminTokenGuard } from '../src/modules/rfq/admin-token.guard';
+import { RbacService } from '../src/modules/rbac/rbac.service';
+import { RfqAuthGuard } from '../src/modules/rfq/rfq-auth.guard';
 import { RfqController } from '../src/modules/rfq/rfq.controller';
 import { RfqService } from '../src/modules/rfq/rfq.service';
 
@@ -82,9 +85,12 @@ describe('RfqService', () => {
       controllers: [RfqController],
       providers: [
         RfqService,
-        AdminTokenGuard,
+        // 控制器声明了 RfqAuthGuard：这里提供最小依赖桩，本文件只测 service 逻辑
+        RfqAuthGuard,
         { provide: PrismaService, useValue: prisma },
-        // 未配置 ADMIN_API_TOKEN → 后台接口在本地开发放行
+        { provide: JwtService, useValue: { verifyAsync: jest.fn() } },
+        { provide: RbacService, useValue: { resolveAccess: jest.fn(), satisfies: jest.fn() } },
+        { provide: Reflector, useValue: { getAllAndOverride: jest.fn() } },
         { provide: ConfigService, useValue: { get: () => '' } },
       ],
     }).compile();

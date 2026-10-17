@@ -57,6 +57,22 @@ export function validateEnv(config: Record<string, unknown>): Record<string, unk
     logger.warn('REVALIDATE_SECRET 长度不足 16 字符：生产环境应使用足够长的强随机密钥。');
   }
 
+  // 询盘邮件通知（SMTP）：不完整配置不阻断启动，仅告警降级为「只入库不发信」。
+  const smtpKeys = ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD'] as const;
+  const missingSmtp = smtpKeys.filter((key) => String(config[key] ?? '').trim() === '');
+  if (missingSmtp.length > 0) {
+    logger.warn(
+      `SMTP 配置不完整（缺 ${missingSmtp.join(', ')}）：询盘将只入库不发送邮件通知。` +
+        '（注意：告警不回显任何变量值）',
+    );
+  } else {
+    const smtpPort = Number(config.SMTP_PORT ?? 465);
+    if (!Number.isInteger(smtpPort) || smtpPort < 1 || smtpPort > 65535) {
+      throw new Error('环境变量 SMTP_PORT 必须是 1-65535 之间的整数');
+    }
+    logger.log('SMTP 配置已就绪：询盘将同步发送邮件通知给承接业务员。');
+  }
+
   logger.log(`环境变量校验通过 (NODE_ENV=${config.NODE_ENV ?? 'development'})`);
   return config;
 }

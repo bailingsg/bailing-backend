@@ -20,7 +20,7 @@ import { LeadDistributionService } from '../src/modules/cms/lead-distribution/le
  *   6. 手动关闭立即恢复正常轮询，且**保留**正常轮询指针
  *   7. 冷却结束自动恢复执行
  *   8. 员工停用立即退出队列，计划详情显示「账号已停用」
- *   9. RFQ 公开创建入口自动分配，X-Admin-Token 后台接口兼容
+ *   9. RFQ 公开创建入口自动分配，后台列表（JWT + rfq.read）带出承接人
  *  10. RBAC：无令牌 401，缺权限 403
  */
 
@@ -613,14 +613,13 @@ describe('询盘分配引擎（e2e）', () => {
 
   /* ------------------- 接口兼容与权限 ------------------- */
 
-  it('公开创建询盘自动分配；X-Admin-Token 后台列表带出承接人字段', async () => {
+  it('公开创建询盘自动分配；后台列表（JWT + rfq.read）带出承接人字段', async () => {
     const created = await submitRfq('compat1');
     expect(created.assigneeEmail).toBeTruthy();
 
-    const adminToken = process.env.ADMIN_API_TOKEN ?? '';
     const res = await request(app.getHttpServer())
       .get('/api/v1/rfq')
-      .set('x-admin-token', adminToken)
+      .set(auth())
       .expect(200);
 
     const item = (res.body.data.items as Array<Record<string, unknown>>).find(

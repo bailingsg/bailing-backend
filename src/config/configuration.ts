@@ -67,5 +67,35 @@ export default () => {
      */
     frontendRevalidateUrl: process.env.FRONTEND_REVALIDATE_URL ?? '',
     revalidateSecret: process.env.REVALIDATE_SECRET ?? '',
+
+    /**
+     * 询盘邮件通知（SMTP）。
+     *
+     * 访客在前台提交询盘后，后端用这里配置的发件邮箱把询盘内容
+     * 发给系统内配置的业务员（承接人），使业务员在常用邮箱里即时收到线索。
+     *
+     * 四项（HOST / USER / PASSWORD）必须同时配置才启用；任一缺失则自动降级为
+     * 「只入库不邮件」（仅记日志），保证本地开发 / 测试环境不会因缺 SMTP 而失败。
+     *
+     * 安全红线：SMTP_PASSWORD 只从环境变量读取，禁止硬编码、禁止写进日志与响应体。
+     */
+    smtpHost: process.env.SMTP_HOST ?? '',
+    smtpPort: parseInt(process.env.SMTP_PORT ?? '465', 10),
+    /** 是否直接使用 TLS 连接（465 = 隐式 TLS；587 = STARTTLS，应为 false） */
+    smtpSecure: process.env.SMTP_SECURE ?? 'true',
+    smtpUser: process.env.SMTP_USER ?? '',
+    smtpPassword: process.env.SMTP_PASSWORD ?? '',
+    /** 发件人显示名（163 等服务商要求发件地址必须与 SMTP 账号一致，故地址固定取 smtpUser） */
+    mailFromName: process.env.MAIL_FROM_NAME ?? 'Bailing Wooden Website',
+
+    /**
+     * 询盘通知收件邮箱（逗号分隔，可选）。
+     *
+     * 两种作用：
+     *   1. 兜底：询盘没有承接人（分配引擎未启用/无员工）时收件人取这里；
+     *   2. 抄送：有承接人时作为 CC，便于管理层同时掌握线索。
+     * 留空时兜底收件人退化为发件邮箱自身（SMTP_USER）。
+     */
+    inquiryNotifyEmail: process.env.INQUIRY_NOTIFY_EMAIL ?? '',
   };
 };

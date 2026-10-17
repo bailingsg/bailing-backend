@@ -360,13 +360,14 @@ describe('Products CMS（e2e）', () => {
     const res = await request(app.getHttpServer())
       .patch(`/api/v1/cms/products/${product1Id}`)
       .set(auth())
-      .send({ name: 'E2E Oak Plywood Pro', isFeatured: true, status: 'PUBLISHED' })
+      .send({ name: 'E2E Oak Plywood Pro', isFeatured: true })
       .expect(200);
 
     expect(res.body.data).toMatchObject({
       name: 'E2E Oak Plywood Pro',
       isFeatured: true,
-      status: ProductStatus.PUBLISHED,
+      // Phase 1：普通更新永不改变发布态
+      status: ProductStatus.DRAFT,
     });
     // 未提供的字段保持原值
     expect(res.body.data.slug).toBe(`${SLUG_PREFIX}${RUN_ID}-1`);
@@ -374,17 +375,18 @@ describe('Products CMS（e2e）', () => {
     expect(res.body.data.specifications).toEqual({ thickness: '18mm', material: 'Oak' });
   });
 
-  it('Product update：不存在返回 404；非法 status 返回 400', async () => {
+  it('Product update：不存在返回 404；直接 PATCH status 被 400 拒绝', async () => {
     await request(app.getHttpServer())
       .patch('/api/v1/cms/products/not-exist-product')
       .set(auth())
       .send({ name: 'Ghost Product' })
       .expect(404);
 
+    // Update DTO 已移除 status：绕过前端直接请求也会被 ValidationPipe 拒绝
     await request(app.getHttpServer())
       .patch(`/api/v1/cms/products/${product1Id}`)
       .set(auth())
-      .send({ status: 'NOT_A_STATUS' })
+      .send({ status: 'PUBLISHED' })
       .expect(400);
   });
 
@@ -407,10 +409,11 @@ describe('Products CMS（e2e）', () => {
         slug: `${SLUG_PREFIX}${RUN_ID}-2`,
         categoryId: categoryBId,
         description: 'second product description',
-        status: 'PUBLISHED',
       })
       .expect(201);
     product2Id = prod2.body.data.id as string;
+    // Phase 1：创建恒为 DRAFT，上线必须走独立发布动作
+    expect(prod2.body.data.status).toBe(ProductStatus.DRAFT);
 
     // keyword 只命中第二件（唯一关键词）
     const byKeyword = await request(app.getHttpServer())
@@ -421,12 +424,22 @@ describe('Products CMS（e2e）', () => {
     const kwItems = byKeyword.body.data.items as Array<{ id: string }>;
     expect(kwItems.map((i) => i.id)).toEqual([product2Id]);
 
-    // status=DRAFT 只含第一件（把第二件恢复 DRAFT 再验证）
+    // 发布第二件 → status=PUBLISHED 只含它
     await request(app.getHttpServer())
-      .patch(`/api/v1/cms/products/${product2Id}`)
+      .post(`/api/v1/cms/products/${product2Id}/publish`)
       .set(auth())
-      .send({ status: 'DRAFT' })
       .expect(200);
+
+    const byPublished = await request(app.getHttpServer())
+      .get('/api/v1/cms/products')
+      .query({ status: 'PUBLISHED' })
+      .set(auth())
+      .expect(200);
+    const publishedItems = byPublished.body.data.items as Array<{ id: string; status: ProductStatus }>;
+    expect(publishedItems.every((i) => i.status === ProductStatus.PUBLISHED)).toBe(true);
+    expect(publishedItems.find((i) => i.id === product2Id)).toBeDefined();
+
+    // status=DRAFT 不含已发布的第二件
     const byDraft = await request(app.getHttpServer())
       .get('/api/v1/cms/products')
       .query({ status: 'DRAFT' })
@@ -434,7 +447,21 @@ describe('Products CMS（e2e）', () => {
       .expect(200);
     const draftItems = byDraft.body.data.items as Array<{ id: string; status: ProductStatus }>;
     expect(draftItems.every((i) => i.status === ProductStatus.DRAFT)).toBe(true);
-    expect(draftItems.find((i) => i.id === product2Id)).toBeDefined();
+    expect(draftItems.find((i) => i.id === product2Id)).toBeUndefined();
+
+    // 取消发布 → status=UNPUBLISHED 含第二件（内容与历史保留）
+    await request(app.getHttpServer())
+      .post(`/api/v1/cms/products/${product2Id}/unpublish`)
+      .set(auth())
+      .expect(200);
+
+    const byUnpublished = await request(app.getHttpServer())
+      .get('/api/v1/cms/products')
+      .query({ status: 'UNPUBLISHED' })
+      .set(auth())
+      .expect(200);
+    const unpublishedItems = byUnpublished.body.data.items as Array<{ id: string }>;
+    expect(unpublishedItems.map((i) => i.id)).toContain(product2Id);
 
     // categoryId 精确筛选
     const byCat = await request(app.getHttpServer())

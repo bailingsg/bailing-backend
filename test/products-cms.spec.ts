@@ -52,6 +52,8 @@ function makePrismaMock() {
       delete: jest.fn(),
     },
     $transaction: jest.fn(),
+    contentDraft: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    contentRevision: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }), create: jest.fn(), findMany: jest.fn() },
   };
 }
 

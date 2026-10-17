@@ -352,21 +352,36 @@ describe('Blog CMS（e2e）', () => {
       .expect(404);
   });
 
-  it('Post update：PATCH 只改提供字段；转 PUBLISHED 自动补 publishedAt；SEO 可清空', async () => {
+  it('Post update：PATCH 只改提供字段；发布走独立动作并补 publishedAt；SEO 可清空', async () => {
     const res = await request(app.getHttpServer())
       .patch(`/api/v1/cms/blog/posts/${post1Id}`)
       .set(auth())
-      .send({ featured: true, status: 'PUBLISHED', seoDescription: null })
+      .send({ featured: true, seoDescription: null })
       .expect(200);
 
     expect(res.body.data).toMatchObject({
       featured: true,
-      status: PostStatus.PUBLISHED,
+      // Phase 1：普通更新不改发布态
+      status: PostStatus.DRAFT,
       seoDescription: null,
       slug: POST_SLUG, // 未提供的字段不变
       seoTitle: '板材出口指南 | 百灵木业',
     });
-    expect(typeof res.body.data.publishedAt).toBe('string');
+
+    // 直接 PATCH status 会被 ValidationPipe 拒绝
+    await request(app.getHttpServer())
+      .patch(`/api/v1/cms/blog/posts/${post1Id}`)
+      .set(auth())
+      .send({ status: 'PUBLISHED' })
+      .expect(400);
+
+    // 发布动作：状态切 PUBLISHED 并写入 publishedAt
+    const published = await request(app.getHttpServer())
+      .post(`/api/v1/cms/blog/posts/${post1Id}/publish`)
+      .set(auth())
+      .expect(200);
+    expect(published.body.data.status).toBe(PostStatus.PUBLISHED);
+    expect(typeof published.body.data.publishedAt).toBe('string');
 
     await request(app.getHttpServer())
       .patch('/api/v1/cms/blog/posts/not-exist-post')
@@ -453,14 +468,24 @@ describe('Blog CMS（e2e）', () => {
     const relative = mediaStorageKey.startsWith('media/') ? mediaStorageKey.slice(6) : mediaStorageKey;
     expect(existsSync(path.join(MEDIA_UPLOAD_ROOT, relative))).toBe(true);
 
+    // post1 已发布：封面变更先进编辑稿，线上版本保持原样
     const patched = await request(app.getHttpServer())
       .patch(`/api/v1/cms/blog/posts/${post1Id}`)
       .set(auth())
       .send({ coverMediaId: mediaId })
       .expect(200);
 
-    expect(patched.body.data).toMatchObject({ coverMediaId: mediaId, coverImageUrl: mediaUrl });
-    expect(patched.body.data.coverMedia).toMatchObject({ id: mediaId, url: mediaUrl });
+    expect(patched.body.data.hasUnpublishedChanges).toBe(true);
+    expect(patched.body.data.coverMediaId).toBeNull();
+
+    // 发布后封面与地址快照一起生效
+    const published = await request(app.getHttpServer())
+      .post(`/api/v1/cms/blog/posts/${post1Id}/publish`)
+      .set(auth())
+      .expect(200);
+
+    expect(published.body.data).toMatchObject({ coverMediaId: mediaId, coverImageUrl: mediaUrl });
+    expect(published.body.data.coverMedia).toMatchObject({ id: mediaId, url: mediaUrl });
   });
 
   it('Media 关联：封面不存在的媒体 ID → 400', async () => {
@@ -478,11 +503,16 @@ describe('Blog CMS（e2e）', () => {
       .expect(400);
     expect(res.body.error.message).toBe('Media asset is in use.');
 
-    // 解除封面关联后即可删除
+    // 解除封面关联：已发布文章需经编辑稿 + 发布才真正落库
     await request(app.getHttpServer())
       .patch(`/api/v1/cms/blog/posts/${post1Id}`)
       .set(auth())
       .send({ coverMediaId: null })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/cms/blog/posts/${post1Id}/publish`)
+      .set(auth())
       .expect(200);
 
     const detached = await request(app.getHttpServer())

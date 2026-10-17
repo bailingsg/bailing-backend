@@ -210,6 +210,8 @@ function makePrismaMock() {
       findUnique: jest.fn(),
     },
     $transaction: jest.fn(),
+    contentDraft: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    contentRevision: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }), create: jest.fn(), findMany: jest.fn() },
   };
 }
 
@@ -362,20 +364,23 @@ describe('BlogPostsService（unit）', () => {
     expect(arg.data.tags).toEqual({ create: [{ tagId: TAG_ID_1 }, { tagId: TAG_ID_2 }] });
   });
 
-  it('create：status=PUBLISHED 且未给 publishedAt 时自动置当前时间', async () => {
-    prisma.blogPost.create.mockResolvedValue(makePostRow({ status: PostStatus.PUBLISHED }));
+  it('create：即使调用方传入 status=PUBLISHED 也强制落为 DRAFT', async () => {
+    prisma.blogPost.create.mockResolvedValue(makePostRow());
 
     await service.create(
-      { title: '发布稿', slug: 'published-post', content: '<p>x</p>', status: PostStatus.PUBLISHED } as CreateBlogPostDto,
+      { title: '发布稿', slug: 'published-post', content: '<p>x</p>', status: PostStatus.PUBLISHED } as unknown as CreateBlogPostDto,
       null,
     );
 
-    const arg = prisma.blogPost.create.mock.calls[0][0] as { data: { publishedAt: Date | null } };
-    expect(arg.data.publishedAt).toBeInstanceOf(Date);
+    const arg = prisma.blogPost.create.mock.calls[0][0] as {
+      data: { publishedAt: Date | null; status: PostStatus };
+    };
+    expect(arg.data.status).toBe(PostStatus.DRAFT);
+    expect(arg.data.publishedAt).toBeNull();
   });
 
-  it('create：显式 publishedAt 优先于自动时间', async () => {
-    prisma.blogPost.create.mockResolvedValue(makePostRow({ status: PostStatus.PUBLISHED }));
+  it('create：显式 publishedAt 被忽略（发布时间只能由 publish 写入）', async () => {
+    prisma.blogPost.create.mockResolvedValue(makePostRow());
     const explicit = '2026-01-02T03:04:05.000Z';
 
     await service.create(
@@ -383,14 +388,13 @@ describe('BlogPostsService（unit）', () => {
         title: '定时发布',
         slug: 'scheduled-post',
         content: '<p>x</p>',
-        status: PostStatus.PUBLISHED,
         publishedAt: explicit,
-      } as CreateBlogPostDto,
+      } as unknown as CreateBlogPostDto,
       null,
     );
 
-    const arg = prisma.blogPost.create.mock.calls[0][0] as { data: { publishedAt: Date } };
-    expect(arg.data.publishedAt.toISOString()).toBe(explicit);
+    const arg = prisma.blogPost.create.mock.calls[0][0] as { data: { publishedAt: Date | null } };
+    expect(arg.data.publishedAt).toBeNull();
   });
 
   it('create：分类不存在 → 400', async () => {
@@ -507,15 +511,15 @@ describe('BlogPostsService（unit）', () => {
     expect(arg.data.coverImageUrl).toBeNull();
   });
 
-  it('update：首次转为 PUBLISHED 时自动补 publishedAt', async () => {
+  it('update：不改动 status / publishedAt（发布态只能经 publish/unpublish）', async () => {
     prisma.blogPost.findUnique.mockResolvedValue({ id: 'post-1', status: PostStatus.DRAFT, publishedAt: null });
-    prisma.blogPost.update.mockResolvedValue(makePostRow({ status: PostStatus.PUBLISHED }));
+    prisma.blogPost.update.mockResolvedValue(makePostRow());
 
-    await service.update('post-1', { status: PostStatus.PUBLISHED } as UpdateBlogPostDto);
+    await service.update('post-1', { status: PostStatus.PUBLISHED } as unknown as UpdateBlogPostDto);
 
-    const arg = prisma.blogPost.update.mock.calls[0][0] as { data: { publishedAt: Date; status: PostStatus } };
-    expect(arg.data.status).toBe(PostStatus.PUBLISHED);
-    expect(arg.data.publishedAt).toBeInstanceOf(Date);
+    const arg = prisma.blogPost.update.mock.calls[0][0] as { data: Record<string, unknown> };
+    expect('status' in arg.data).toBe(false);
+    expect('publishedAt' in arg.data).toBe(false);
   });
 
   it('update：内容更新时同样经净化', async () => {

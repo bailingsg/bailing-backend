@@ -1,0 +1,18 @@
+# ---- excluded from build context (never inside the image) ----
+node_modules
+dist
+.git
+.env
+.env.*
+!.env.example
+uploads
+test
+coverage
+docs
+infrastructure
+*.log
+*.pem
+*.key
+*.dump
+*.sql
+!prisma/**/*.sql

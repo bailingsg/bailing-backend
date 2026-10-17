@@ -13,6 +13,7 @@ import { CmsModule } from './modules/cms/cms.module';
 import { PublicModule } from './modules/public/public.module';
 import { RevalidationModule } from './modules/revalidation/revalidation.module';
 import { SeoModule } from './modules/seo/seo.module';
+import { MailModule } from './modules/mail/mail.module';
 
 @Module({
   imports: [
@@ -39,6 +40,8 @@ import { SeoModule } from './modules/seo/seo.module';
     RevalidationModule,
     // Phase 5.0：全站 SEO 基础设施（档案 / 设置 / 重定向 / 审计 / sitemap / robots / 公开解析）
     SeoModule,
+    // 询盘邮件通知（SMTP，@Global）：访客提交询盘后把内容邮件发给承接业务员
+    MailModule,
   ],
 })
 export class AppModule {}

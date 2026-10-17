@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { ContentStatus, SitePage } from '@prisma/client';
 import { SiteSectionsService } from '../src/modules/cms/site/site-sections.service';
 import { NavItemsService } from '../src/modules/cms/site/nav-items.service';
@@ -175,40 +175,40 @@ describe('SiteSectionsService（Phase 4.7）', () => {
     expect(prisma.siteSection.create).not.toHaveBeenCalled();
   });
 
-  it('空内容分区不允许直接发布（403）', async () => {
+  it('创建时传入 PUBLISHED 被强制降级为 DRAFT（不能绕过发布动作上线）', async () => {
     const prisma = makePrismaMock();
     prisma.siteSection.findUnique.mockResolvedValue(null);
-    const service = makeService(prisma);
-
-    await expect(
-      service.create(
-        { page: SitePage.HOME, sectionKey: 'home.empty', status: ContentStatus.PUBLISHED } as never,
-        ACTOR,
-      ),
-    ).rejects.toThrow(ForbiddenException);
-    expect(prisma.siteSection.create).not.toHaveBeenCalled();
-  });
-
-  it('以 PUBLISHED 创建时记录 publishedAt', async () => {
-    const prisma = makePrismaMock();
-    prisma.siteSection.findUnique.mockResolvedValue(null);
-    prisma.siteSection.create.mockResolvedValue({
-      ...CREATED_ROW,
-      status: ContentStatus.PUBLISHED,
-      publishedAt: new Date('2026-10-16T00:00:00.000Z'),
-    });
+    prisma.siteSection.create.mockResolvedValue(CREATED_ROW);
     const service = makeService(prisma);
 
     await service.create(
-      { ...baseCreate, status: ContentStatus.PUBLISHED } as never,
+      { page: SitePage.HOME, sectionKey: 'home.empty', status: ContentStatus.PUBLISHED } as never,
       ACTOR,
     );
 
     expect(prisma.siteSection.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          status: ContentStatus.PUBLISHED,
-          publishedAt: expect.any(Date),
+          status: ContentStatus.DRAFT,
+          publishedAt: null,
+        }),
+      }),
+    );
+  });
+
+  it('创建恒为 DRAFT 且 publishedAt 为 null', async () => {
+    const prisma = makePrismaMock();
+    prisma.siteSection.findUnique.mockResolvedValue(null);
+    prisma.siteSection.create.mockResolvedValue(CREATED_ROW);
+    const service = makeService(prisma);
+
+    await service.create({ ...baseCreate } as never, ACTOR);
+
+    expect(prisma.siteSection.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: ContentStatus.DRAFT,
+          publishedAt: null,
         }),
       }),
     );

@@ -51,6 +51,8 @@ function makeFactoryPrismaMock() {
       findMany: jest.fn(),
     },
     $transaction: jest.fn(),
+    contentDraft: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    contentRevision: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }), create: jest.fn(), findMany: jest.fn() },
     _mock: true,
   };
 }
@@ -67,6 +69,8 @@ function makeQualityPrismaMock() {
     },
     mediaAsset: { findUnique: jest.fn() },
     $transaction: jest.fn(),
+    contentDraft: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    contentRevision: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }), create: jest.fn(), findMany: jest.fn() },
   };
 }
 
@@ -89,6 +93,8 @@ function makeApplicationsPrismaMock() {
     product: { findMany: jest.fn() },
     mediaAsset: { findUnique: jest.fn() },
     $transaction: jest.fn(),
+    contentDraft: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    contentRevision: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }), create: jest.fn(), findMany: jest.fn() },
   };
 }
 
@@ -230,21 +236,23 @@ describe('FactorySectionsService', () => {
       expect(createArgs.data.content).toBe('<p>正文</p>');
     });
 
-    it('创建时 PUBLISHED 自动写入 publishedAt', async () => {
+    it('创建恒为 DRAFT 且不写 publishedAt（发布只能经 publish 动作）', async () => {
       prisma.factorySection.findUnique.mockResolvedValue(null);
       prisma.mediaAsset.findMany.mockResolvedValue([]);
       prisma.factorySection.create.mockResolvedValue({ id: 'sec-1' });
-      prisma.factorySection.findUniqueOrThrow.mockResolvedValue(sectionRow({ status: ContentStatus.PUBLISHED }));
+      prisma.factorySection.findUniqueOrThrow.mockResolvedValue(sectionRow());
 
       await service.create({
         title: 'X',
         slug: 'x',
         sectionType: FactorySectionType.OVERVIEW,
+        // 即使调用方硬塞 status，Create DTO 已不再接受，Service 也不读取
         status: ContentStatus.PUBLISHED,
       } as never);
 
       const createArgs = (prisma.factorySection.create as any).mock.calls[0][0];
-      expect(createArgs.data.publishedAt).toBeInstanceOf(Date);
+      expect(createArgs.data.status).toBe(ContentStatus.DRAFT);
+      expect(createArgs.data.publishedAt).toBeNull();
     });
 
     it('展会照片媒体缺失抛 400', async () => {
@@ -296,16 +304,18 @@ describe('FactorySectionsService', () => {
       );
     });
 
-    it('DRAFT 保留历史 publishedAt（重新发布不重置首发时间）', async () => {
+    it('普通保存不改动 status / publishedAt（发布态只能经 publish/unpublish）', async () => {
       const historic = new Date('2026-01-01T00:00:00.000Z');
       prisma.factorySection.findUnique.mockResolvedValue(sectionRow({ publishedAt: historic }));
       prisma.factorySection.update.mockResolvedValue({});
       prisma.factorySection.findUniqueOrThrow.mockResolvedValue(sectionRow({ publishedAt: historic }));
 
-      await service.update('sec-1', { status: ContentStatus.DRAFT });
+      await service.update('sec-1', { title: '新标题' });
 
       const updateArgs = (prisma.factorySection.update as any).mock.calls[0][0];
-      expect(updateArgs.data.publishedAt).toEqual(historic);
+      expect(updateArgs.data).not.toHaveProperty('status');
+      expect(updateArgs.data).not.toHaveProperty('publishedAt');
+      expect(updateArgs.data.title).toBe('新标题');
     });
 
     it('coverMediaId = null 清空封面（含地址快照）', async () => {
@@ -508,7 +518,7 @@ describe('QualityRecordsService', () => {
 
     it('显式 null 清空日期（不写入错误日期）', async () => {
       prisma.qualityRecord.findUnique.mockResolvedValue(recordRow());
-      prisma.qualityRecord.update.mockResolvedValue({});
+      prisma.qualityRecord.update.mockResolvedValue(recordRow());
       prisma.qualityRecord.findUnique.mockResolvedValueOnce(recordRow());
       prisma.qualityRecord.findUnique.mockResolvedValue(recordRow({ expiryDate: null }));
 
@@ -520,7 +530,7 @@ describe('QualityRecordsService', () => {
 
     it('未传日期字段则不改动（undefined 保持原值）', async () => {
       prisma.qualityRecord.findUnique.mockResolvedValue(recordRow());
-      prisma.qualityRecord.update.mockResolvedValue({});
+      prisma.qualityRecord.update.mockResolvedValue(recordRow());
       prisma.qualityRecord.findUnique.mockResolvedValue(recordRow());
 
       await service.update('qr-1', { title: '新标题' });
@@ -532,7 +542,7 @@ describe('QualityRecordsService', () => {
 
     it('空串证书编号归一为 null', async () => {
       prisma.qualityRecord.findUnique.mockResolvedValue(recordRow());
-      prisma.qualityRecord.update.mockResolvedValue({});
+      prisma.qualityRecord.update.mockResolvedValue(recordRow());
       prisma.qualityRecord.findUnique.mockResolvedValue(recordRow());
 
       await service.update('qr-1', { certificateNumber: '   ' });
@@ -543,7 +553,7 @@ describe('QualityRecordsService', () => {
 
     it('mediaId = null 解除文件关联（不删媒体）', async () => {
       prisma.qualityRecord.findUnique.mockResolvedValue(recordRow());
-      prisma.qualityRecord.update.mockResolvedValue({});
+      prisma.qualityRecord.update.mockResolvedValue(recordRow());
       prisma.qualityRecord.findUnique.mockResolvedValue(recordRow({ mediaId: null, media: null }));
 
       await service.update('qr-1', { mediaId: null });
@@ -691,7 +701,7 @@ describe('ApplicationsService', () => {
       prisma.application.update.mockResolvedValue({});
       prisma.applicationProduct.deleteMany.mockResolvedValue({ count: 1 });
       prisma.applicationProduct.upsert.mockResolvedValue({});
-      prisma.application.findUnique.mockResolvedValue(appRow());
+      prisma.application.findUniqueOrThrow.mockResolvedValue(appRow());
 
       await service.update('app-1', { products: [{ productId: PRODUCT_ID }] });
 
@@ -712,7 +722,9 @@ describe('ApplicationsService', () => {
     it('封面 null 清空', async () => {
       prisma.application.findUnique.mockResolvedValue(appRow());
       prisma.application.update.mockResolvedValue({});
-      prisma.application.findUnique.mockResolvedValue(appRow({ coverMediaId: null, coverImageUrl: null }));
+      prisma.application.findUniqueOrThrow.mockResolvedValue(
+        appRow({ coverMediaId: null, coverImageUrl: null }),
+      );
 
       await service.update('app-1', { coverMediaId: null });
 

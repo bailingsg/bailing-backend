@@ -177,12 +177,11 @@ describe('Auth + CMS（e2e）', () => {
     createdRfqId = res.body.data.id as string;
   });
 
-  it('RFQ 兼容：后台列表 GET /rfq 行为不变（未配置 ADMIN_API_TOKEN 时本地放行）', async () => {
+  it('RFQ 安全：未认证访问后台列表被拒绝（Phase 0 起不再 fail-open）', async () => {
     const res = await request(app.getHttpServer()).get('/api/v1/rfq?pageSize=1');
-    expect([200, 401]).toContain(res.status);
-    if (res.status === 200) {
-      expect(res.body.success).toBe(true);
-      expect(res.body.data).toHaveProperty('total');
-    }
+    // 未配置共享令牌 → 503（fail-closed）；已配置但未携带 → 401
+    expect([401, 503]).toContain(res.status);
+    expect(res.body.success).toBe(false);
+    expect(JSON.stringify(res.body)).not.toContain('@');
   });
 });
