@@ -175,6 +175,10 @@ export class SamplesService {
     if (!sample) throw new NotFoundException('样品不存在');
 
     const admin = this.isAdmin(actor);
+    // 已出库归档样品：业务接口一律不可见，仅管理员走归档历史接口
+    if (sample.status === SampleStatus.OUT && !admin) {
+      throw new NotFoundException('样品不存在');
+    }
     const isOwner = sample.ownerId === actor.id;
     const granted = sample.grants.some((g) => g.granteeId === actor.id);
     if (!admin && !isOwner && !granted) {
@@ -372,7 +376,8 @@ export class SamplesService {
     });
     if (!sample) throw new NotFoundException('样品不存在');
     if (sample.status === SampleStatus.OUT) {
-      throw new BadRequestException('样品已出库归档，不能申请出库');
+      // 已出库归档：对非管理员不可见（不泄漏存在性）
+      throw new NotFoundException('样品不存在');
     }
     if (sample.status === SampleStatus.REQUEST_OUT) {
       throw new ConflictException('该样品已有待审批的出库申请');
@@ -557,6 +562,10 @@ export class SamplesService {
   async listLogs(actor: ActorContext, sampleId: string) {
     const sample = await this.prisma.sample.findUnique({ where: { id: sampleId } });
     if (!sample) throw new NotFoundException('样品不存在');
+    // 出库归档历史仅管理员可追溯
+    if (sample.status === SampleStatus.OUT && !this.isAdmin(actor)) {
+      throw new NotFoundException('样品不存在');
+    }
     const admin = this.isAdmin(actor);
     if (!admin && sample.ownerId !== actor.id) {
       const granted = await this.prisma.sampleGrant.findFirst({

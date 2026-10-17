@@ -47,9 +47,7 @@ export class OrderFileService {
       throw new BadRequestException('订单图片大小超出限制（1B ~ 10MB）');
     }
     const now = new Date();
-    const key = `orders/${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}/${String(
-      now.getDate(),
-    ).padStart(2, '0')}/${randomUUID()}.${ext}`;
+    const key = `orders/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${randomUUID()}.${ext}`;
     const resolved = this.resolve(key);
     await mkdir(path.dirname(resolved), { recursive: true });
     await writeFile(resolved, buffer);

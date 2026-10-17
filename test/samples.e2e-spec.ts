@@ -325,12 +325,29 @@ describe('Samples CMS（e2e）', () => {
     expect(codes[0]).toBe(201);
     expect(codes[1]).toBeGreaterThanOrEqual(400);
 
-    // 记录有效申请，供下一步审批
+    // 无论谁在并发中胜出，持有人都不能审批自己发起的申请——由销售2重新申请后再审批
+    const pendingNow = await request(app.getHttpServer())
+      .get(`/api/v1/cms/samples/${sampleId}`)
+      .set(auth(sales1))
+      .expect(200);
+    if (pendingNow.body.data.pendingRequest.requesterId === sales1.id) {
+      await request(app.getHttpServer())
+        .post(`/api/v1/cms/samples/requests/${pendingNow.body.data.pendingRequest.id}/withdraw`)
+        .set(auth(sales1))
+        .expect(201);
+      const fresh = await request(app.getHttpServer())
+        .post(`/api/v1/cms/samples/${sampleId}/requests`)
+        .set(auth(sales2))
+        .send({ purpose: '并发后重新申请' })
+        .expect(201);
+      requestId = fresh.body.data.id;
+    } else {
+      requestId = pendingNow.body.data.pendingRequest.id;
+    }
     const detail = await request(app.getHttpServer())
       .get(`/api/v1/cms/samples/${sampleId}`)
       .set(auth(sales1))
       .expect(200);
-    requestId = detail.body.data.pendingRequest.id;
     expect(detail.body.data.status).toBe('REQUEST_OUT');
   });
 
