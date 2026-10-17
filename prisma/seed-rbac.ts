@@ -72,6 +72,14 @@ export const SALES_PERMISSIONS: readonly string[] = [
   'lead_distribution.read',
   'products.read',
   'media.read',
+  // Phase 5.1：样品管理（持有 / 被授权查看 / 出库申请；审批由持有人身份判定）
+  'samples.read',
+  'samples.create',
+  'samples.update',
+  // Phase 5.2：订单管理（自己的订单）
+  'orders.read',
+  'orders.create',
+  'orders.update',
 ];
 
 /** 内置角色定义 */
@@ -195,23 +203,33 @@ export async function seedBuiltinRoles(
     roleIdByKey.set(record.key, record.id);
 
     // 权限绑定：受保护超管不落 role_permissions（代码恒等于全集）
-    // 其他内置角色：**仅在角色尚无任何权限绑定时**写入预设，
-    // 避免覆盖管理员后续的手工调整
+    // 其他内置角色：**增量补齐预设**——只新增缺失的预设权限，
+    // 不删除管理员后续手工授予的权限（避免覆盖手工调整）
     if (role.key === SUPER_ADMIN_ROLE_KEY || role.permissions.length === 0) continue;
 
-    const existingCount = await prisma.rolePermission.count({ where: { roleId: record.id } });
-    if (existingCount > 0) continue;
-
-    const permissionIds = role.permissions
-      .map((k) => permissionIdByKey.get(k))
-      .filter((id): id is string => Boolean(id));
-
-    if (permissionIds.length === 0) continue;
-
-    await prisma.rolePermission.createMany({
-      data: permissionIds.map((permissionId) => ({ roleId: record.id, permissionId })),
-      skipDuplicates: true,
+    const bound = await prisma.rolePermission.findMany({
+      where: { roleId: record.id },
+      select: { permissionId: true },
     });
+    const boundIds = new Set(bound.map((b) => b.permissionId));
+
+    const missingIds: string[] = [];
+    for (const key of role.permissions) {
+      const permissionId = permissionIdByKey.get(key);
+      if (permissionId && !boundIds.has(permissionId)) {
+        missingIds.push(permissionId);
+      }
+    }
+
+    if (missingIds.length > 0) {
+      await prisma.rolePermission.createMany({
+        data: missingIds.map((permissionId) => ({ roleId: record.id, permissionId })),
+        skipDuplicates: true,
+      });
+      console.log(
+        `[seed:rbac] ${role.key} 补充预设权限 ${missingIds.length} 项`,
+      );
+    }
   }
 
   console.log(`[seed:rbac] 内置角色已就绪: ${[...roleIdByKey.keys()].join(', ')}`);

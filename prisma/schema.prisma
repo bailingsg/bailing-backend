@@ -72,6 +72,13 @@ model AdminUser {
   leadAssignments LeadAssignment[]
   assignedRfqs    Rfq[]                  @relation("RfqAssignee")
 
+  // Phase 5.1 / 5.2：样品持有人 / 授权 / 申请，订单业务员 / 附件上传人
+  ownedSamples     Sample[]         @relation("SampleOwner")
+  grantedSamples   SampleGrant[]    @relation("SampleGrantee")
+  sampleRequests   SampleRequest[]  @relation("SampleRequester")
+  orders           Order[]          @relation("OrderSalesperson")
+  orderUploads     OrderAttachment[] @relation("OrderAttachmentUploader")
+
   @@index([isActive])
   @@index([role])
   @@map("admin_users")
@@ -1082,6 +1089,166 @@ model SeoAuditRun {
 
   @@index([createdAt])
   @@map("seo_audit_runs")
+}
+
+// ==================== Phase 5.1：样品管理 ====================
+//
+// 设计约束（任务书 Phase 5.1）：
+//   · 单仓库：不建 warehouse 实体，location 为自由文本存放位置
+//   · 持有人 = 创建者（后端从会话确定，不接受前端传入）
+//   · 业务三态：IN_STOCK 库中 / REQUEST_OUT 申请出库 / REJECTED 已拒绝；
+//     OUT 为系统内部归档态（同意出库后软移除，不出现在业务列表）
+//   · 同一样品同一时间只允许一个 PENDING 申请（迁移中用部分唯一索引保证）
+//   · 出库（归档）不级联删除申请与审计记录
+
+// 样品状态
+enum SampleStatus {
+  IN_STOCK // 库中
+  REQUEST_OUT // 申请出库（存在待审批申请）
+  REJECTED // 已拒绝（最近一次申请被拒，可重新申请）
+  OUT // 已出库归档（业务列表不可见，仅管理员历史可查）
+}
+
+// 出库申请状态
+enum SampleRequestStatus {
+  PENDING // 待审批
+  APPROVED // 已同意出库
+  REJECTED // 已拒绝
+  WITHDRAWN // 申请人已撤回
+}
+
+// 样品（单仓库）
+model Sample {
+  id         String       @id @default(cuid())
+  code       String       @unique // 后端生成，形如 SP-20261017-XXXXXX
+  name       String // 样品名称
+  spec       String? // 产品型号或规格
+  material   String? // 材质
+  usage      String? // 用途
+  quantity   Int // 数量（>=1，不允许负数）
+  unit       String // 计量单位（片/张/块...）
+  location   String // 存放位置（库区/货架/层位）
+  remark     String? // 备注
+  status     SampleStatus @default(IN_STOCK)
+  ownerId    String // 持有人 AdminUser.id（创建人）
+  archivedAt DateTime? // 同意出库时间
+
+  owner    AdminUser       @relation("SampleOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  grants   SampleGrant[]
+  requests SampleRequest[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("samples")
+}
+
+// 样品查看授权（管理员 → 业务员，仅影响查看）
+model SampleGrant {
+  id          String    @id @default(cuid())
+  sampleId    String
+  granteeId   String // 被授权查看人 AdminUser.id
+  grantedById String // 授权管理员 AdminUser.id
+  revokedAt   DateTime? // 撤销时间（null = 授权有效）
+  revokedById String?
+
+  sample  Sample    @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+  grantee AdminUser @relation("SampleGrantee", fields: [granteeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([sampleId])
+  @@index([granteeId, revokedAt])
+  @@map("sample_grants")
+}
+
+// 样品出库申请
+model SampleRequest {
+  id          String             @id @default(cuid())
+  sampleId    String
+  requesterId String // 申请人 AdminUser.id
+  ownerId     String // 申请时样品持有人快照
+  purpose     String             @db.Text // 申请说明 / 用途
+  status      SampleRequestStatus @default(PENDING)
+  decidedById String? // 审批人 AdminUser.id
+  decidedAt   DateTime?
+  withdrawnAt DateTime?
+
+  sample    Sample    @relation(fields: [sampleId], references: [id], onDelete: Cascade)
+  requester AdminUser @relation("SampleRequester", fields: [requesterId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([sampleId, status])
+  @@index([requesterId])
+  @@index([ownerId, status])
+  @@map("sample_requests")
+}
+
+// ==================== Phase 5.2：订单管理 ====================
+//
+// 设计约束（任务书 Phase 5.2）：
+//   · 业务员 = 创建者（后端从会话确定）
+//   · 金额 Decimal(14,2) + 币种枚举分列存储，不拼字符串
+//   · 订单照片为业务附件：独立 OrderAttachment 表 + 独立 orders/ 存储命名空间，
+//     与 MediaAsset / 媒体库完全隔离（媒体库查询天然不涉及本表）
+//   · 文件不进静态可访问目录，一律经鉴权接口流式输出
+
+// 订单币种
+enum OrderCurrency {
+  CNY // 人民币
+  USD // 美元
+  EUR // 欧元
+}
+
+// 订单
+model Order {
+  id            String        @id @default(cuid())
+  code          String        @unique // 后端生成，形如 SO-20261017-XXXXXX
+  salespersonId String // 业务员 AdminUser.id（创建人，后端确定）
+  customerName  String
+  country       String
+  requirement   String        @db.Text // 客户需求
+  orderedAt     DateTime // 客户下单时间
+  closedAt      DateTime? // 成交时间（可空）
+  amount        Decimal       @db.Decimal(14, 2) // 金额（非负）
+  currency      OrderCurrency
+  note          String? // 备注
+
+  salesperson AdminUser         @relation("OrderSalesperson", fields: [salespersonId], references: [id], onDelete: Restrict)
+  attachments OrderAttachment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([salespersonId])
+  @@index([orderedAt])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+// 订单附件（照片；独立于 MediaAsset 的业务附件模型）
+model OrderAttachment {
+  id           String   @id @default(cuid())
+  orderId      String? // 关联订单（null = 已上传待关联的临时态）
+  originalName String
+  storageKey   String   @unique // orders/<YYYY>/<MM>/<uuid>.<ext>
+  mimeType     String // 仅允许 image/jpeg|png|webp
+  size         Int
+  uploadedById String // 上传人 AdminUser.id（关联时校验归属）
+
+  order Order?    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  owner AdminUser @relation("OrderAttachmentUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@index([uploadedById, orderId])
+  @@map("order_attachments")
 }
 
 // ============================================================

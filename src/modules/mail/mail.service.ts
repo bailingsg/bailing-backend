@@ -226,6 +226,8 @@ function formatTime(date: Date): string {
 
 function buildTextBody(payload: InquiryMailPayload): string {
   const lines = [
+    `★ 客户邮箱：${payload.email} —— 点「回复」即可直接回信给该客户（若回复地址显示异常，请复制上面的地址）`,
+    '',
     `收到一条新的询盘（编号 ${payload.rfqId}）`,
     '',
     `客户姓名：${formatField(payload.name)}`,
@@ -294,6 +296,9 @@ function buildHtmlBody(payload: InquiryMailPayload): string {
         <div style="font-size:13px;opacity:.9;margin-top:4px;">编号 ${escapeHtml(payload.rfqId)}</div>
       </div>
       <div style="padding:20px 24px;">
+        <div style="padding:10px 14px;margin-bottom:16px;background:#fff7e6;border:1px solid #f0c36d;border-radius:6px;color:#8a5a00;font-size:14px;line-height:1.6;">
+          <strong>客户邮箱：${escapeHtml(payload.email)}</strong> —— 点邮件客户端的「回复」即可直接回信给该客户；若回复地址显示异常，请复制上面的地址手动发送。
+        </div>
         <table style="width:100%;border-collapse:collapse;font-size:14px;">
           ${tableRows}
         </table>

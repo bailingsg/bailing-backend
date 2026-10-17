@@ -14,6 +14,8 @@ import { PublicModule } from './modules/public/public.module';
 import { RevalidationModule } from './modules/revalidation/revalidation.module';
 import { SeoModule } from './modules/seo/seo.module';
 import { MailModule } from './modules/mail/mail.module';
+import { SamplesModule } from './modules/samples/samples.module';
+import { OrdersModule } from './modules/orders/orders.module';
 
 @Module({
   imports: [
@@ -42,6 +44,10 @@ import { MailModule } from './modules/mail/mail.module';
     SeoModule,
     // 询盘邮件通知（SMTP，@Global）：访客提交询盘后把内容邮件发给承接业务员
     MailModule,
+    // Phase 5.1：样品管理（单仓库 / 持有人 / 出库申请审批 / 授权）
+    SamplesModule,
+    // Phase 5.2：订单管理（业务员订单 / 附件与媒体库隔离）
+    OrdersModule,
   ],
 })
 export class AppModule {}

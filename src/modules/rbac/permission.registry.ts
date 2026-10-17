@@ -94,6 +94,10 @@ export const PERMISSION_MODULES: readonly PermissionModuleDefinition[] = [
   { key: 'nav', name: '导航管理', sortOrder: 140 },
   // Phase 5.0：全站 SEO 基础设施（管理中心 / 审计 / 重定向 / 全局设置）
   { key: 'seo', name: 'SEO 管理', sortOrder: 150 },
+  // Phase 5.1：样品管理（单仓库 / 持有人 / 出库申请审批）
+  { key: 'samples', name: '样品管理', sortOrder: 155 },
+  // Phase 5.2：订单管理（业务员订单 / 附件）
+  { key: 'orders', name: '订单管理', sortOrder: 160 },
 ] as const;
 
 /**
@@ -759,6 +763,76 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
     description: '维护站点信息、标题模板、公司资料、社交链接与站长工具配置',
     isNav: false,
     sortOrder: 50,
+  },
+
+  // ── 样品管理（Phase 5.1）──────────────────────────────────
+  // 说明：样品的「申请出库 / 审批 / 撤回」不做独立权限——
+  // 这些动作由服务层按「持有人 / 申请人 / 被授权人」业务身份判定，
+  // 权限 key 只控制模块入口与基础读写能力。
+  {
+    key: 'samples.read',
+    module: 'samples',
+    action: 'read',
+    name: '查看样品',
+    description: '查看自己持有或被授权查看的样品；管理员可查看全部（含归档历史）',
+    isNav: true,
+    sortOrder: 10,
+  },
+  {
+    key: 'samples.create',
+    module: 'samples',
+    action: 'create',
+    name: '录入样品',
+    description: '新建样品（持有人自动关联当前登录用户）',
+    isNav: false,
+    sortOrder: 20,
+  },
+  {
+    key: 'samples.update',
+    module: 'samples',
+    action: 'update',
+    name: '编辑样品',
+    description: '编辑自己持有的样品信息（状态流转不由本权限控制）',
+    isNav: false,
+    sortOrder: 30,
+  },
+  {
+    key: 'samples.manage',
+    module: 'samples',
+    action: 'manage',
+    name: '样品管理授权',
+    description: '将样品查看权限授权给业务员或撤销授权；查看全部样品与归档历史',
+    isNav: false,
+    sortOrder: 40,
+  },
+
+  // ── 订单管理（Phase 5.2）──────────────────────────────────
+  {
+    key: 'orders.read',
+    module: 'orders',
+    action: 'read',
+    name: '查看订单',
+    description: '查看自己的订单；管理员可查看全部业务员订单',
+    isNav: true,
+    sortOrder: 10,
+  },
+  {
+    key: 'orders.create',
+    module: 'orders',
+    action: 'create',
+    name: '新建订单',
+    description: '创建订单（业务员自动关联当前登录用户）并上传订单照片',
+    isNav: false,
+    sortOrder: 20,
+  },
+  {
+    key: 'orders.update',
+    module: 'orders',
+    action: 'update',
+    name: '编辑订单',
+    description: '编辑自己的订单与照片',
+    isNav: false,
+    sortOrder: 30,
   },
 ] as const;
 
