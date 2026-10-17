@@ -160,9 +160,7 @@ export class CreateSiteSectionDto {
   @Type(() => SiteSectionStatDto)
   stats?: SiteSectionStatDto[];
 
-  @IsOptional()
-  @IsEnum(ContentStatus)
-  status?: ContentStatus;
+  // Phase 1：Create DTO 不接受 status（新建恒为 DRAFT）
 
   @IsOptional()
   @Transform(toInt)
@@ -229,9 +227,7 @@ export class UpdateSiteSectionDto {
   @Type(() => SiteSectionStatDto)
   stats?: SiteSectionStatDto[] | null;
 
-  @IsOptional()
-  @IsEnum(ContentStatus)
-  status?: ContentStatus;
+  // Phase 1：Update DTO 不接受 status（发布态只能经 publish/unpublish 变更）
 
   @IsOptional()
   @Transform(toInt)

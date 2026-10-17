@@ -22,7 +22,16 @@ import {
  * 幂等：可重复执行。
  */
 
-/** 内容编辑角色默认权限（仅内容类；不含账号/角色/分发等管理权限） */
+/**
+ * 内容编辑角色默认权限（仅内容类；不含账号/角色/分发等管理权限）。
+ *
+ * Phase 1 起**不预置任何 `*.publish` / `*.unpublish`**：
+ *   · 保存编辑稿只需 `*.update`；让内容对外可见必须另有 `*.publish`。
+ *   · 取消发布（下架）是比发布更敏感的动作，`*.unpublish` 单独授予。
+ *   · 若客户希望内容编辑保留「改完即可上线」的旧能力，请在
+ *     「角色与权限」页为其显式勾选对应 `*.publish`，不要改本文件默认值
+ *     —— 默认值代表最小权限基线，是审计依据。
+ */
 const CONTENT_EDITOR_PERMISSIONS: readonly string[] = [
   'dashboard.read',
   'products.read',
@@ -54,9 +63,11 @@ const CONTENT_EDITOR_PERMISSIONS: readonly string[] = [
   'seo.manage',
 ];
 
-/** 销售（询盘跟进）角色默认权限：看询盘分发 + 联系方式只读 */
+/** 销售（询盘跟进）角色默认权限：看询盘 + 跟进状态 + 分配情况 + 联系方式只读 */
 export const SALES_PERMISSIONS: readonly string[] = [
   'dashboard.read',
+  'rfq.read',
+  'rfq.update',
   'contacts.read',
   'lead_distribution.read',
   'products.read',

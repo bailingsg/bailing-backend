@@ -19,9 +19,10 @@ enum AdminRole {
 }
 
 enum ProductStatus {
-  DRAFT // 草稿
-  PUBLISHED // 已发布
-  ARCHIVED // 已归档
+  DRAFT // 草稿（未发布；公开 API 不可见）
+  PUBLISHED // 已发布（线上版本）
+  UNPUBLISHED // 已取消发布（内容保留，可重新发布；公开 API 不可见）
+  ARCHIVED // 已归档（历史值，语义等同 UNPUBLISHED，保留以兼容存量数据）
 }
 
 // 博客文章发布状态（Phase 4.7 起与 ProductStatus/ContentStatus 统一为三态）：
@@ -30,7 +31,8 @@ enum ProductStatus {
 enum PostStatus {
   DRAFT // 草稿（不进公开 API）
   PUBLISHED // 已发布（可被公开 API 读取）
-  ARCHIVED // 已归档（不进公开 API；区别于草稿：已结束生命周期）
+  UNPUBLISHED // 已取消发布（保留内容与历史，可重新发布）
+  ARCHIVED // 已归档（历史值，语义等同 UNPUBLISHED）
 }
 
 // RFQ（Request For Quotation）状态流转：新询盘 → 已联系 → 已报价 → 已关闭
@@ -64,11 +66,11 @@ model AdminUser {
   blogPosts BlogPost[]
 
   // Phase 4.6：多角色、联系方式、询盘分配相关
-  userRoles          AdminUserRole[]
-  contact            EmployeeContact?
-  leadPlanItems      LeadDistributionItem[]
-  leadAssignments    LeadAssignment[]
-  assignedRfqs       Rfq[] @relation("RfqAssignee")
+  userRoles       AdminUserRole[]
+  contact         EmployeeContact?
+  leadPlanItems   LeadDistributionItem[]
+  leadAssignments LeadAssignment[]
+  assignedRfqs    Rfq[]                  @relation("RfqAssignee")
 
   @@index([isActive])
   @@index([role])
@@ -114,13 +116,15 @@ model Product {
   applications     Json? // 应用标签数组（Phase 4.2 CMS 管理），如 ["Furniture","Construction"]
   specifications   Json? // 规格参数：{ "厚度": "18mm", ... }
   status           ProductStatus @default(DRAFT)
+  version          Int           @default(0) // 乐观锁：并发保存/发布冲突检测
+  publishedVersion Int           @default(0) // 当前线上版本号（0 = 从未发布）
   isFeatured       Boolean       @default(false) // 首页/列表页精选
   seoTitle         String? // SEO 标题，空则回落 name
   seoDescription   String? // SEO 描述，空则回落 shortDescription
 
-  category  Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  images    ProductImage[]
-  rfqs      Rfq[]
+  category         Category             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  images           ProductImage[]
+  rfqs             Rfq[]
   // Phase 4.5：被哪些应用场景引用。
   // 注意命名——Product.applications（Json 字符串标签，Phase 4.2 遗留）已占用该字段名，
   // 关系侧故命名为 applicationLinks，避免与之混淆。
@@ -176,9 +180,9 @@ model Rfq {
   status        RfqStatus @default(NEW)
 
   // Phase 4.6：询盘负责人（自动轮询分配）
-  assigneeId    String?
-  assignedAt    DateTime?
-  assignee      AdminUser? @relation("RfqAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assigneeId String?
+  assignedAt DateTime?
+  assignee   AdminUser? @relation("RfqAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
 
   sourceIp  String? // 风控：提交来源 IP
   userAgent String? // 风控：提交来源 UA
@@ -237,18 +241,20 @@ model BlogTag {
 //   · SEO 字段（seoTitle/seoDescription/seoKeywords/canonicalUrl）供 Google/Bing/Sitemap 消费
 //   · OG / Twitter Card 字段为预留：本阶段仅存储与透出，不接入第三方校验
 model BlogPost {
-  id             String     @id @default(cuid())
-  title          String
-  slug           String     @unique
-  excerpt        String?
-  content        String     @db.Text // 富文本（HTML），写入前经 sanitize 过滤
-  coverImageUrl  String? // 封面地址快照（可由 coverMedia 回填；兼容历史外链）
-  coverMediaId   String? // 封面媒体（关联 MediaAsset，Phase 4.3 Media Library）
-  categoryId     String? // 所属博客分类
-  status         PostStatus @default(DRAFT)
-  featured       Boolean    @default(false) // 精选（首页 / 推荐位）
-  publishedAt    DateTime?
-  authorId       String?
+  id               String     @id @default(cuid())
+  title            String
+  slug             String     @unique
+  excerpt          String?
+  content          String     @db.Text // 富文本（HTML），写入前经 sanitize 过滤
+  coverImageUrl    String? // 封面地址快照（可由 coverMedia 回填；兼容历史外链）
+  coverMediaId     String? // 封面媒体（关联 MediaAsset，Phase 4.3 Media Library）
+  categoryId       String? // 所属博客分类
+  status           PostStatus @default(DRAFT)
+  version          Int        @default(0) // 乐观锁：并发保存/发布冲突检测
+  publishedVersion Int        @default(0) // 当前线上版本号（0 = 从未发布）
+  featured         Boolean    @default(false) // 精选（首页 / 推荐位）
+  publishedAt      DateTime?
+  authorId         String?
 
   // SEO
   seoTitle       String? // SEO 标题，空则回落 title
@@ -265,9 +271,9 @@ model BlogPost {
   twitterTitle       String?
   twitterDescription String?
 
-  author     AdminUser?     @relation(fields: [authorId], references: [id], onDelete: SetNull)
-  category   BlogCategory?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  coverMedia MediaAsset?    @relation(fields: [coverMediaId], references: [id], onDelete: SetNull)
+  author     AdminUser?    @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  category   BlogCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  coverMedia MediaAsset?   @relation(fields: [coverMediaId], references: [id], onDelete: SetNull)
   tags       BlogPostTag[]
 
   createdAt DateTime @default(now())
@@ -364,7 +370,8 @@ enum MediaCategory {
 enum ContentStatus {
   DRAFT // 草稿（不进公开 API）
   PUBLISHED // 已发布（可被公开 API 读取）
-  ARCHIVED // 已归档（不进公开 API；区别于草稿：已结束生命周期）
+  UNPUBLISHED // 已取消发布（保留内容与历史，可重新发布）
+  ARCHIVED // 已归档（历史值，语义等同 UNPUBLISHED）
 }
 
 // 工厂内容分区类型（Factory CMS）
@@ -393,24 +400,26 @@ enum QualityRecordType {
 //   · 图集经 FactoryImage 关联（一对多，可排序、可设 ALT），删除分区时级联解绑
 //   · SEO 三件套（slug/seoTitle/seoDescription）供公开详情页 /sitemap 消费
 model FactorySection {
-  id      String             @id @default(cuid())
-  title   String
-  slug    String             @unique // SEO URL，公开详情页 /factory/[slug]
-  sectionType FactorySectionType
-  summary String?
-  content String?            @db.Text // 富文本（HTML），写入前经白名单净化
+  id            String             @id @default(cuid())
+  title         String
+  slug          String             @unique // SEO URL，公开详情页 /factory/[slug]
+  sectionType   FactorySectionType
+  summary       String?
+  content       String?            @db.Text // 富文本（HTML），写入前经白名单净化
   coverMediaId  String? // 封面媒体（Media Library）
   coverImageUrl String? // 封面地址快照（由 coverMedia 回填，兼容历史外链）
 
-  status      ContentStatus @default(DRAFT)
-  sortOrder   Int           @default(0)
-  publishedAt DateTime?
+  status           ContentStatus @default(DRAFT)
+  version          Int           @default(0) // 乐观锁：并发保存/发布冲突检测
+  publishedVersion Int           @default(0) // 当前线上版本号（0 = 从未发布）
+  sortOrder        Int           @default(0)
+  publishedAt      DateTime?
 
   seoTitle       String?
   seoDescription String?
 
-  coverMedia MediaAsset?    @relation("FactorySectionCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
-  images     FactoryImage[]
+  coverMedia  MediaAsset?         @relation("FactorySectionCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
+  images      FactoryImage[]
   exhibitions FactoryExhibition[]
 
   createdAt DateTime @default(now())
@@ -429,17 +438,17 @@ model FactorySection {
 // 与 ProductImage 同构：仅登记 mediaId 与展示元数据，不复制文件。
 // 删除分区 → 级联删除关联行（媒体资产本身保留，由引用检查兜底）。
 model FactoryImage {
-  id        String  @id @default(cuid())
-  sectionId String
-  mediaId   String // 关联 Media Library 资产
+  id           String  @id @default(cuid())
+  sectionId    String
+  mediaId      String // 关联 Media Library 资产
   // 可选归属展会：为空表示该图属于分区图库；有值表示是该展会的照片
   exhibitionId String?
-  altText   String?
-  sortOrder Int     @default(0)
+  altText      String?
+  sortOrder    Int     @default(0)
 
-  section    FactorySection    @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  section    FactorySection     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   exhibition FactoryExhibition? @relation("ExhibitionPhotos", fields: [exhibitionId], references: [id], onDelete: Cascade)
-  media      MediaAsset        @relation("FactoryImageMedia", fields: [mediaId], references: [id], onDelete: Restrict)
+  media      MediaAsset         @relation("FactoryImageMedia", fields: [mediaId], references: [id], onDelete: Restrict)
 
   createdAt DateTime @default(now())
 
@@ -456,7 +465,7 @@ model FactoryImage {
 // Phase 4.5 不开发独立 Events CMS——本模型仅服务于工厂实力的参展展示。
 model FactoryExhibition {
   id          String    @id @default(cuid())
-  sectionId   String    // 归属的工厂分区（通常 sectionType = EXHIBITION）
+  sectionId   String // 归属的工厂分区（通常 sectionType = EXHIBITION）
   name        String // 展会名称
   heldOn      DateTime? // 展会日期
   location    String? // 展会地点
@@ -464,8 +473,8 @@ model FactoryExhibition {
   sortOrder   Int       @default(0)
   isVisible   Boolean   @default(true) // 是否在前台展示
 
-  section FactorySection  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  photos  FactoryImage[]  @relation("ExhibitionPhotos")
+  section FactorySection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  photos  FactoryImage[] @relation("ExhibitionPhotos")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -484,20 +493,22 @@ model FactoryExhibition {
 //   · mediaId 关联证书图片或 PDF（Media Library 的 DOCUMENT 类型）
 //   · 公开 API 只输出 PUBLISHED 记录，草稿与停用内容不外露
 model QualityRecord {
-  id              String            @id @default(cuid())
-  title           String
-  slug            String            @unique
-  recordType      QualityRecordType
-  issuer          String? // 认证 / 检测机构
+  id                String            @id @default(cuid())
+  title             String
+  slug              String            @unique
+  recordType        QualityRecordType
+  issuer            String? // 认证 / 检测机构
   certificateNumber String? // 证书编号（可空）
-  issueDate       DateTime? // 颁发日期（可空）
-  expiryDate      DateTime? // 到期日期（可空；空 ≠ 已过期）
-  description     String?           @db.Text
+  issueDate         DateTime? // 颁发日期（可空）
+  expiryDate        DateTime? // 到期日期（可空；空 ≠ 已过期）
+  description       String?           @db.Text
 
-  mediaId String? // 证书图片 / PDF（Media Library）
-  status  ContentStatus @default(DRAFT)
-  sortOrder Int         @default(0)
-  publishedAt DateTime?
+  mediaId          String? // 证书图片 / PDF（Media Library）
+  status           ContentStatus @default(DRAFT)
+  version          Int           @default(0) // 乐观锁：并发保存/发布冲突检测
+  publishedVersion Int           @default(0) // 当前线上版本号（0 = 从未发布）
+  sortOrder        Int           @default(0)
+  publishedAt      DateTime?
 
   seoTitle       String?
   seoDescription String?
@@ -523,23 +534,25 @@ model QualityRecord {
 //   · coverMediaId 关联封面图，不自行存文件
 //   · featured 用于前台推荐位 / 首页展示
 model Application {
-  id            String        @id @default(cuid())
+  id            String  @id @default(cuid())
   name          String
-  slug          String        @unique // 公开详情页 /applications/[slug]
+  slug          String  @unique // 公开详情页 /applications/[slug]
   summary       String?
-  description   String?       @db.Text
+  description   String? @db.Text
   coverMediaId  String?
   coverImageUrl String?
 
-  status    ContentStatus @default(DRAFT)
-  featured  Boolean       @default(false)
-  sortOrder Int           @default(0)
-  publishedAt DateTime?
+  status           ContentStatus @default(DRAFT)
+  version          Int           @default(0) // 乐观锁：并发保存/发布冲突检测
+  publishedVersion Int           @default(0) // 当前线上版本号（0 = 从未发布）
+  featured         Boolean       @default(false)
+  sortOrder        Int           @default(0)
+  publishedAt      DateTime?
 
   seoTitle       String?
   seoDescription String?
 
-  coverMedia MediaAsset? @relation("ApplicationCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
+  coverMedia MediaAsset?          @relation("ApplicationCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
   products   ApplicationProduct[]
 
   createdAt DateTime @default(now())
@@ -683,16 +696,16 @@ model AdminUserRole {
 // 不允许创建与账号脱节的虚假员工。
 // 登录邮箱（AdminUser.email）与对外展示邮箱（displayEmail）严格区分。
 model EmployeeContact {
-  id          String  @id @default(cuid())
-  adminUserId String  @unique // 关联员工账号（一对一）
-  displayName String // 对外显示姓名
-  jobTitle    String? // 销售职务
-  displayEmail String? // 对外展示工作邮箱（可与登录邮箱不同）
-  whatsapp    String? // WhatsApp 号码（含国际区号，如 +8613800138000）
-  showOnSite  Boolean @default(false) // 是否展示在网站前台
+  id            String  @id @default(cuid())
+  adminUserId   String  @unique // 关联员工账号（一对一）
+  displayName   String // 对外显示姓名
+  jobTitle      String? // 销售职务
+  displayEmail  String? // 对外展示工作邮箱（可与登录邮箱不同）
+  whatsapp      String? // WhatsApp 号码（含国际区号，如 +8613800138000）
+  showOnSite    Boolean @default(false) // 是否展示在网站前台
   isLeadContact Boolean @default(false) // 是否作为询盘联系人（参与分配）
-  sortOrder   Int     @default(0) // 展示顺序
-  internalNote String? // 内部备注（仅供后台，绝不出现在公开 API）
+  sortOrder     Int     @default(0) // 展示顺序
+  internalNote  String? // 内部备注（仅供后台，绝不出现在公开 API）
 
   adminUser AdminUser @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
 
@@ -713,22 +726,22 @@ model EmployeeContact {
 // 手动关闭（CLOSED）后进入冷却窗口，冷却时长由 closedAt + cooldownSeconds 决定；
 // 冷却结束后自动恢复倾斜（或按管理员设置）。
 model LeadDistributionPlan {
-  id         String         @id @default(cuid())
-  name       String // 计划名称
-  status     LeadPlanStatus @default(ACTIVE)
-  mode       String         @default("PRIORITY") // 分配模式标识（PRIORITY 倾斜）
-  startAt    DateTime       @default(now()) // 生效时间
-  endAt      DateTime? // 计划截止（可空表示按目标数量结束）
-  totalTarget Int           @default(0) // 计划目标总量（各项之和的快照）
-  cooldownSeconds Int       @default(0) // 手动关闭后的冷却秒数（0=需管理员手动恢复）
-  closedAt   DateTime? // 手动关闭时间
-  resumeAt   DateTime? // 预计自动恢复时间（closedAt + cooldown）
-  closedBy   String? // 关闭操作者 AdminUser.id（不建外键，保留历史）
-  createdBy  String? // 创建者 AdminUser.id
+  id              String         @id @default(cuid())
+  name            String // 计划名称
+  status          LeadPlanStatus @default(ACTIVE)
+  mode            String         @default("PRIORITY") // 分配模式标识（PRIORITY 倾斜）
+  startAt         DateTime       @default(now()) // 生效时间
+  endAt           DateTime? // 计划截止（可空表示按目标数量结束）
+  totalTarget     Int            @default(0) // 计划目标总量（各项之和的快照）
+  cooldownSeconds Int            @default(0) // 手动关闭后的冷却秒数（0=需管理员手动恢复）
+  closedAt        DateTime? // 手动关闭时间
+  resumeAt        DateTime? // 预计自动恢复时间（closedAt + cooldown）
+  closedBy        String? // 关闭操作者 AdminUser.id（不建外键，保留历史）
+  createdBy       String? // 创建者 AdminUser.id
 
-  items      LeadDistributionItem[]
+  items       LeadDistributionItem[]
   assignments LeadAssignment[]
-  logs       AuditLog[]
+  logs        AuditLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -740,12 +753,12 @@ model LeadDistributionPlan {
 
 // 倾斜计划条目：某员工的目标数量与已分配数量
 model LeadDistributionItem {
-  id         String @id @default(cuid())
-  planId     String
-  adminUserId String // 倾斜员工（AdminUser.id）
-  targetCount Int   @default(0) // 目标数量
-  assignedCount Int @default(0) // 已成功分配数量
-  sortOrder  Int    @default(0)
+  id            String @id @default(cuid())
+  planId        String
+  adminUserId   String // 倾斜员工（AdminUser.id）
+  targetCount   Int    @default(0) // 目标数量
+  assignedCount Int    @default(0) // 已成功分配数量
+  sortOrder     Int    @default(0)
 
   plan      LeadDistributionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
   adminUser AdminUser            @relation(fields: [adminUserId], references: [id], onDelete: Cascade)
@@ -763,27 +776,27 @@ model LeadDistributionItem {
 // 独立成表而非从分配明细推算：队列成员增减时指针仍能确定性地推进，
 // 「下一位是谁」随时可复算、可校验，不依赖历史记录的完整性。
 model LeadRoundRobinState {
-  id String @id @default(cuid())
+  id             String   @id @default(cuid())
   lastAssigneeId String? // 最近一次正常轮询的承接人（null = 尚未分配过）
-  lastIndex Int @default(-1) // 承接人在当时队列中的序号（-1 = 尚未分配）
-  cycleCount Int @default(0) // 正常轮询累计分配次数（统计用，不参与指针计算）
-  updatedAt DateTime @updatedAt
+  lastIndex      Int      @default(-1) // 承接人在当时队列中的序号（-1 = 尚未分配）
+  cycleCount     Int      @default(0) // 正常轮询累计分配次数（统计用，不参与指针计算）
+  updatedAt      DateTime @updatedAt
 
   @@map("lead_round_robin_state")
 }
 
 // 询盘分配记录（每次分配落库，供历史与审计）
 model LeadAssignment {
-  id            String @id @default(cuid())
-  rfqId         String
-  assigneeId    String // 接收员工 AdminUser.id
-  source        LeadAssignmentSource @default(ROUND_ROBIN)
+  id              String               @id @default(cuid())
+  rfqId           String
+  assigneeId      String // 接收员工 AdminUser.id
+  source          LeadAssignmentSource @default(ROUND_ROBIN)
   roundRobinIndex Int? // 正常轮询时的队列位置（便于核对顺序）
-  planId        String? // 若来自倾斜计划，记录计划 ID
+  planId          String? // 若来自倾斜计划，记录计划 ID
 
-  rfq   Rfq     @relation(fields: [rfqId], references: [id], onDelete: Cascade)
-  assignee AdminUser @relation(fields: [assigneeId], references: [id], onDelete: Restrict)
-  plan  LeadDistributionPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  rfq      Rfq                   @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  assignee AdminUser             @relation(fields: [assigneeId], references: [id], onDelete: Restrict)
+  plan     LeadDistributionPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
@@ -799,7 +812,7 @@ model LeadAssignment {
 // 记录操作者、对象类型与 ID、变更前后差异（JSON）、时间。
 // 不记录任何口令或令牌。
 model AuditLog {
-  id         String @id @default(cuid())
+  id         String  @id @default(cuid())
   actorId    String? // 操作者 AdminUser.id（系统操作可为空）
   actorEmail String? // 操作者邮箱快照（便于历史追溯，账号删除后仍可读）
   action     String // 动作标识，如 role.update / account.disable / plan.close
@@ -846,24 +859,26 @@ enum NavLocation {
 //   · stats 为结构化统计项 [{label, value}]，DTO 白名单校验，绝不承载富文本
 //   · ctaUrl 必须通过 URL 安全校验（同 NavItem，见 site-url.ts）
 model SiteSection {
-  id         String        @id @default(cuid())
-  page       SitePage
-  sectionKey String // 页内唯一标识，如 home.hero / about.intro
-  eyebrow    String? // 小节眉题（如 Capabilities / Products）
-  title      String?
-  subtitle   String?
-  body       String? // 受限正文（编辑器约束，不承载脚本）
-  mediaId    String? // 关联媒体库（封面 / 配图）
-  ctaLabel   String? // 行动按钮文案
-  ctaUrl     String? // 行动按钮链接（经 URL 安全校验）
-  items      Json? // 结构化卡片数组 [{title, description?, href?}]，DTO 白名单校验
-  stats      Json? // 结构化统计项 [{label, value}]
-  status     ContentStatus @default(DRAFT)
-  sortOrder  Int           @default(0)
-  createdBy  String // 操作管理员 AdminUser.id
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
-  publishedAt DateTime?
+  id               String        @id @default(cuid())
+  page             SitePage
+  sectionKey       String // 页内唯一标识，如 home.hero / about.intro
+  eyebrow          String? // 小节眉题（如 Capabilities / Products）
+  title            String?
+  subtitle         String?
+  body             String? // 受限正文（编辑器约束，不承载脚本）
+  mediaId          String? // 关联媒体库（封面 / 配图）
+  ctaLabel         String? // 行动按钮文案
+  ctaUrl           String? // 行动按钮链接（经 URL 安全校验）
+  items            Json? // 结构化卡片数组 [{title, description?, href?}]，DTO 白名单校验
+  stats            Json? // 结构化统计项 [{label, value}]
+  status           ContentStatus @default(DRAFT)
+  version          Int           @default(0) // 乐观锁：并发保存/发布冲突检测
+  publishedVersion Int           @default(0) // 当前线上版本号（0 = 从未发布）
+  sortOrder        Int           @default(0)
+  createdBy        String // 操作管理员 AdminUser.id
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  publishedAt      DateTime?
 
   media MediaAsset? @relation(fields: [mediaId], references: [id], onDelete: SetNull)
 
@@ -956,9 +971,9 @@ model SeoProfile {
   focusKeyword    String? // 焦点关键词（仅 SEO 分析参考，禁止堆砌）
   keywords        String? // 逗号分隔（内部管理；不作为主要 SEO 机制）
 
-  ogTitle       String?
-  ogDescription String?
-  ogImage       String?
+  ogTitle            String?
+  ogDescription      String?
+  ogImage            String?
   twitterTitle       String?
   twitterDescription String?
   twitterImage       String?
@@ -974,8 +989,8 @@ model SeoProfile {
   lastAuditAt DateTime?
 
   updatedById String? // 最后修改人 AdminUser.id（不建外键，保留历史）
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@unique([entityType, entityId])
   @@index([entityType])
@@ -990,12 +1005,12 @@ model SeoProfile {
 model SeoSettings {
   id String @id @default("global")
 
-  siteName        String  @default("Bailing Wooden")
-  siteTitle       String? // 站点标题（缺省 siteName）
-  siteDescription String? // 站点默认描述
-  defaultOgImage  String? // 默认 OG 图
+  siteName            String  @default("Bailing Wooden")
+  siteTitle           String? // 站点标题（缺省 siteName）
+  siteDescription     String? // 站点默认描述
+  defaultOgImage      String? // 默认 OG 图
   defaultTwitterImage String? // 默认 Twitter 图（缺省回落 defaultOgImage）
-  canonicalDomain String? // https://bailingwooden.com（robots sitemap / canonical 基准）
+  canonicalDomain     String? // https://bailingwooden.com（robots sitemap / canonical 基准）
 
   // 标题模板（%title% 占位符；空串按系统默认）
   pageTitleTemplate     String @default("%title% | Bailing Wooden")
@@ -1021,8 +1036,8 @@ model SeoSettings {
 
   // 站长工具（允许为空；未配置时前台不输出空标签）
   googleSiteVerification String? // <meta name="google-site-verification">
-  googleAnalyticsId     String? // GA Measurement ID（仅配置能力，不强制加载）
-  googleTagManagerId    String? // GTM ID（同上）
+  googleAnalyticsId      String? // GA Measurement ID（仅配置能力，不强制加载）
+  googleTagManagerId     String? // GTM ID（同上）
 
   updatedById String?
   createdAt   DateTime @default(now())
@@ -1069,3 +1084,64 @@ model SeoAuditRun {
   @@map("seo_audit_runs")
 }
 
+// ============================================================
+// Phase 1：内容草稿与线上版本隔离
+// ============================================================
+
+/// 可发布内容实体类型（通用版本表按此区分实体）
+enum ContentEntityType {
+  PRODUCT
+  BLOG_POST
+  FACTORY_SECTION
+  QUALITY_RECORD
+  APPLICATION
+  SITE_SECTION
+}
+
+/// 版本动作
+enum ContentRevisionAction {
+  PUBLISH // 发布（含首次发布、重新发布、恢复历史版本）
+  UNPUBLISH // 取消发布
+}
+
+/// 编辑稿（每个实体最多一条）
+///
+/// 设计：实体行始终保存**当前线上版本**（从未发布时保存初始草稿）；
+/// 已发布过（publishedVersion > 0）的实体再次保存时，写入本表而不触碰实体行。
+/// payload 为该实体 Update DTO 的 JSON 快照，发布时按同一套映射应用。
+model ContentDraft {
+  id          String            @id @default(cuid())
+  entityType  ContentEntityType
+  entityId    String
+  payload     Json // Update DTO 快照（只含编辑稿字段，不含 status）
+  version     Int               @default(1) // 编辑稿版本（每次保存 +1）
+  baseVersion Int               @default(0) // 创建草稿时实体行的 version
+  updatedById String? // 最后保存人 AdminUser.id（不建外键，账号注销不删草稿）
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@unique([entityType, entityId])
+  @@index([entityType, updatedAt])
+  @@map("content_drafts")
+}
+
+/// 发布历史（只追加，不覆盖）
+///
+/// 每条记录 = 一次成功发布后的**公开快照**（与公开 API 输出同构），
+/// version 与实体 publishedVersion 对应，可据此恢复历史版本。
+model ContentRevision {
+  id            String                @id @default(cuid())
+  entityType    ContentEntityType
+  entityId      String
+  version       Int // 发布版本号（实体维度递增）
+  snapshot      Json // 发布时的公开内容快照
+  action        ContentRevisionAction @default(PUBLISH)
+  publishedById String? // 操作人 AdminUser.id
+  publishedAt   DateTime              @default(now())
+  note          String? // 备注（如「恢复自 v3」）
+
+  @@unique([entityType, entityId, version])
+  @@index([entityType, entityId, publishedAt])
+  @@index([publishedAt])
+  @@map("content_revisions")
+}

@@ -10,18 +10,22 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import type { AuthUser } from '../../auth/auth.types';
 import { PermissionsGuard } from '../../rbac/permissions.guard';
 import { RequirePermissions } from '../../rbac/require-permissions.decorator';
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
 import { ListProductsQueryDto } from './dto/list-products-query.dto';
 import { AddProductImageDto } from './dto/product-image.dto';
 import { ProductsService } from './products.service';
+import { draftVersionFrom } from '../publishing/publishing.engine';
 import { productImageUploadOptions } from './upload.options';
 import type {
   CmsProductDetailDto,
@@ -68,8 +72,54 @@ export class ProductsController {
 
   @Patch(':id')
   @RequirePermissions('products.update')
-  update(@Param('id') id: string, @Body() dto: UpdateProductDto): Promise<CmsProductDetailDto> {
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateProductDto,
+    @Req() request: Request & { user?: AuthUser },
+  ) {
+    // Phase 1：已发布过的产品，普通保存只写编辑稿，绝不覆盖线上版本
+    const state = await this.productsService.publishState(id);
+    if (state.publishedVersion > 0 || state.hasDraft) {
+      const draft = await this.productsService.saveDraft(
+        id,
+        dto,
+        request.user?.id ?? null,
+        draftVersionFrom(request.headers),
+      );
+      const current = await this.productsService.findById(id);
+      return { ...current, hasUnpublishedChanges: true, draftVersion: draft.draftVersion };
+    }
     return this.productsService.update(id, dto);
+  }
+
+  /** 发布当前编辑稿（独立权限 + 服务端校验） */
+  @Post(':id/publish')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('products.publish')
+  publish(@Param('id') id: string, @Req() request: Request & { user?: AuthUser }) {
+    return this.productsService.publish(id, request.user?.id ?? null);
+  }
+
+  /** 取消发布（保留内容与历史） */
+  @Post(':id/unpublish')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('products.unpublish')
+  unpublish(@Param('id') id: string) {
+    return this.productsService.unpublish(id);
+  }
+
+  /** 预览（线上版本 + 编辑稿，仅后台授权访问） */
+  @Get(':id/preview')
+  @RequirePermissions('products.read')
+  preview(@Param('id') id: string) {
+    return this.productsService.preview(id);
+  }
+
+  /** 发布历史 */
+  @Get(':id/revisions')
+  @RequirePermissions('products.read')
+  revisions(@Param('id') id: string) {
+    return this.productsService.revisions(id);
   }
 
   @Delete(':id')

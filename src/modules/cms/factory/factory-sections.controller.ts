@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -20,11 +21,18 @@ import {
 } from './dto/factory-section.dto';
 import { ListFactorySectionsQueryDto } from './dto/list-factory-sections-query.dto';
 import { FactorySectionsService } from './factory-sections.service';
+import { draftVersionFrom } from '../publishing/publishing.engine';
 import type {
   FactoryExhibitionDto,
   FactorySectionDetailDto,
   PaginatedFactorySectionsDto,
 } from './entities/factory.entity';
+
+/** 已鉴权请求（JwtAuthGuard 保证 user 存在） */
+interface AuthedRequest {
+  user: { id: string };
+  headers: Record<string, unknown>;
+}
 
 /**
  * 工厂实力 CMS API（Phase 4.5，控制器级 JwtAuthGuard，全部要求登录）。
@@ -72,11 +80,54 @@ export class FactorySectionsController {
 
   @Patch(':id')
   @RequirePermissions('factory.update')
-  update(
+  async update(
     @Param('id') id: string,
     @Body() dto: UpdateFactorySectionDto,
-  ): Promise<FactorySectionDetailDto> {
+    @Req() request: AuthedRequest,
+  ) {
+    // Phase 1：已发布过的分区，普通保存只写编辑稿，绝不覆盖线上版本
+    const state = await this.sectionsService.publishState(id);
+    if (state.publishedVersion > 0 || state.hasDraft) {
+      const draft = await this.sectionsService.saveDraft(
+        id,
+        dto,
+        request.user?.id ?? null,
+        draftVersionFrom(request.headers),
+      );
+      const current = await this.sectionsService.findById(id);
+      return { ...current, hasUnpublishedChanges: true, draftVersion: draft.draftVersion };
+    }
     return this.sectionsService.update(id, dto);
+  }
+
+  /** 发布当前编辑稿（独立权限 + 服务端完整性校验） */
+  @Post(':id/publish')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('factory.publish')
+  publish(@Param('id') id: string, @Req() request: AuthedRequest): Promise<FactorySectionDetailDto> {
+    return this.sectionsService.publish(id, request.user?.id ?? null);
+  }
+
+  /** 取消发布（保留内容与历史） */
+  @Post(':id/unpublish')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('factory.unpublish')
+  unpublish(@Param('id') id: string): Promise<FactorySectionDetailDto> {
+    return this.sectionsService.unpublish(id);
+  }
+
+  /** 预览（线上版本 + 编辑稿，仅后台授权访问） */
+  @Get(':id/preview')
+  @RequirePermissions('factory.read')
+  preview(@Param('id') id: string) {
+    return this.sectionsService.preview(id);
+  }
+
+  /** 发布历史 */
+  @Get(':id/revisions')
+  @RequirePermissions('factory.read')
+  revisions(@Param('id') id: string) {
+    return this.sectionsService.revisions(id);
   }
 
   @Delete(':id')

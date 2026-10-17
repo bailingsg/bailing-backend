@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -20,10 +21,17 @@ import {
 } from './dto/application.dto';
 import { ListApplicationsQueryDto } from './dto/list-applications-query.dto';
 import { ApplicationsService } from './applications.service';
+import { draftVersionFrom } from '../publishing/publishing.engine';
 import type {
   ApplicationDetailDto,
   PaginatedApplicationsDto,
 } from './entities/application.entity';
+
+/** 已鉴权请求（JwtAuthGuard 保证 user 存在） */
+interface AuthedRequest {
+  user: { id: string };
+  headers: Record<string, unknown>;
+}
 
 /**
  * 产品应用场景 CMS API（Phase 4.5，控制器级 JwtAuthGuard，全部要求登录）。
@@ -63,11 +71,54 @@ export class ApplicationsController {
 
   @Patch(':id')
   @RequirePermissions('applications.update')
-  update(
+  async update(
     @Param('id') id: string,
     @Body() dto: UpdateApplicationDto,
-  ): Promise<ApplicationDetailDto> {
+    @Req() request: AuthedRequest,
+  ) {
+    // Phase 1：已发布过的场景，普通保存只写编辑稿，绝不覆盖线上版本
+    const state = await this.applicationsService.publishState(id);
+    if (state.publishedVersion > 0 || state.hasDraft) {
+      const draft = await this.applicationsService.saveDraft(
+        id,
+        dto,
+        request.user?.id ?? null,
+        draftVersionFrom(request.headers),
+      );
+      const current = await this.applicationsService.findById(id);
+      return { ...current, hasUnpublishedChanges: true, draftVersion: draft.draftVersion };
+    }
     return this.applicationsService.update(id, dto);
+  }
+
+  /** 发布当前编辑稿（独立权限 + 服务端完整性校验） */
+  @Post(':id/publish')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('applications.publish')
+  publish(@Param('id') id: string, @Req() request: AuthedRequest): Promise<ApplicationDetailDto> {
+    return this.applicationsService.publish(id, request.user?.id ?? null);
+  }
+
+  /** 取消发布（保留内容与历史） */
+  @Post(':id/unpublish')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('applications.unpublish')
+  unpublish(@Param('id') id: string): Promise<ApplicationDetailDto> {
+    return this.applicationsService.unpublish(id);
+  }
+
+  /** 预览（线上版本 + 编辑稿，仅后台授权访问） */
+  @Get(':id/preview')
+  @RequirePermissions('applications.read')
+  preview(@Param('id') id: string) {
+    return this.applicationsService.preview(id);
+  }
+
+  /** 发布历史 */
+  @Get(':id/revisions')
+  @RequirePermissions('applications.read')
+  revisions(@Param('id') id: string) {
+    return this.applicationsService.revisions(id);
   }
 
   @Delete(':id')

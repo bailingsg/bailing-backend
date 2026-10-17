@@ -1,4 +1,4 @@
-import { ContentStatus, QualityRecordType } from '@prisma/client';
+import { QualityRecordType } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsEnum,
@@ -98,9 +98,7 @@ export class CreateQualityRecordDto {
   @MaxLength(64)
   mediaId?: string;
 
-  @IsOptional()
-  @IsEnum(ContentStatus)
-  status?: ContentStatus;
+  // Phase 1：Create DTO 不接受 status / publishedAt（新建恒为 DRAFT）
 
   @IsOptional()
   @Transform(toInt)
@@ -108,11 +106,6 @@ export class CreateQualityRecordDto {
   @Min(0)
   @Max(9999)
   sortOrder?: number;
-
-  @IsOptional()
-  @Transform(emptyToUndefined)
-  @IsISO8601()
-  publishedAt?: string;
 
   @IsOptional()
   @Transform(trim)
@@ -181,9 +174,7 @@ export class UpdateQualityRecordDto {
   @IsOptional()
   mediaId?: string | null;
 
-  @IsOptional()
-  @IsEnum(ContentStatus)
-  status?: ContentStatus;
+  // Phase 1：Update DTO 不接受 status / publishedAt（发布态只能经 publish/unpublish 变更）
 
   @IsOptional()
   @Transform(toInt)
@@ -191,9 +182,6 @@ export class UpdateQualityRecordDto {
   @Min(0)
   @Max(9999)
   sortOrder?: number;
-
-  @IsOptional()
-  publishedAt?: string | null;
 
   @IsOptional()
   @Transform(trim)

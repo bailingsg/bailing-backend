@@ -12,6 +12,18 @@ import path from 'node:path';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RevalidationService } from '../../revalidation/revalidation.service';
 import { CmsTags } from '../../revalidation/cms-tags';
+import {
+  getPublishState,
+  listEntityRevisions,
+  previewEntity,
+  publishEntity,
+  requireText,
+  saveEntityDraft,
+  unpublishEntity,
+  withPublishMeta,
+  type PublishAdapter,
+  type PublishState,
+} from '../publishing/publishing.engine';
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
 import { ListProductsQueryDto } from './dto/list-products-query.dto';
 import { AddProductImageDto } from './dto/product-image.dto';
@@ -138,7 +150,8 @@ export class ProductsService {
             ? (dto.specifications as Prisma.InputJsonValue)
             : Prisma.JsonNull,
           isFeatured: dto.isFeatured ?? false,
-          status: dto.status ?? 'DRAFT',
+          // Phase 1：创建一律为草稿，发布只能经独立 publish 动作
+          status: 'DRAFT',
           seoTitle: dto.seoTitle ?? null,
           seoDescription: dto.seoDescription ?? null,
         },
@@ -151,15 +164,8 @@ export class ProductsService {
     }
   }
 
-  /** 更新产品（PATCH：仅更新提供的字段） */
-  async update(id: string, dto: UpdateProductDto): Promise<CmsProductDetailDto> {
-    const existing = await this.prisma.product.findUnique({ where: { id }, select: { id: true } });
-    if (!existing) throw new NotFoundException('产品不存在');
-
-    if (dto.categoryId !== undefined) {
-      await this.assertCategoryExists(dto.categoryId);
-    }
-
+  /** 从 Update DTO 构造 Prisma 更新数据（直接保存与「发布时应用编辑稿」共用） */
+  private buildUpdateData(dto: UpdateProductDto): Prisma.ProductUpdateInput {
     const data: Prisma.ProductUpdateInput = {};
     if (dto.name !== undefined) data.name = dto.name;
     if (dto.slug !== undefined) data.slug = dto.slug;
@@ -174,21 +180,154 @@ export class ProductsService {
       data.specifications = dto.specifications as Prisma.InputJsonValue;
     }
     if (dto.isFeatured !== undefined) data.isFeatured = dto.isFeatured;
-    if (dto.status !== undefined) data.status = dto.status;
     if (dto.seoTitle !== undefined) data.seoTitle = dto.seoTitle;
     if (dto.seoDescription !== undefined) data.seoDescription = dto.seoDescription;
+    return data;
+  }
+
+  /** 更新产品（PATCH：仅更新提供的字段） */
+  async update(
+    id: string,
+    dto: UpdateProductDto,
+    ctx: { tx?: Prisma.TransactionClient; skipNotify?: boolean } = {},
+  ): Promise<CmsProductDetailDto> {
+    const db = ctx.tx ?? this.prisma;
+    const existing = await this.prisma.product.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) throw new NotFoundException('产品不存在');
+
+    if (dto.categoryId !== undefined) {
+      await this.assertCategoryExists(dto.categoryId);
+    }
 
     try {
-      const updated = await this.prisma.product.update({
+      const updated = await db.product.update({
         where: { id },
-        data,
+        data: this.buildUpdateData(dto),
         include: PRODUCT_INCLUDE,
       });
-      this.notifyFrontend(updated.slug);
+      if (!ctx.skipNotify) this.notifyFrontend(updated.slug);
       return toCmsProductDetail(updated as ProductWithRelations);
     } catch (error) {
       throw this.mapWriteError(error, dto.slug);
     }
+  }
+
+  /* --------------------------- 发布工作流 --------------------------- */
+
+  /**
+   * 发布适配器：把产品模块的字段映射 / 校验 / 快照接入通用引擎。
+   *
+   * 产品发布完整性校验（服务端强制，不依赖前端）：
+   *   · name / slug / description 非空 —— 否则详情页与 SEO 无法成立
+   *   · categoryId 必须指向存在的分类 —— 公开列表按分类筛选
+   */
+  private publishingAdapter(): PublishAdapter<ProductWithRelations> {
+    return {
+      entityType: 'PRODUCT',
+      label: '产品',
+      findRow: async (id) =>
+        (await this.prisma.product.findUnique({
+          where: { id },
+          include: PRODUCT_INCLUDE,
+        })) as ProductWithRelations | null,
+      applyDraft: async (id, payload, tx) => {
+        if (!payload) {
+          const row = await tx.product.findUnique({ where: { id }, include: PRODUCT_INCLUDE });
+          if (!row) throw new NotFoundException('产品不存在');
+          return row as ProductWithRelations;
+        }
+        const dto = payload as UpdateProductDto;
+        if (dto.categoryId !== undefined) {
+          const category = await tx.category.findUnique({
+            where: { id: dto.categoryId },
+            select: { id: true },
+          });
+          if (!category) {
+            throw new BadRequestException('发布失败：编辑稿中的产品分类已不存在，请重新选择');
+          }
+        }
+        return tx.product.update({
+          where: { id },
+          data: this.buildUpdateData(dto),
+          include: PRODUCT_INCLUDE,
+        }) as Promise<ProductWithRelations>;
+      },
+      markPublished: async (id, nextVersion, tx) =>
+        tx.product.update({
+          where: { id },
+          data: {
+            status: 'PUBLISHED',
+            // Product 模型无 publishedAt 字段（历史原因），发布时间以
+            // ContentRevision.publishedAt 为准，公开站 SEO 不依赖该字段。
+            version: { increment: 1 },
+            publishedVersion: nextVersion,
+          },
+          include: PRODUCT_INCLUDE,
+        }) as Promise<ProductWithRelations>,
+      markUnpublished: async (id, tx) =>
+        tx.product.update({
+          where: { id },
+          data: { status: 'UNPUBLISHED', version: { increment: 1 } },
+          include: PRODUCT_INCLUDE,
+        }) as Promise<ProductWithRelations>,
+      validate: (row) => {
+        requireText(row.name, '产品名称', '产品');
+        requireText(row.slug, 'URL 别名（slug）', '产品');
+        requireText(row.description, '产品描述', '产品');
+        if (!row.category) {
+          throw new BadRequestException('发布失败：产品必须归属一个分类');
+        }
+      },
+      toSnapshot: (row) => toCmsProductDetail(row),
+    };
+  }
+
+  /** 发布状态快照（供控制器决定「直接改行」还是「写编辑稿」） */
+  publishState(id: string): Promise<PublishState> {
+    return getPublishState(this.prisma, this.publishingAdapter(), id);
+  }
+
+  /** 保存编辑稿（已发布产品不再直接改写线上行） */
+  saveDraft(
+    id: string,
+    dto: UpdateProductDto,
+    actorId: string | null,
+    expectedVersion?: number,
+  ): Promise<{ draftVersion: number; updatedAt: Date; baseVersion: number }> {
+    return saveEntityDraft(
+      this.prisma,
+      this.publishingAdapter(),
+      id,
+      dto as Record<string, unknown>,
+      actorId,
+      expectedVersion,
+    );
+  }
+
+  /** 发布：把编辑稿应用为线上版本（事务内完成，失败不影响旧版本） */
+  async publish(id: string, actorId: string | null): Promise<CmsProductDetailDto> {
+    const result = await publishEntity(this.prisma, this.publishingAdapter(), id, actorId);
+    this.notifyFrontend(result.row.slug);
+    return withPublishMeta(toCmsProductDetail(result.row), result);
+  }
+
+  /** 取消发布：保留内容与历史，公开侧立即不可见 */
+  async unpublish(id: string): Promise<CmsProductDetailDto> {
+    const result = await unpublishEntity(this.prisma, this.publishingAdapter(), id);
+    this.notifyFrontend(result.row.slug);
+    return withPublishMeta(toCmsProductDetail(result.row), result);
+  }
+
+  /** 预览：线上版本 + 编辑稿（仅后台授权访问） */
+  preview(id: string) {
+    return previewEntity(this.prisma, this.publishingAdapter(), id, (row) =>
+      toCmsProductDetail(row),
+    );
+  }
+
+  /** 发布历史 */
+  revisions(id: string) {
+    return listEntityRevisions(this.prisma, this.publishingAdapter(), id);
   }
 
   /**
@@ -206,7 +345,13 @@ export class ProductsService {
       await this.deleteImageFile(image.url);
     }
 
-    await this.prisma.product.delete({ where: { id } });
+    // 发布工作流的附属数据没有外键（通用表按 entityType+entityId 关联），
+    // 必须在删除主体时一并清理，避免留下孤儿编辑稿与历史快照。
+    await this.prisma.$transaction([
+      this.prisma.contentDraft.deleteMany({ where: { entityType: 'PRODUCT', entityId: id } }),
+      this.prisma.contentRevision.deleteMany({ where: { entityType: 'PRODUCT', entityId: id } }),
+      this.prisma.product.delete({ where: { id } }),
+    ]);
     // 删除后前台必须立即 404：同时失效列表 tag 与（已删除的）详情页路径。
     this.notifyFrontend(product.slug);
     return { id };

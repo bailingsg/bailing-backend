@@ -1,4 +1,4 @@
-import { ProductStatus } from '@prisma/client';
+
 import { Transform } from 'class-transformer';
 import {
   IsBoolean,
@@ -130,10 +130,6 @@ export class CreateProductDto {
   isFeatured?: boolean;
 
   @IsOptional()
-  @IsEnum(ProductStatus)
-  status?: ProductStatus;
-
-  @IsOptional()
   @Transform(trim)
   @IsString()
   @MaxLength(200)
@@ -199,10 +195,6 @@ export class UpdateProductDto {
   @Transform(toBool)
   @IsBoolean()
   isFeatured?: boolean;
-
-  @IsOptional()
-  @IsEnum(ProductStatus)
-  status?: ProductStatus;
 
   @IsOptional()
   @Transform(trim)

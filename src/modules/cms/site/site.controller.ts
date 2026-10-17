@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../../rbac/permissions.guard';
@@ -15,6 +15,7 @@ import {
 } from './dto/site-section.dto';
 import { CreateNavItemDto, ListNavItemsQueryDto, UpdateNavItemDto } from './dto/nav-item.dto';
 import type { NavItemDto, NavItemListDto, SiteSectionDto, SiteSectionListDto } from './entities/site.entity';
+import { draftVersionFrom } from '../publishing/publishing.engine';
 
 /**
  * 站点结构化内容 CMS API（Phase 4.7）。
@@ -68,12 +69,64 @@ export class SiteController {
 
   @Patch('site/sections/:id')
   @RequirePermissions('site.update')
-  updateSection(
+  async updateSection(
     @Param('id') id: string,
     @Body() dto: UpdateSiteSectionDto,
     @Req() request: Request & { user: AuthUser },
+  ) {
+    // Phase 1：已发布过的分区，普通保存只写编辑稿，绝不覆盖线上版本
+    const state = await this.sections.publishState(id);
+    if (state.publishedVersion > 0 || state.hasDraft) {
+      const actor = await this.actorOf(request);
+      const draft = await this.sections.saveDraft(
+        id,
+        dto,
+        actor.id,
+        draftVersionFrom(request.headers),
+      );
+      const current = await this.sections.findById(id);
+      return { ...current, hasUnpublishedChanges: true, draftVersion: draft.draftVersion };
+    }
+    const actor = await this.actorOf(request);
+    return this.sections.update(id, dto, actor);
+  }
+
+  /** 发布当前编辑稿（独立权限 + 服务端完整性校验） */
+  @Post('site/sections/:id/publish')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('site.publish')
+  async publishSection(
+    @Param('id') id: string,
+    @Req() request: Request & { user: AuthUser },
   ): Promise<SiteSectionDto> {
-    return this.actorOf(request).then((actor) => this.sections.update(id, dto, actor));
+    const actor = await this.actorOf(request);
+    return this.sections.publish(id, actor);
+  }
+
+  /** 取消发布（保留内容与历史） */
+  @Post('site/sections/:id/unpublish')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('site.unpublish')
+  async unpublishSection(
+    @Param('id') id: string,
+    @Req() request: Request & { user: AuthUser },
+  ): Promise<SiteSectionDto> {
+    const actor = await this.actorOf(request);
+    return this.sections.unpublish(id, actor);
+  }
+
+  /** 预览（线上版本 + 编辑稿，仅后台授权访问） */
+  @Get('site/sections/:id/preview')
+  @RequirePermissions('site.read')
+  previewSection(@Param('id') id: string) {
+    return this.sections.preview(id);
+  }
+
+  /** 发布历史 */
+  @Get('site/sections/:id/revisions')
+  @RequirePermissions('site.read')
+  sectionRevisions(@Param('id') id: string) {
+    return this.sections.revisions(id);
   }
 
   @Delete('site/sections/:id')

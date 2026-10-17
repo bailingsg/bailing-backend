@@ -16,11 +16,17 @@
  * 模块 action 约定（同一模块内保持一致）：
  *   read               查看列表/详情
  *   create             新建
- *   update             编辑
+ *   update             编辑（含保存编辑稿，**不含**发布）
  *   delete             删除
  *   disable            启用/停用
- *   manage             特殊管理（状态流转、批量操作等）
+ *   manage             特殊管理（批量操作等）
+ *   publish            发布（把编辑稿变成线上版本）
+ *   unpublish          取消发布（下架，保留内容与历史）
  *   assign_permissions 分配权限（仅 roles 模块）
+ *
+ * Phase 1 起「编辑」与「发布」严格分离：`update` 只能改草稿，
+ * 让内容对外可见必须持有 `publish`；`unpublish` 独立授予，
+ * 避免「能改内容」隐含「能让内容下线」。
  */
 
 /** 权限动作类型 */
@@ -31,6 +37,8 @@ export type PermissionAction =
   | 'delete'
   | 'disable'
   | 'manage'
+  | 'publish'
+  | 'unpublish'
   | 'assign_permissions';
 
 /** 单个权限定义 */
@@ -71,6 +79,8 @@ export const PERMISSION_MODULES: readonly PermissionModuleDefinition[] = [
   { key: 'roles', name: '角色与权限', sortOrder: 20 },
   { key: 'contacts', name: '员工联系方式', sortOrder: 30 },
   { key: 'lead_distribution', name: '询盘分配', sortOrder: 40 },
+  // Phase 0：询盘（RFQ）后台读取与状态跟进，从共享密钥通道并入 RBAC
+  { key: 'rfq', name: '询盘管理', sortOrder: 45 },
   { key: 'dashboard', name: '工作台', sortOrder: 50 },
   { key: 'products', name: '产品管理', sortOrder: 60 },
   { key: 'categories', name: '产品分类', sortOrder: 70 },
@@ -218,6 +228,26 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
     sortOrder: 30,
   },
 
+  // ── 询盘管理（Phase 0：RFQ 后台接口并入 RBAC）────────────────
+  {
+    key: 'rfq.read',
+    module: 'rfq',
+    action: 'read',
+    name: '查看询盘',
+    description: '查看客户询盘列表与详情（含联系方式与需求正文）',
+    isNav: true,
+    sortOrder: 10,
+  },
+  {
+    key: 'rfq.update',
+    module: 'rfq',
+    action: 'update',
+    name: '跟进询盘状态',
+    description: '更新询盘跟进状态（新询盘 / 已联系 / 已报价 / 已关闭）',
+    isNav: false,
+    sortOrder: 20,
+  },
+
   // ── 工作台 ──────────────────────────────────────────────────
   {
     key: 'dashboard.read',
@@ -265,6 +295,25 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
     description: '删除产品（含图片文件清理）',
     isNav: false,
     sortOrder: 40,
+  },
+
+  {
+    key: 'products.publish',
+    module: 'products',
+    action: 'publish',
+    name: '发布产品',
+    description: '把产品编辑稿发布为线上版本（对公开站可见）',
+    isNav: false,
+    sortOrder: 50,
+  },
+  {
+    key: 'products.unpublish',
+    module: 'products',
+    action: 'unpublish',
+    name: '取消发布产品',
+    description: '将已发布产品下架（保留内容与发布历史，可重新发布）',
+    isNav: false,
+    sortOrder: 60,
   },
 
   // ── 产品分类 ────────────────────────────────────────────────
@@ -381,6 +430,25 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
     sortOrder: 40,
   },
 
+  {
+    key: 'blog.publish',
+    module: 'blog',
+    action: 'publish',
+    name: '发布文章',
+    description: '把文章编辑稿发布为线上版本（对公开站可见）',
+    isNav: false,
+    sortOrder: 50,
+  },
+  {
+    key: 'blog.unpublish',
+    module: 'blog',
+    action: 'unpublish',
+    name: '取消发布文章',
+    description: '将已发布文章下架（保留内容与发布历史，可重新发布）',
+    isNav: false,
+    sortOrder: 60,
+  },
+
   // ── 工厂实力 ────────────────────────────────────────────────
   {
     key: 'factory.read',
@@ -417,6 +485,25 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
     description: '删除区块/展会记录',
     isNav: false,
     sortOrder: 40,
+  },
+
+  {
+    key: 'factory.publish',
+    module: 'factory',
+    action: 'publish',
+    name: '发布工厂分区',
+    description: '把工厂实力分区编辑稿发布为线上版本',
+    isNav: false,
+    sortOrder: 50,
+  },
+  {
+    key: 'factory.unpublish',
+    module: 'factory',
+    action: 'unpublish',
+    name: '取消发布工厂分区',
+    description: '将已发布工厂实力分区下架（保留内容与历史）',
+    isNav: false,
+    sortOrder: 60,
   },
 
   // ── 质量体系 ────────────────────────────────────────────────
@@ -457,6 +544,25 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
     sortOrder: 40,
   },
 
+  {
+    key: 'quality.publish',
+    module: 'quality',
+    action: 'publish',
+    name: '发布质量条目',
+    description: '把质量体系条目编辑稿发布为线上版本',
+    isNav: false,
+    sortOrder: 50,
+  },
+  {
+    key: 'quality.unpublish',
+    module: 'quality',
+    action: 'unpublish',
+    name: '取消发布质量条目',
+    description: '将已发布质量体系条目下架（保留内容与历史）',
+    isNav: false,
+    sortOrder: 60,
+  },
+
   // ── 应用场景 ────────────────────────────────────────────────
   {
     key: 'applications.read',
@@ -495,6 +601,25 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
     sortOrder: 40,
   },
 
+  {
+    key: 'applications.publish',
+    module: 'applications',
+    action: 'publish',
+    name: '发布应用场景',
+    description: '把应用场景编辑稿发布为线上版本',
+    isNav: false,
+    sortOrder: 50,
+  },
+  {
+    key: 'applications.unpublish',
+    module: 'applications',
+    action: 'unpublish',
+    name: '取消发布应用场景',
+    description: '将已发布应用场景下架（保留内容与历史）',
+    isNav: false,
+    sortOrder: 60,
+  },
+
   // ── 站点内容（Phase 4.7：首页 / 关于我们 / 联系页结构化分区） ──
   {
     key: 'site.read',
@@ -531,6 +656,25 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
     description: '删除站点内容分区',
     isNav: false,
     sortOrder: 40,
+  },
+
+  {
+    key: 'site.publish',
+    module: 'site',
+    action: 'publish',
+    name: '发布站点分区',
+    description: '把首页 / 关于我们 / 联系页分区编辑稿发布为线上版本',
+    isNav: false,
+    sortOrder: 50,
+  },
+  {
+    key: 'site.unpublish',
+    module: 'site',
+    action: 'unpublish',
+    name: '取消发布站点分区',
+    description: '将已发布站点分区下架（保留内容与历史）',
+    isNav: false,
+    sortOrder: 60,
   },
 
   // ── 导航管理（Phase 4.7：页眉 / 页脚链接） ──

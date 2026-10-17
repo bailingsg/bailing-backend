@@ -16,6 +16,18 @@ import {
 } from './dto/factory-section.dto';
 import { ListFactorySectionsQueryDto } from './dto/list-factory-sections-query.dto';
 import {
+  getPublishState,
+  listEntityRevisions,
+  previewEntity,
+  publishEntity,
+  requireText,
+  saveEntityDraft,
+  unpublishEntity,
+  withPublishMeta,
+  type PublishAdapter,
+  type PublishState,
+} from '../publishing/publishing.engine';
+import {
   toFactorySectionDetail,
   toFactorySectionListItem,
   type FactorySectionDetailDto,
@@ -114,7 +126,6 @@ export class FactorySectionsService {
   async create(dto: CreateFactorySectionDto): Promise<FactorySectionDetailDto> {
     await this.assertSlugAvailable(dto.slug);
 
-    const status = dto.status ?? ContentStatus.DRAFT;
     const coverMediaId = dto.coverMediaId ?? null;
     if (coverMediaId) await this.assertMediaExists(coverMediaId);
 
@@ -138,9 +149,10 @@ export class FactorySectionsService {
           content: dto.content ? sanitizeRichText(dto.content) : null,
           coverMediaId,
           coverImageUrl: coverUrl,
-          status,
+          // Phase 1：创建一律为草稿，发布只能经独立 publish 动作
+          status: ContentStatus.DRAFT,
           sortOrder: dto.sortOrder ?? 0,
-          publishedAt: this.resolvePublishedAt(status, dto.publishedAt ?? null),
+          publishedAt: null,
           seoTitle: dto.seoTitle ?? null,
           seoDescription: dto.seoDescription ?? null,
         },
@@ -176,7 +188,17 @@ export class FactorySectionsService {
 
   /* ------------------------------ 更新 ------------------------------ */
 
-  async update(id: string, dto: UpdateFactorySectionDto): Promise<FactorySectionDetailDto> {
+  /**
+   * 更新工厂分区（PATCH）。
+   *
+   * ctx.tx 传入时在既有事务内执行（发布流程应用编辑稿时使用）；
+   * 否则自行开启事务。
+   */
+  async update(
+    id: string,
+    dto: UpdateFactorySectionDto,
+    ctx: { tx?: Prisma.TransactionClient; skipNotify?: boolean } = {},
+  ): Promise<FactorySectionDetailDto> {
     const existing = await this.prisma.factorySection.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Factory section not found.');
 
@@ -184,74 +206,71 @@ export class FactorySectionsService {
       await this.assertSlugAvailable(dto.slug);
     }
 
-    // coverMediaId：undefined = 不改动；null = 清空；字符串 = 换封面
-    let coverMediaId = existing.coverMediaId;
-    let coverImageUrl = existing.coverImageUrl;
-    if (dto.coverMediaId !== undefined) {
-      if (dto.coverMediaId === null) {
-        coverMediaId = null;
-        coverImageUrl = null;
-      } else {
-        await this.assertMediaExists(dto.coverMediaId);
-        coverMediaId = dto.coverMediaId;
-        coverImageUrl = await this.resolveMediaUrl(dto.coverMediaId);
-      }
-    }
+    // 封面：undefined = 不改动；null = 清空；字符串 = 换封面
+    const { coverMediaId, coverImageUrl } = await this.prepareUpdate(
+      dto,
+      existing,
+      this.prisma,
+    );
 
-    const status = dto.status ?? existing.status;
+    const apply = (tx: Prisma.TransactionClient) =>
+      this.applyUpdate(tx, id, dto, coverMediaId, coverImageUrl);
 
-    if (dto.images !== undefined) {
-      await this.assertAllMediaExist(dto.images.map((image) => image.mediaId));
-    }
-    if (dto.exhibitions !== undefined) {
-      await this.assertAllMediaExist(
-        dto.exhibitions.flatMap((exhibition) => (exhibition.photos ?? []).map((photo) => photo.mediaId)),
-      );
-    }
+    const row = ctx.tx ? await apply(ctx.tx) : await this.prisma.$transaction(apply);
+    if (!ctx.skipNotify) this.notifyFrontend();
+    return toFactorySectionDetail(row);
+  }
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.factorySection.update({
-        where: { id },
-        data: {
-          ...(dto.title !== undefined ? { title: dto.title } : {}),
-          ...(dto.slug !== undefined ? { slug: dto.slug } : {}),
-          ...(dto.sectionType !== undefined ? { sectionType: dto.sectionType } : {}),
-          ...(dto.summary !== undefined ? { summary: dto.summary } : {}),
-          ...(dto.content !== undefined ? { content: sanitizeRichText(dto.content) } : {}),
-          ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
-          ...(dto.seoTitle !== undefined ? { seoTitle: dto.seoTitle } : {}),
-          ...(dto.seoDescription !== undefined ? { seoDescription: dto.seoDescription } : {}),
-          coverMediaId,
-          coverImageUrl,
-          status,
-          publishedAt: this.resolvePublishedAt(status, dto.publishedAt ?? existing.publishedAt, existing.publishedAt),
-        },
-      });
-
-      // 图库整体替换：删除旧的「非展会」图，再插入新集合
-      if (dto.images !== undefined) {
-        await tx.factoryImage.deleteMany({ where: { sectionId: id, exhibitionId: null } });
-        if (dto.images.length > 0) {
-          await tx.factoryImage.createMany({
-            data: dto.images.map((image, index) => ({
-              sectionId: id,
-              mediaId: image.mediaId,
-              altText: image.altText ?? null,
-              sortOrder: image.sortOrder ?? index,
-              exhibitionId: null,
-            })),
-          });
-        }
-      }
-
-      // 展会整体替换：按 id 复用既有记录（保留照片更新语义），无 id 则新建
-      if (dto.exhibitions !== undefined) {
-        await this.syncExhibitions(tx, id, dto.exhibitions);
-      }
+  /** 在事务内落库分区字段 + 图库 + 展会，返回带关联的最新行 */
+  private async applyUpdate(
+    tx: Prisma.TransactionClient,
+    id: string,
+    dto: UpdateFactorySectionDto,
+    coverMediaId: string | null,
+    coverImageUrl: string | null,
+  ): Promise<FactorySectionWithRelations> {
+    await tx.factorySection.update({
+      where: { id },
+      data: {
+        ...(dto.title !== undefined ? { title: dto.title } : {}),
+        ...(dto.slug !== undefined ? { slug: dto.slug } : {}),
+        ...(dto.sectionType !== undefined ? { sectionType: dto.sectionType } : {}),
+        ...(dto.summary !== undefined ? { summary: dto.summary } : {}),
+        ...(dto.content !== undefined ? { content: sanitizeRichText(dto.content) } : {}),
+        ...(dto.sortOrder !== undefined ? { sortOrder: dto.sortOrder } : {}),
+        ...(dto.seoTitle !== undefined ? { seoTitle: dto.seoTitle } : {}),
+        ...(dto.seoDescription !== undefined ? { seoDescription: dto.seoDescription } : {}),
+        coverMediaId,
+        coverImageUrl,
+        // status / publishedAt 不在 DTO 中，此处不触碰
+      },
     });
 
-    this.notifyFrontend();
-    return this.findById(id);
+    // 图库整体替换：删除旧的「非展会」图，再插入新集合
+    if (dto.images !== undefined) {
+      await tx.factoryImage.deleteMany({ where: { sectionId: id, exhibitionId: null } });
+      if (dto.images.length > 0) {
+        await tx.factoryImage.createMany({
+          data: dto.images.map((image, index) => ({
+            sectionId: id,
+            mediaId: image.mediaId,
+            altText: image.altText ?? null,
+            sortOrder: image.sortOrder ?? index,
+            exhibitionId: null,
+          })),
+        });
+      }
+    }
+
+    // 展会整体替换：按 id 复用既有记录（保留照片更新语义），无 id 则新建
+    if (dto.exhibitions !== undefined) {
+      await this.syncExhibitions(tx, id, dto.exhibitions);
+    }
+
+    return (await tx.factorySection.findUniqueOrThrow({
+      where: { id },
+      include: FACTORY_SECTION_INCLUDE,
+    })) as FactorySectionWithRelations;
   }
 
   /** 展会集合同步：删除未出现的、更新携带 id 的、新建无 id 的 */
@@ -321,7 +340,14 @@ export class FactorySectionsService {
     const existing = await this.prisma.factorySection.findUnique({ where: { id }, select: { id: true } });
     if (!existing) throw new NotFoundException('Factory section not found.');
 
-    await this.prisma.factorySection.delete({ where: { id } });
+    await this.prisma.$transaction([
+      // 通用发布表按 entityType+entityId 关联，无外键 → 随主体一并清理
+      this.prisma.contentDraft.deleteMany({ where: { entityType: 'FACTORY_SECTION', entityId: id } }),
+      this.prisma.contentRevision.deleteMany({
+        where: { entityType: 'FACTORY_SECTION', entityId: id },
+      }),
+      this.prisma.factorySection.delete({ where: { id } }),
+    ]);
     this.notifyFrontend();
     return { id };
   }
@@ -341,7 +367,180 @@ export class FactorySectionsService {
     return rows.map(toFactoryExhibitionDto);
   }
 
+  /* --------------------------- 发布工作流 --------------------------- */
+
+  /**
+   * 发布适配器：把工厂分区模块的字段映射 / 校验 / 快照接入通用引擎。
+   *
+   * 发布完整性校验：title / slug 非空且 sectionType 合法
+   * （图库与展会为可选项，不阻断发布）。
+   */
+  private publishingAdapter(): PublishAdapter<FactorySectionWithRelations> {
+    return {
+      entityType: 'FACTORY_SECTION',
+      label: '工厂分区',
+      findRow: async (id) =>
+        (await this.prisma.factorySection.findUnique({
+          where: { id },
+          include: FACTORY_SECTION_INCLUDE,
+        })) as FactorySectionWithRelations | null,
+      applyDraft: async (id, payload, tx) => {
+        if (!payload) {
+          const row = await tx.factorySection.findUnique({
+            where: { id },
+            include: FACTORY_SECTION_INCLUDE,
+          });
+          if (!row) throw new NotFoundException('Factory section not found.');
+          return row as FactorySectionWithRelations;
+        }
+
+        const dto = payload as UpdateFactorySectionDto;
+        const existing = await tx.factorySection.findUnique({ where: { id } });
+        if (!existing) throw new NotFoundException('Factory section not found.');
+
+        if (dto.slug && dto.slug !== existing.slug) {
+          const taken = await tx.factorySection.findUnique({
+            where: { slug: dto.slug },
+            select: { id: true },
+          });
+          if (taken) throw new ConflictException(`slug 已被占用：${dto.slug}`);
+        }
+
+        const { coverMediaId, coverImageUrl } = await this.prepareUpdate(dto, existing, tx);
+        return this.applyUpdate(tx, id, dto, coverMediaId, coverImageUrl);
+      },
+      markPublished: async (id, nextVersion, tx) => {
+        const current = await tx.factorySection.findUnique({
+          where: { id },
+          select: { publishedAt: true },
+        });
+        return tx.factorySection.update({
+          where: { id },
+          data: {
+            status: ContentStatus.PUBLISHED,
+            publishedAt: current?.publishedAt ?? new Date(),
+            version: { increment: 1 },
+            publishedVersion: nextVersion,
+          },
+          include: FACTORY_SECTION_INCLUDE,
+        }) as Promise<FactorySectionWithRelations>;
+      },
+      markUnpublished: async (id, tx) =>
+        tx.factorySection.update({
+          where: { id },
+          // 保留内容、publishedAt 与发布历史
+          data: { status: ContentStatus.UNPUBLISHED, version: { increment: 1 } },
+          include: FACTORY_SECTION_INCLUDE,
+        }) as Promise<FactorySectionWithRelations>,
+      validate: (row) => {
+        requireText(row.title, '标题', '工厂分区');
+        requireText(row.slug, 'URL 别名（slug）', '工厂分区');
+        if (!row.sectionType) {
+          throw new BadRequestException('发布失败：工厂分区必须指定分区类型');
+        }
+      },
+      toSnapshot: (row) => toFactorySectionDetail(row),
+    };
+  }
+
+  /** 发布状态快照（供控制器决定「直接改行」还是「写编辑稿」） */
+  publishState(id: string): Promise<PublishState> {
+    return getPublishState(this.prisma, this.publishingAdapter(), id);
+  }
+
+  /** 保存编辑稿（已发布分区不再直接改写线上行） */
+  saveDraft(
+    id: string,
+    dto: UpdateFactorySectionDto,
+    actorId: string | null,
+    expectedVersion?: number,
+  ): Promise<{ draftVersion: number; updatedAt: Date; baseVersion: number }> {
+    return saveEntityDraft(
+      this.prisma,
+      this.publishingAdapter(),
+      id,
+      dto as Record<string, unknown>,
+      actorId,
+      expectedVersion,
+    );
+  }
+
+  /** 发布：把编辑稿应用为线上版本（事务内完成，失败不影响旧版本） */
+  async publish(id: string, actorId: string | null): Promise<FactorySectionDetailDto> {
+    const result = await publishEntity(this.prisma, this.publishingAdapter(), id, actorId);
+    this.notifyFrontend();
+    return withPublishMeta(toFactorySectionDetail(result.row), result);
+  }
+
+  /** 取消发布：保留内容与历史，公开侧立即不可见 */
+  async unpublish(id: string): Promise<FactorySectionDetailDto> {
+    const result = await unpublishEntity(this.prisma, this.publishingAdapter(), id);
+    this.notifyFrontend();
+    return withPublishMeta(toFactorySectionDetail(result.row), result);
+  }
+
+  /** 预览：线上版本 + 编辑稿（仅后台授权访问） */
+  preview(id: string) {
+    return previewEntity(this.prisma, this.publishingAdapter(), id, (row) =>
+      toFactorySectionDetail(row),
+    );
+  }
+
+  /** 发布历史 */
+  revisions(id: string) {
+    return listEntityRevisions(this.prisma, this.publishingAdapter(), id);
+  }
+
   /* ------------------------------ 内部工具 ------------------------------ */
+
+  /**
+   * 解析更新所需的封面字段并校验所有媒体引用存在。
+   * 直接保存与「发布时应用编辑稿」共用，避免两条路径校验不一致。
+   */
+  private async prepareUpdate(
+    dto: UpdateFactorySectionDto,
+    existing: { coverMediaId: string | null; coverImageUrl: string | null },
+    db: PrismaService | Prisma.TransactionClient,
+  ): Promise<{ coverMediaId: string | null; coverImageUrl: string | null }> {
+    let coverMediaId = existing.coverMediaId;
+    let coverImageUrl = existing.coverImageUrl;
+
+    if (dto.coverMediaId !== undefined) {
+      if (dto.coverMediaId === null) {
+        coverMediaId = null;
+        coverImageUrl = null;
+      } else {
+        const media = await db.mediaAsset.findUnique({
+          where: { id: dto.coverMediaId },
+          select: { id: true, url: true },
+        });
+        if (!media) throw new BadRequestException(`媒体资源不存在：${dto.coverMediaId}`);
+        coverMediaId = media.id;
+        coverImageUrl = media.url;
+      }
+    }
+
+    const mediaIds = [
+      ...(dto.images ?? []).map((image) => image.mediaId),
+      ...(dto.exhibitions ?? []).flatMap((exhibition) =>
+        (exhibition.photos ?? []).map((photo) => photo.mediaId),
+      ),
+    ];
+    const unique = [...new Set(mediaIds)];
+    if (unique.length > 0) {
+      const found = await db.mediaAsset.findMany({
+        where: { id: { in: unique } },
+        select: { id: true },
+      });
+      if (found.length !== unique.length) {
+        const foundIds = new Set(found.map((row) => row.id));
+        const missing = unique.filter((mediaId) => !foundIds.has(mediaId));
+        throw new BadRequestException(`媒体资源不存在：${missing.join(', ')}`);
+      }
+    }
+
+    return { coverMediaId, coverImageUrl };
+  }
 
   private async assertSectionExists(id: string): Promise<void> {
     const found = await this.prisma.factorySection.findUnique({ where: { id }, select: { id: true } });
@@ -384,20 +583,11 @@ export class FactorySectionsService {
   }
 
   /**
-   * 发布时间的确定规则：
-   *   · 显式传入值 → 采用
-   *   · 状态为 PUBLISHED 且当前无值 → 回填 now
-   *   · 状态为 DRAFT → 保留既有值（不因撤回而丢失历史发布时间）
+   * 发布时间说明（Phase 1）：
+   *   · 发布时间由 publish 动作在服务端写入，不再由调用方传入
+   *   · 首次发布 → now；重新发布 → 沿用首次发布时间（避免 SEO 时间线抖动）
+   *   · 取消发布 → 保留原值
    */
-  private resolvePublishedAt(
-    status: ContentStatus,
-    incoming: string | Date | null,
-    existing: Date | null = null,
-  ): Date | null {
-    if (incoming) return new Date(incoming);
-    if (status === ContentStatus.PUBLISHED) return existing ?? new Date();
-    return existing;
-  }
 }
 
 export { FactorySectionType };

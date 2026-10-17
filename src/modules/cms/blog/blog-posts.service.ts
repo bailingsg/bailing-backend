@@ -13,6 +13,18 @@ import { CreateBlogPostDto, UpdateBlogPostDto } from './dto/blog-post.dto';
 import { ListBlogPostsQueryDto } from './dto/list-blog-posts-query.dto';
 import { sanitizeRichText } from './rich-text.sanitizer';
 import {
+  getPublishState,
+  listEntityRevisions,
+  previewEntity,
+  publishEntity,
+  requireText,
+  saveEntityDraft,
+  unpublishEntity,
+  withPublishMeta,
+  type PublishAdapter,
+  type PublishState,
+} from '../publishing/publishing.engine';
+import {
   toBlogPostDetail,
   toBlogPostListItem,
   type BlogPostDetailDto,
@@ -115,9 +127,6 @@ export class BlogPostsService {
     const cover = await this.resolveCoverMedia(dto.coverMediaId);
     const tagIds = await this.resolveTagIds(dto.tagIds);
 
-    const status = dto.status ?? PostStatus.DRAFT;
-    const publishedAt = this.resolvePublishedAtOnCreate(dto.publishedAt, status);
-
     try {
       const created = await this.prisma.blogPost.create({
         data: {
@@ -128,9 +137,10 @@ export class BlogPostsService {
           coverMediaId: dto.coverMediaId ?? null,
           coverImageUrl: cover?.url ?? null,
           categoryId: dto.categoryId ?? null,
-          status,
+          // Phase 1：创建一律为草稿，发布只能经独立 publish 动作
+          status: PostStatus.DRAFT,
           featured: dto.featured ?? false,
-          publishedAt,
+          publishedAt: null,
           authorId,
           seoTitle: dto.seoTitle ?? null,
           seoDescription: dto.seoDescription ?? null,
@@ -152,24 +162,33 @@ export class BlogPostsService {
     }
   }
 
-  /** 更新文章（PATCH：三态语义 —— undefined 保持 / null 置空 / 有值覆盖） */
-  async update(id: string, dto: UpdateBlogPostDto): Promise<BlogPostDetailDto> {
-    const existing = await this.prisma.blogPost.findUnique({
-      where: { id },
-      select: { id: true, status: true, publishedAt: true },
-    });
-    if (!existing) throw new NotFoundException('文章不存在');
-
-    if (dto.categoryId) await this.assertCategoryExists(dto.categoryId);
-    const cover = dto.coverMediaId === undefined ? undefined : await this.resolveCoverMedia(dto.coverMediaId);
-    const tagIds = dto.tagIds === undefined ? undefined : await this.resolveTagIds(dto.tagIds);
+  /**
+   * 从 Update DTO 构造 Prisma 更新数据（直接保存与「发布时应用编辑稿」共用）。
+   * 返回的 tagIds 为 undefined 时表示本次不改标签关联。
+   */
+  private async buildUpdateData(
+    dto: UpdateBlogPostDto,
+    db: PrismaService | Prisma.TransactionClient,
+  ): Promise<{ data: Prisma.BlogPostUpdateInput; tagIds: string[] | undefined }> {
+    if (dto.categoryId) {
+      const category = await db.blogCategory.findUnique({
+        where: { id: dto.categoryId },
+        select: { id: true },
+      });
+      if (!category) throw new BadRequestException('博客分类不存在，请先创建或选择有效分类');
+    }
+    const cover =
+      dto.coverMediaId === undefined ? undefined : await this.resolveCoverMedia(dto.coverMediaId, db);
+    const tagIds = dto.tagIds === undefined ? undefined : await this.resolveTagIds(dto.tagIds, db);
 
     const data: Prisma.BlogPostUpdateInput = {};
     if (dto.title !== undefined) data.title = dto.title;
     if (dto.slug !== undefined) data.slug = dto.slug;
     if (dto.excerpt !== undefined) data.excerpt = dto.excerpt;
     if (dto.content !== undefined) data.content = sanitizeRichText(dto.content);
-    if (dto.categoryId !== undefined) data.category = dto.categoryId ? { connect: { id: dto.categoryId } } : { disconnect: true };
+    if (dto.categoryId !== undefined) {
+      data.category = dto.categoryId ? { connect: { id: dto.categoryId } } : { disconnect: true };
+    }
     if (cover !== undefined) {
       data.coverMedia = cover ? { connect: { id: cover.id } } : { disconnect: true };
       // 同步封面地址快照，保证公开站无需二次查询
@@ -186,22 +205,24 @@ export class BlogPostsService {
     if (dto.twitterTitle !== undefined) data.twitterTitle = dto.twitterTitle;
     if (dto.twitterDescription !== undefined) data.twitterDescription = dto.twitterDescription;
 
-    // 状态与发布时间
-    const nextStatus = dto.status ?? existing.status;
-    if (dto.status !== undefined) data.status = dto.status;
-    if (dto.publishedAt !== undefined) {
-      data.publishedAt = dto.publishedAt === null ? null : new Date(dto.publishedAt);
-    } else if (
-      nextStatus === PostStatus.PUBLISHED &&
-      existing.status !== PostStatus.PUBLISHED &&
-      existing.publishedAt === null
-    ) {
-      // 首次发布：自动记录发布时间
-      data.publishedAt = new Date();
-    }
+    // 注意：status / publishedAt 已从 DTO 移除，此处不再处理，
+    // 发布态只能由 publish / unpublish 变更。
+    return { data, tagIds };
+  }
+
+  /** 更新文章（PATCH：三态语义 —— undefined 保持 / null 置空 / 有值覆盖） */
+  async update(
+    id: string,
+    dto: UpdateBlogPostDto,
+    ctx: { tx?: Prisma.TransactionClient; skipNotify?: boolean } = {},
+  ): Promise<BlogPostDetailDto> {
+    const existing = await this.prisma.blogPost.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) throw new NotFoundException('文章不存在');
+
+    const { data, tagIds } = await this.buildUpdateData(dto, ctx.tx ?? this.prisma);
 
     try {
-      const updated = await this.prisma.$transaction(async (tx) => {
+      const apply = async (tx: Prisma.TransactionClient) => {
         if (tagIds !== undefined) {
           await tx.blogPostTag.deleteMany({ where: { postId: id } });
           if (tagIds.length > 0) {
@@ -211,8 +232,10 @@ export class BlogPostsService {
           }
         }
         return tx.blogPost.update({ where: { id }, data, include: BLOG_POST_INCLUDE });
-      });
-      this.notifyFrontend(updated.slug);
+      };
+
+      const updated = ctx.tx ? await apply(ctx.tx) : await this.prisma.$transaction(apply);
+      if (!ctx.skipNotify) this.notifyFrontend(updated.slug);
       return toBlogPostDetail(updated as BlogPostWithRelations);
     } catch (error) {
       throw this.mapWriteError(error, dto.slug);
@@ -227,18 +250,133 @@ export class BlogPostsService {
     });
     if (!existing) throw new NotFoundException('文章不存在');
 
-    await this.prisma.blogPost.delete({ where: { id } });
+    await this.prisma.$transaction([
+      // 通用发布表按 entityType+entityId 关联，无外键 → 随主体一并清理
+      this.prisma.contentDraft.deleteMany({ where: { entityType: 'BLOG_POST', entityId: id } }),
+      this.prisma.contentRevision.deleteMany({ where: { entityType: 'BLOG_POST', entityId: id } }),
+      this.prisma.blogPost.delete({ where: { id } }),
+    ]);
     this.notifyFrontend(existing.slug);
     return { id };
   }
 
-  /* ------------------------------ 内部 ------------------------------ */
+  /* --------------------------- 发布工作流 --------------------------- */
 
-  /** 发布时间：显式提供优先；否则首次发布置当前时间；草稿为 null */
-  private resolvePublishedAtOnCreate(publishedAt: string | undefined, status: PostStatus): Date | null {
-    if (publishedAt) return new Date(publishedAt);
-    return status === PostStatus.PUBLISHED ? new Date() : null;
+  /**
+   * 发布适配器：把文章模块的字段映射 / 校验 / 快照接入通用引擎。
+   *
+   * 文章发布完整性校验：
+   *   · title / slug / content 非空 —— 详情页与 SEO 的最低要求
+   *   · 首次发布自动写入 publishedAt（之后重新发布保留首次发布时间）
+   */
+  private publishingAdapter(): PublishAdapter<BlogPostWithRelations> {
+    return {
+      entityType: 'BLOG_POST',
+      label: '文章',
+      findRow: async (id) =>
+        (await this.prisma.blogPost.findUnique({
+          where: { id },
+          include: BLOG_POST_INCLUDE,
+        })) as BlogPostWithRelations | null,
+      applyDraft: async (id, payload, tx) => {
+        if (!payload) {
+          const row = await tx.blogPost.findUnique({ where: { id }, include: BLOG_POST_INCLUDE });
+          if (!row) throw new NotFoundException('文章不存在');
+          return row as BlogPostWithRelations;
+        }
+        const dto = payload as UpdateBlogPostDto;
+        const { data, tagIds } = await this.buildUpdateData(dto, tx);
+        if (tagIds !== undefined) {
+          await tx.blogPostTag.deleteMany({ where: { postId: id } });
+          if (tagIds.length > 0) {
+            await tx.blogPostTag.createMany({ data: tagIds.map((tagId) => ({ postId: id, tagId })) });
+          }
+        }
+        return tx.blogPost.update({
+          where: { id },
+          data,
+          include: BLOG_POST_INCLUDE,
+        }) as Promise<BlogPostWithRelations>;
+      },
+      markPublished: async (id, nextVersion, tx) => {
+        const current = await tx.blogPost.findUnique({
+          where: { id },
+          select: { publishedAt: true },
+        });
+        return tx.blogPost.update({
+          where: { id },
+          data: {
+            status: PostStatus.PUBLISHED,
+            publishedAt: current?.publishedAt ?? new Date(),
+            version: { increment: 1 },
+            publishedVersion: nextVersion,
+          },
+          include: BLOG_POST_INCLUDE,
+        }) as Promise<BlogPostWithRelations>;
+      },
+      markUnpublished: async (id, tx) =>
+        tx.blogPost.update({
+          where: { id },
+          // 保留 publishedAt 与全部内容：重新发布时沿用首次发布时间，避免 SEO 时间线抖动
+          data: { status: PostStatus.UNPUBLISHED, version: { increment: 1 } },
+          include: BLOG_POST_INCLUDE,
+        }) as Promise<BlogPostWithRelations>,
+      validate: (row) => {
+        requireText(row.title, '标题', '文章');
+        requireText(row.slug, 'URL 别名（slug）', '文章');
+        requireText(row.content, '正文', '文章');
+      },
+      toSnapshot: (row) => toBlogPostDetail(row),
+    };
   }
+
+  /** 发布状态快照（供控制器决定「直接改行」还是「写编辑稿」） */
+  publishState(id: string): Promise<PublishState> {
+    return getPublishState(this.prisma, this.publishingAdapter(), id);
+  }
+
+  /** 保存编辑稿（已发布文章不再直接改写线上行） */
+  saveDraft(
+    id: string,
+    dto: UpdateBlogPostDto,
+    actorId: string | null,
+    expectedVersion?: number,
+  ): Promise<{ draftVersion: number; updatedAt: Date; baseVersion: number }> {
+    return saveEntityDraft(
+      this.prisma,
+      this.publishingAdapter(),
+      id,
+      dto as Record<string, unknown>,
+      actorId,
+      expectedVersion,
+    );
+  }
+
+  /** 发布：把编辑稿应用为线上版本（事务内完成，失败不影响旧版本） */
+  async publish(id: string, actorId: string | null): Promise<BlogPostDetailDto> {
+    const result = await publishEntity(this.prisma, this.publishingAdapter(), id, actorId);
+    this.notifyFrontend(result.row.slug);
+    return withPublishMeta(toBlogPostDetail(result.row), result);
+  }
+
+  /** 取消发布：保留内容与历史，公开侧立即不可见 */
+  async unpublish(id: string): Promise<BlogPostDetailDto> {
+    const result = await unpublishEntity(this.prisma, this.publishingAdapter(), id);
+    this.notifyFrontend(result.row.slug);
+    return withPublishMeta(toBlogPostDetail(result.row), result);
+  }
+
+  /** 预览：线上版本 + 编辑稿（仅后台授权访问） */
+  preview(id: string) {
+    return previewEntity(this.prisma, this.publishingAdapter(), id, (row) => toBlogPostDetail(row));
+  }
+
+  /** 发布历史 */
+  revisions(id: string) {
+    return listEntityRevisions(this.prisma, this.publishingAdapter(), id);
+  }
+
+  /* ------------------------------ 内部 ------------------------------ */
 
   private async assertCategoryExists(categoryId: string): Promise<void> {
     const category = await this.prisma.blogCategory.findUnique({
@@ -251,9 +389,10 @@ export class BlogPostsService {
   /** 校验封面媒体存在并返回其 url（用于同步 coverImageUrl 快照） */
   private async resolveCoverMedia(
     coverMediaId: string | null | undefined,
+    db: PrismaService | Prisma.TransactionClient = this.prisma,
   ): Promise<{ id: string; url: string } | null> {
     if (!coverMediaId) return null;
-    const asset = await this.prisma.mediaAsset.findUnique({
+    const asset = await db.mediaAsset.findUnique({
       where: { id: coverMediaId },
       select: { id: true, url: true },
     });
@@ -262,10 +401,13 @@ export class BlogPostsService {
   }
 
   /** 校验标签集合存在，返回去重后的 id 列表（顺序保持首次出现顺序） */
-  private async resolveTagIds(tagIds: string[] | undefined): Promise<string[]> {
+  private async resolveTagIds(
+    tagIds: string[] | undefined,
+    db: PrismaService | Prisma.TransactionClient = this.prisma,
+  ): Promise<string[]> {
     if (!tagIds || tagIds.length === 0) return [];
     const unique = [...new Set(tagIds)];
-    const found = await this.prisma.blogTag.findMany({
+    const found = await db.blogTag.findMany({
       where: { id: { in: unique } },
       select: { id: true },
     });

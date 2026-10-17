@@ -12,7 +12,8 @@ import type { CmsStatsDto } from './cms.dto';
  * 当前仅开放：
  *   GET /api/v1/cms/stats   Dashboard 真实统计（询盘 / 产品 / 分类 / 文章）
  *
- * Phase 3.7 的 RFQ 后台接口保持 X-Admin-Token 兼容，不切 CMS JWT。
+ * Phase 0 起 RFQ 后台接口已并入 RBAC（rfq.read / rfq.update），
+ * 由 RfqAuthGuard 统一鉴权，不再使用未配置即放行的共享密钥逻辑。
  */
 @Controller('cms')
 @UseGuards(JwtAuthGuard, PermissionsGuard)

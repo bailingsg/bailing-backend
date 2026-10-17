@@ -43,6 +43,10 @@ export interface SiteSectionDto {
   status: string;
   sortOrder: number;
   publishedAt: string | null;
+  /** 线上版本号（0 = 从未发布）。Phase 1 版本隔离后由发布动作递增 */
+  publishedVersion: number;
+  /** 是否存在未发布的编辑稿（保存≠发布） */
+  hasUnpublishedChanges: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -135,7 +139,7 @@ export function parseSiteSectionStats(value: unknown): SiteSectionStatDto[] {
 
 type SiteSectionRow = SiteSection & { media: MediaAsset | null };
 
-export function toSiteSectionDto(row: SiteSectionRow): SiteSectionDto {
+export function toSiteSectionDto(row: SiteSectionRow, hasUnpublishedChanges = false): SiteSectionDto {
   return {
     id: row.id,
     page: row.page,
@@ -161,6 +165,8 @@ export function toSiteSectionDto(row: SiteSectionRow): SiteSectionDto {
     status: row.status,
     sortOrder: row.sortOrder,
     publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
+    publishedVersion: row.publishedVersion,
+    hasUnpublishedChanges,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

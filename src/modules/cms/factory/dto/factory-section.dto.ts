@@ -1,4 +1,4 @@
-import { ContentStatus, FactorySectionType } from '@prisma/client';
+import { FactorySectionType } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
@@ -158,9 +158,7 @@ export class CreateFactorySectionDto {
   @MaxLength(64)
   coverMediaId?: string;
 
-  @IsOptional()
-  @IsEnum(ContentStatus)
-  status?: ContentStatus;
+  // Phase 1：Create DTO 不接受 status / publishedAt（新建恒为 DRAFT）
 
   @IsOptional()
   @Transform(toInt)
@@ -168,11 +166,6 @@ export class CreateFactorySectionDto {
   @Min(0)
   @Max(9999)
   sortOrder?: number;
-
-  @IsOptional()
-  @Transform(emptyToUndefined)
-  @IsISO8601()
-  publishedAt?: string;
 
   @IsOptional()
   @Transform(trim)
@@ -237,9 +230,7 @@ export class UpdateFactorySectionDto {
   @IsOptional()
   coverMediaId?: string | null;
 
-  @IsOptional()
-  @IsEnum(ContentStatus)
-  status?: ContentStatus;
+  // Phase 1：Update DTO 不接受 status / publishedAt（发布态只能经 publish/unpublish 变更）
 
   @IsOptional()
   @Transform(toInt)
@@ -247,9 +238,6 @@ export class UpdateFactorySectionDto {
   @Min(0)
   @Max(9999)
   sortOrder?: number;
-
-  @IsOptional()
-  publishedAt?: string | null;
 
   @IsOptional()
   @Transform(trim)

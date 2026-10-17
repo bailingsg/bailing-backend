@@ -18,11 +18,13 @@ import { RequirePermissions } from '../../rbac/require-permissions.decorator';
 import { CreateBlogPostDto, UpdateBlogPostDto } from './dto/blog-post.dto';
 import { ListBlogPostsQueryDto } from './dto/list-blog-posts-query.dto';
 import { BlogPostsService } from './blog-posts.service';
+import { draftVersionFrom } from '../publishing/publishing.engine';
 import type { BlogPostDetailDto, PaginatedBlogPostsDto } from './entities/blog.entity';
 
 /** 已鉴权请求（JwtAuthGuard 保证 user 存在） */
 interface AuthedRequest {
   user: { id: string };
+  headers: Record<string, unknown>;
 }
 
 /**
@@ -67,8 +69,54 @@ export class BlogPostsController {
 
   @Patch(':id')
   @RequirePermissions('blog.update')
-  update(@Param('id') id: string, @Body() dto: UpdateBlogPostDto): Promise<BlogPostDetailDto> {
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateBlogPostDto,
+    @Req() request: AuthedRequest,
+  ) {
+    // Phase 1：已发布过的文章，普通保存只写编辑稿，绝不覆盖线上版本
+    const state = await this.postsService.publishState(id);
+    if (state.publishedVersion > 0 || state.hasDraft) {
+      const draft = await this.postsService.saveDraft(
+        id,
+        dto,
+        request.user?.id ?? null,
+        draftVersionFrom(request.headers),
+      );
+      const current = await this.postsService.findById(id);
+      return { ...current, hasUnpublishedChanges: true, draftVersion: draft.draftVersion };
+    }
     return this.postsService.update(id, dto);
+  }
+
+  /** 发布当前编辑稿（独立权限 + 服务端完整性校验） */
+  @Post(':id/publish')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('blog.publish')
+  publish(@Param('id') id: string, @Req() request: AuthedRequest): Promise<BlogPostDetailDto> {
+    return this.postsService.publish(id, request.user?.id ?? null);
+  }
+
+  /** 取消发布（保留内容与历史） */
+  @Post(':id/unpublish')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermissions('blog.unpublish')
+  unpublish(@Param('id') id: string): Promise<BlogPostDetailDto> {
+    return this.postsService.unpublish(id);
+  }
+
+  /** 预览（线上版本 + 编辑稿，仅后台授权访问） */
+  @Get(':id/preview')
+  @RequirePermissions('blog.read')
+  preview(@Param('id') id: string) {
+    return this.postsService.preview(id);
+  }
+
+  /** 发布历史 */
+  @Get(':id/revisions')
+  @RequirePermissions('blog.read')
+  revisions(@Param('id') id: string) {
+    return this.postsService.revisions(id);
   }
 
   @Delete(':id')

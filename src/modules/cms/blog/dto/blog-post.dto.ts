@@ -1,9 +1,6 @@
-import { PostStatus } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import {
   IsBoolean,
-  IsEnum,
-  IsISO8601,
   IsOptional,
   IsString,
   Matches,
@@ -97,14 +94,8 @@ export class CreateBlogPostDto {
   @IsBoolean()
   featured?: boolean;
 
-  @IsOptional()
-  @IsEnum(PostStatus)
-  status?: PostStatus;
-
-  /** 发布时间（ISO 8601）。未提供且状态为 PUBLISHED 时由 Service 置为当前时间 */
-  @IsOptional()
-  @IsISO8601()
-  publishedAt?: string;
+  // Phase 1：Create DTO **不接受** status / publishedAt。
+  // 新建一律为 DRAFT，发布时间由 publish 动作在服务端写入。
 
   @IsOptional()
   @Transform(trim)
@@ -222,14 +213,9 @@ export class UpdateBlogPostDto {
   @IsBoolean()
   featured?: boolean;
 
-  @IsOptional()
-  @IsEnum(PostStatus)
-  status?: PostStatus;
-
-  /** 传 null 表示清空发布时间（取消发布时由 Service 一并处理） */
-  @IsOptional()
-  @IsISO8601()
-  publishedAt?: string | null;
+  // Phase 1：Update DTO **不接受** status / publishedAt。
+  // 直接 PATCH 改状态会被 ValidationPipe 拒绝（whitelist + forbidNonWhitelisted），
+  // 发布态只能经 POST /:id/publish 与 /:id/unpublish 变更。
 
   @IsOptional()
   @Transform(trim)
