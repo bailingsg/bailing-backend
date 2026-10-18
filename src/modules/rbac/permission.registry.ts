@@ -98,6 +98,7 @@ export const PERMISSION_MODULES: readonly PermissionModuleDefinition[] = [
   { key: 'samples', name: '样品管理', sortOrder: 155 },
   // Phase 5.2：订单管理（业务员订单 / 附件）
   { key: 'orders', name: '订单管理', sortOrder: 160 },
+  { key: 'inventory', name: '库存管理', sortOrder: 165 },
 ] as const;
 
 /**
@@ -833,6 +834,43 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
     description: '编辑自己的订单与照片',
     isNav: false,
     sortOrder: 30,
+  },
+  // Phase 5.3：库存管理（单仓库；创建人从会话取；管理员可见全部）
+  {
+    key: 'inventory.read',
+    module: 'inventory',
+    action: 'read',
+    name: '查看库存',
+    description: '查看库存记录（业务员仅自己创建的；管理员全部）',
+    isNav: true,
+    sortOrder: 10,
+  },
+  {
+    key: 'inventory.create',
+    module: 'inventory',
+    action: 'create',
+    name: '新增库存',
+    description: '新增库存记录（创建人自动关联当前登录用户；可关联本人有权限的订单）',
+    isNav: false,
+    sortOrder: 20,
+  },
+  {
+    key: 'inventory.update',
+    module: 'inventory',
+    action: 'update',
+    name: '编辑库存',
+    description: '编辑库存记录（业务员仅自己创建的；管理员全部）',
+    isNav: false,
+    sortOrder: 30,
+  },
+  {
+    key: 'inventory.delete',
+    module: 'inventory',
+    action: 'delete',
+    name: '删除库存',
+    description: '删除库存记录（业务员仅自己创建的；管理员全部；不级联删除订单）',
+    isNav: false,
+    sortOrder: 40,
   },
 ] as const;
 

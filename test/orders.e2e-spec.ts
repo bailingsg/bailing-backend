@@ -114,6 +114,9 @@ describe('Orders CMS（e2e）', () => {
     return res;
   };
 
+  let codeSeq = 0;
+  const nextCode = () => `E2E-ORD-${RUN_ID}-${++codeSeq}`;
+
   const createOrder = (
     u: TestUser,
     overrides: Record<string, unknown> = {},
@@ -123,6 +126,7 @@ describe('Orders CMS（e2e）', () => {
       .post('/api/v1/cms/orders')
       .set(auth(u))
       .send({
+        code: nextCode(),
         customerName: `客户-${RUN_ID}`,
         country: 'United States',
         requirement: '18mm 胡桃木 MDF 面板 3000 平方米',
@@ -134,19 +138,94 @@ describe('Orders CMS（e2e）', () => {
         ...overrides,
       });
 
-  it('业务员创建订单：编号自动生成、金额与币种正确保存、成交时间可空', async () => {
+  it('业务员创建订单：订单号手动填写且原样保存，金额与币种正确、成交时间可空', async () => {
     const up = await uploadPhoto(salesA, `order-a-${RUN_ID}.png`);
     attachmentId = up.body.data.id;
 
-    const res = await createOrder(salesA, {}, [attachmentId]).expect(201);
+    const requestedCode = `E2E-ORD-${RUN_ID}-MAIN`;
+    const res = await createOrder(salesA, { code: requestedCode }, [attachmentId]).expect(201);
     orderId = res.body.data.id;
     expect(res.body.data.salespersonId).toBe(salesA.id);
-    expect(res.body.data.code).toMatch(/^SO-\d{8}-[A-F0-9]{6}$/);
+    // 订单号由业务员填写，后端不做改写（仅 trim 首尾；区分大小写）
+    expect(res.body.data.code).toBe(requestedCode);
     expect(res.body.data.amount).toBe('12345.67');
     expect(res.body.data.currency).toBe('USD');
     expect(res.body.data.closedAt).toBeNull();
     expect(res.body.data.attachments).toHaveLength(1);
     expect(res.body.data.attachments[0].originalName).toContain('order-a-');
+  });
+
+  it('订单号规范：必填、空值/纯空格/控制字符/超长被拒，首尾空格被 trim', async () => {
+    // 缺少订单号
+    await createOrder(salesA, { code: undefined }).expect(400);
+    // 空字符串 / 纯空格
+    await createOrder(salesA, { code: '' }).expect(400);
+    await createOrder(salesA, { code: '   ' }).expect(400);
+    // 控制字符
+    await createOrder(salesA, { code: `ORD\u0001${RUN_ID}` }).expect(400);
+    // 超长（> 64）
+    await createOrder(salesA, { code: 'X'.repeat(65) }).expect(400);
+    // 合法：字母数字 + 常用分隔符 + 单个空格；首尾空格被 trim 后保存
+    const spaced = `  E2E-ORD-${RUN_ID} / A.1 #2-3_CN  `;
+    const res = await createOrder(salesA, { code: spaced }).expect(201);
+    expect(res.body.data.code).toBe(`E2E-ORD-${RUN_ID} / A.1 #2-3_CN`);
+  });
+
+  it('订单号唯一：重复 409（业务错误）；并发同号只有一个成功', async () => {
+    const dup = `E2E-ORD-${RUN_ID}-DUP`;
+    await createOrder(salesA, { code: dup }).expect(201);
+    const again = await createOrder(salesA, { code: dup }).expect(409);
+    expect(JSON.stringify(again.body)).toContain('该订单号已存在');
+
+    // 并发创建相同订单号：数据库唯一约束兜底，仅一个 201
+    const raceCode = `E2E-ORD-${RUN_ID}-RACE`;
+    const [r1, r2] = await Promise.allSettled([
+      createOrder(salesA, { code: raceCode }),
+      createOrder(salesA, { code: raceCode }),
+    ]);
+    const codes = [r1, r2].map((r) =>
+      r.status === 'fulfilled'
+        ? (r as PromiseFulfilledResult<request.Response>).value.status
+        : -1,
+    );
+    expect(codes.sort((a, b) => a - b)).toEqual([201, 409]);
+  });
+
+  it('订单号精确查询：与筛选叠加；编辑不接受订单号字段（创建后不可改）', async () => {
+    // 精确查询（管理员）
+    const exact = await request(app.getHttpServer())
+      .get(`/api/v1/cms/orders?code=${encodeURIComponent(`E2E-ORD-${RUN_ID}-MAIN`)}`)
+      .set(auth(admin))
+      .expect(200);
+    expect(exact.body.data.total).toBe(1);
+    expect(exact.body.data.items[0].id).toBe(orderId);
+
+    // 精确查询与其它筛选叠加（国家不匹配 → 0 条）
+    const combined = await request(app.getHttpServer())
+      .get(`/api/v1/cms/orders?code=${encodeURIComponent(`E2E-ORD-${RUN_ID}-MAIN`)}&country=Mars`)
+      .set(auth(admin))
+      .expect(200);
+    expect(combined.body.data.total).toBe(0);
+
+    // 编辑时提交订单号 → 白名单拒绝（400），订单号保持原值
+    await request(app.getHttpServer())
+      .patch(`/api/v1/cms/orders/${orderId}`)
+      .set(auth(salesA))
+      .send({
+        code: `E2E-ORD-${RUN_ID}-HACKED`,
+        customerName: `客户-${RUN_ID}`,
+        country: 'United States',
+        requirement: '越权改订单号',
+        orderedAt: '2026-10-01',
+        amount: 1,
+        currency: 'CNY',
+      })
+      .expect(400);
+    const after = await request(app.getHttpServer())
+      .get(`/api/v1/cms/orders/${orderId}`)
+      .set(auth(salesA))
+      .expect(200);
+    expect(after.body.data.code).toBe(`E2E-ORD-${RUN_ID}-MAIN`);
   });
 
   it('金额/币种/日期校验：负数、3位小数、非法币种、成交早于下单被拒', async () => {

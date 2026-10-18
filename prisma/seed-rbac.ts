@@ -80,6 +80,11 @@ export const SALES_PERMISSIONS: readonly string[] = [
   'orders.read',
   'orders.create',
   'orders.update',
+  // Phase 5.3：库存管理（自己创建的库存；订单号手动填写）
+  'inventory.read',
+  'inventory.create',
+  'inventory.update',
+  'inventory.delete',
 ];
 
 /** 内置角色定义 */

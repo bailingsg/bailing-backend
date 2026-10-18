@@ -7,7 +7,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { OrderCurrency, Prisma } from '@prisma/client';
-import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditLogService } from '../rbac/audit-log.service';
@@ -150,6 +149,8 @@ export class OrdersService {
         { requirement: { contains: query.keyword, mode: 'insensitive' } },
       ];
     }
+    // 订单编号精确查询（Phase 5.3；与其余筛选叠加，仍受角色权限过滤保护）
+    if (query.code) where.code = query.code.trim();
 
     const [total, rows] = await this.prisma.$transaction([
       this.prisma.order.count({ where }),
@@ -183,32 +184,33 @@ export class OrdersService {
     this.validateDates(dto.orderedAt, dto.closedAt);
     await this.assertAttachmentsAvailable(actor, dto.attachmentIds ?? []);
 
+    // 订单编号由业务员手动填写（Phase 5.3）：规范化仅 trim 首尾，
+    // 大小写不折叠（与数据库唯一索引一致）；重复时 P2002 → 409 业务错误。
+    const code = dto.code.trim();
+
     let created;
-    for (let attempt = 0; attempt < 5; attempt++) {
-      try {
-        created = await this.prisma.order.create({
-          data: {
-            code: this.generateCode('SO'),
-            salespersonId: actor.id,
-            customerName: dto.customerName,
-            country: dto.country,
-            requirement: dto.requirement,
-            orderedAt: new Date(dto.orderedAt),
-            closedAt: dto.closedAt ? new Date(dto.closedAt) : null,
-            amount: dto.amount.toFixed(2),
-            currency: dto.currency,
-            note: dto.note ?? null,
-          },
-          include: ORDER_INCLUDE,
-        });
-        break;
-      } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-          if (attempt === 4) throw new ConflictException('订单编号生成冲突，请重试');
-          continue;
-        }
-        throw error;
+    try {
+      created = await this.prisma.order.create({
+        data: {
+          code,
+          salespersonId: actor.id,
+          customerName: dto.customerName,
+          country: dto.country,
+          requirement: dto.requirement,
+          orderedAt: new Date(dto.orderedAt),
+          closedAt: dto.closedAt ? new Date(dto.closedAt) : null,
+          amount: dto.amount.toFixed(2),
+          currency: dto.currency,
+          note: dto.note ?? null,
+        },
+        include: ORDER_INCLUDE,
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        // 数据库唯一约束兜底（并发创建相同订单号时只有一个成功）
+        throw new ConflictException('该订单号已存在，请检查后重新输入');
       }
+      throw error;
     }
 
     // 附件关联（事务：全部归属校验通过才绑定；任何附件被他人占用 → 整体失败）
@@ -367,15 +369,6 @@ export class OrdersService {
       await this.prisma.orderAttachment.delete({ where: { id: row.id } }).catch(() => undefined);
       await this.files.remove(row.storageKey);
     }
-  }
-
-  private generateCode(prefix: string): string {
-    const now = new Date();
-    const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(
-      now.getDate(),
-    ).padStart(2, '0')}`;
-    const rand = randomBytes(4).toString('hex').toUpperCase().slice(0, 6);
-    return `${prefix}-${ymd}-${rand}`;
   }
 
   private toAttachmentDto(att: {

@@ -16,6 +16,7 @@ import { SeoModule } from './modules/seo/seo.module';
 import { MailModule } from './modules/mail/mail.module';
 import { SamplesModule } from './modules/samples/samples.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
 
 @Module({
   imports: [
@@ -48,6 +49,8 @@ import { OrdersModule } from './modules/orders/orders.module';
     SamplesModule,
     // Phase 5.2：订单管理（业务员订单 / 附件与媒体库隔离）
     OrdersModule,
+    // Phase 5.3：库存管理（单仓库 / 可关联订单 / 订单号手动填写）
+    InventoryModule,
   ],
 })
 export class AppModule {}

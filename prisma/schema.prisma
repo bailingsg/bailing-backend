@@ -78,6 +78,7 @@ model AdminUser {
   sampleRequests   SampleRequest[]  @relation("SampleRequester")
   orders           Order[]          @relation("OrderSalesperson")
   orderUploads     OrderAttachment[] @relation("OrderAttachmentUploader")
+  inventoryItems   InventoryItem[]  @relation("InventoryCreator")
 
   @@index([isActive])
   @@index([role])
@@ -1208,7 +1209,7 @@ enum OrderCurrency {
 // 订单
 model Order {
   id            String        @id @default(cuid())
-  code          String        @unique // 后端生成，形如 SO-20261017-XXXXXX
+  code          String        @unique // 业务员手动填写，全系统唯一（trim 首尾；精确匹配、区分大小写）
   salespersonId String // 业务员 AdminUser.id（创建人，后端确定）
   customerName  String
   country       String
@@ -1221,6 +1222,7 @@ model Order {
 
   salesperson AdminUser         @relation("OrderSalesperson", fields: [salespersonId], references: [id], onDelete: Restrict)
   attachments OrderAttachment[]
+  inventoryItems InventoryItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1249,6 +1251,36 @@ model OrderAttachment {
   @@index([orderId])
   @@index([uploadedById, orderId])
   @@map("order_attachments")
+}
+
+// ============================================================
+// Phase 5.3：库存管理（单仓库；可与订单关联，订单号从关联订单读取）
+// ============================================================
+
+model InventoryItem {
+  id            String   @id @default(cuid())
+  code          String   @unique // 库存编号，后端生成，形如 INV-20261018-XXXXXX
+  productName   String // 产品名称
+  productDetail String   @db.Text // 产品详情（规格/材质/型号等）
+  quantity      Decimal  @db.Decimal(14, 3) // 数量（>=0，最多三位小数；不用浮点）
+  unit          String // 计量单位（张/片/块/套/件/根/立方米/平方米/米/千克/吨）
+  location      String // 存放位置（单仓库，手动输入）
+  storedAt      DateTime // 存放日期
+  orderId       String? // 关联订单（可空；订单号从该订单读取，不冗余副本）
+  createdById   String // 创建人 AdminUser.id（后端从会话确定）
+
+  order     Order?    @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  creator   AdminUser @relation("InventoryCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdById])
+  @@index([orderId])
+  @@index([productName])
+  @@index([storedAt])
+  @@index([createdAt])
+  @@map("inventory_items")
 }
 
 // ============================================================
