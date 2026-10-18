@@ -262,7 +262,7 @@
 - admin：一次提交包含全部 Phase 5.3 前端；
 - 分支 `261017`；推送前先 `ls-remote` 检查远程状态，若远程领先则先分析整合（禁止强推）；推送后以 `git ls-remote` 复核远程哈希与本地一致。
 
-**实际结果**：backend `66ef13c`（16 文件，+1980/-41，含本报告）、admin `78af49a`（12 文件，+1262/-20）。两仓库均已于 2026-10-18 推送至 `bailingsg/bailing-backend` 与 `bailingsg/bailing-admin` 的 `261017` 分支（backend `c785181..66ef13c`、admin `aebd969..78af49a`，快进无冲突，未强推）；推送后 `git ls-remote` 复核：远程哈希与本地 `rev-parse 261017` 完全一致（backend `66ef13c16c2303e17b0fc0f6ec7b5df2dd9cb888`、admin `78af49ac6f476397bc71a7c5e941634a594d671f`）。
+**实际结果**：backend `66ef13c`（16 文件，+1980/-41，功能主体）+ `4ad0ffd`（本报告回填）；admin `78af49a`（12 文件，+1262/-20）。两仓库均已于 2026-10-18 推送至 `bailingsg/bailing-backend` 与 `bailingsg/bailing-admin` 的 `261017` 分支（backend `c785181..66ef13c`、admin `aebd969..78af49a`，快进无冲突，未强推）；推送后 `git ls-remote` 复核：远程哈希与本地 `rev-parse 261017` 完全一致（backend `66ef13c16c2303e17b0fc0f6ec7b5df2dd9cb888`、admin `78af49ac6f476397bc71a7c5e941634a594d671f`）。
 
 ## 15. 生产部署前仍需执行的步骤
 
