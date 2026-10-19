@@ -1,6 +1,7 @@
 import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsDateString,
   IsEnum,
   IsIn,
@@ -13,7 +14,9 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
+import { OrderInventoryDto } from './order-inventory.dto';
 
 /**
  * 订单编号规范（Phase 5.3：业务员手动填写，全系统唯一）：
@@ -122,6 +125,17 @@ export class OrderFieldsDto {
   @IsArray()
   @IsString({ each: true })
   attachmentIds?: string[];
+
+  /**
+   * 订单表单内联的库存信息（Phase 5.3.2）。
+   *   · 新建：传了就在同一事务内创建并关联该订单的库存；
+   *   · 编辑：传了就更新该订单已有库存（无则新建），不重复新增；
+   *   · 不传：完全不触碰库存（避免误删/误改）。
+   */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => OrderInventoryDto)
+  inventory?: OrderInventoryDto;
 }
 
 export class CreateOrderDto extends OrderFieldsDto {
@@ -139,6 +153,17 @@ export class UpdateOrderDto extends OrderFieldsDto {
   @IsArray()
   @IsString({ each: true })
   removeAttachmentIds?: string[];
+
+  /**
+   * 显式删除该订单的主库存记录（Phase 5.3.2）。
+   *
+   * 只有用户在「是否有库存？」选择「否」并被二次确认后才允许提交 true；
+   * 不传 / false 一律不动库存 —— 杜绝「把开关改回否」就静默删除数据。
+   * 与 inventory 同时提交视为冲突（语义互斥），由服务层拒绝。
+   */
+  @IsOptional()
+  @IsBoolean()
+  removeInventory?: boolean;
 }
 
 export class CreateOrderUploadDto {

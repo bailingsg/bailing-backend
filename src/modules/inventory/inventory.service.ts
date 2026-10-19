@@ -6,7 +6,6 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditLogService } from '../rbac/audit-log.service';
 import { RbacService } from '../rbac/rbac.service';
@@ -17,6 +16,7 @@ import {
   ListInventoryQueryDto,
   UpdateInventoryDto,
 } from './dto/inventory.dto';
+import { generateInventoryCode, toInventoryQuantity } from './inventory.support';
 import type { InventoryItemDto, Paginated } from './entities/inventory.entity';
 
 const INVENTORY_INCLUDE = {
@@ -166,18 +166,14 @@ export class InventoryService {
     await this.assertOrderAllowed(actor, dto.orderId);
     this.validateStoredAt(dto.storedAt);
 
-    const quantity = new Prisma.Decimal(dto.quantity);
-    if (quantity.isNegative()) {
-      throw new BadRequestException('数量不允许为负数');
-    }
-    this.assertQuantityPrecision(quantity);
+    const quantity = toInventoryQuantity(dto.quantity);
 
     let created;
     for (let attempt = 0; attempt < 5; attempt++) {
       try {
         created = await this.prisma.inventoryItem.create({
           data: {
-            code: this.generateCode(),
+            code: generateInventoryCode(),
             productName: dto.productName.trim(),
             productDetail: dto.productDetail.trim(),
             quantity: quantity.toFixed(3),
@@ -225,11 +221,7 @@ export class InventoryService {
     await this.assertOrderAllowed(actor, dto.orderId);
     this.validateStoredAt(dto.storedAt);
 
-    const quantity = new Prisma.Decimal(dto.quantity);
-    if (quantity.isNegative()) {
-      throw new BadRequestException('数量不允许为负数');
-    }
-    this.assertQuantityPrecision(quantity);
+    const quantity = toInventoryQuantity(dto.quantity);
 
     // 白名单字段更新（禁止客户端写入 code / createdById / id）
     await this.prisma.inventoryItem.update({
@@ -297,23 +289,6 @@ export class InventoryService {
   private validateStoredAt(storedAt: string) {
     const date = new Date(storedAt);
     if (Number.isNaN(date.getTime())) throw new BadRequestException('存放日期不合法');
-  }
-
-  /** Decimal 小数位校验（最多三位，杜绝浮点噪声） */
-  private assertQuantityPrecision(quantity: Prisma.Decimal) {
-    const decimalPlaces = quantity.decimalPlaces();
-    if (decimalPlaces > 3) {
-      throw new BadRequestException('数量最多保留三位小数');
-    }
-  }
-
-  private generateCode(): string {
-    const now = new Date();
-    const ymd = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(
-      now.getDate(),
-    ).padStart(2, '0')}`;
-    const rand = randomBytes(4).toString('hex').toUpperCase().slice(0, 6);
-    return `INV-${ymd}-${rand}`;
   }
 
   private toDto(item: {
