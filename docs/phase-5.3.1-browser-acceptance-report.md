@@ -87,7 +87,7 @@
 | A2 | 导航显示「库存管理」 | 通过 | `href=/inventory` |
 | A3 | 导航显示「订单管理」 | 通过 | `href=/orders` |
 | A4 | 页面为中文 | 通过 | 导航与业务文案均为中文 |
-| A5 | 无运行时错误 | 通过 | 0 个 `pageerror`、0 个业务 `console.error` |
+| A5 | 无运行时错误 | 通过 | 0 个 `pageerror`、0 个业务 `console.error`；全程仅 2 次 `/favicon.ico` 静态资源 404（见 BA-1，无功能影响） |
 | A6 | 未登录访问受保护页被拦截 | 通过 | `/inventory`、`/orders` 均 307 → `/login` |
 
 截图：`01-A1-admin-dashboard.png`
