@@ -191,7 +191,7 @@ export class SeoProfileService {
           entityType,
           entityId,
           name: product.name,
-          routePath: `/products/${product.slug}`,
+          routePath: `/products/${product.id}`,
           contentTitle: product.name,
           contentDescription: product.shortDescription ?? '',
           contentBody: product.description ?? '',
@@ -503,7 +503,7 @@ export class SeoProfileService {
         orderBy: { updatedAt: 'desc' },
       });
       for (const p of products) {
-        const row = await this.buildRow('PRODUCT', p.id, p.name, `/products/${p.slug}`, p.name, p.status, p.updatedAt);
+        const row = await this.buildRow('PRODUCT', p.id, p.name, `/products/${p.id}`, p.name, p.status, p.updatedAt);
         row.metaDescription = p.seoDescription ?? null;
         rows.push(row);
       }
@@ -635,7 +635,7 @@ export class SeoProfileService {
    * 路径 → 实体映射（与前台路由逐字对应）：
    *   /                       → PAGE:home
    *   /products               → PAGE:products
-   *   /products/{slug}        → PRODUCT
+   *   /products/{id}          → PRODUCT（旧 slug 路径兼容）
    *   /products/category/{slug} → PRODUCT_CATEGORY
    *   /blog                   → PAGE:blog
    *   /blog/{slug}            → BLOG_POST
@@ -669,12 +669,18 @@ export class SeoProfileService {
 
     const segments = clean.split('/').filter(Boolean);
 
-    // /products/{slug}
+    // /products/{id}（前台详情路由以 id 拼接；旧 slug 路径仍兼容）
     if (segments[0] === 'products' && segments.length === 2) {
-      const product = await this.prisma.product.findUnique({
-        where: { slug: segments[1] },
-        select: { id: true, status: true },
-      });
+      const ref = segments[1];
+      const product =
+        (await this.prisma.product.findUnique({
+          where: { id: ref },
+          select: { id: true, status: true },
+        })) ??
+        (await this.prisma.product.findUnique({
+          where: { slug: ref },
+          select: { id: true, status: true },
+        }));
       if (product && product.status === ProductStatus.PUBLISHED) {
         const profile = await this.prisma.seoProfile.findUnique({
           where: { entityType_entityId: { entityType: 'PRODUCT', entityId: product.id } },

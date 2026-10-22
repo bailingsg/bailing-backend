@@ -138,6 +138,9 @@ model Product {
   // 关系侧故命名为 applicationLinks，避免与之混淆。
   applicationLinks ApplicationProduct[]
 
+  // Phase 5.6：被哪些文章引用为「相关产品」
+  blogPostLinks BlogPostProduct[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -284,6 +287,9 @@ model BlogPost {
   coverMedia MediaAsset?   @relation(fields: [coverMediaId], references: [id], onDelete: SetNull)
   tags       BlogPostTag[]
 
+  // Phase 5.6：文章关联产品（最多 4 个，前台详情页「相关产品」区块消费）
+  relatedProducts BlogPostProduct[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -293,6 +299,28 @@ model BlogPost {
   @@index([featured])
   @@index([coverMediaId])
   @@map("blog_posts")
+}
+
+// 博客文章 ↔ 产品 关联（Phase 5.6）
+//
+// 设计约束：
+//   · 显式 join 表（而非 jsonb id 数组），便于外键级联与「产品被引用于哪些文章」反查
+//   · 数量上限 4 由 DTO 与 Service 双层校验（前端同时限制，避免无效提交）
+//   · sortOrder 决定前台展示顺序（1..4，按选择先后）
+//   · 删除文章 / 产品时级联删除关联行，不残留孤儿记录
+model BlogPostProduct {
+  postId    String
+  productId String
+  sortOrder Int    @default(0)
+
+  post    BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  product Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([postId, productId])
+  @@index([productId])
+  @@map("blog_post_products")
 }
 
 // 博客文章 ↔ 标签 多对多连接模型（显式 join，便于未来加排序/权重字段）
@@ -338,6 +366,10 @@ model MediaAsset {
   description  String? // 图片详细描述（SEO / 无障碍）
   provider     MediaProvider @default(LOCAL) // 存储提供方（Storage Adapter 选择）
   category     MediaCategory @default(IMAGE) // 资源分类（IMAGE / DOCUMENT）
+  // Phase 5.6：业务用途分类（文章 / 产品 / 证书 / 工厂 / 生产 / 装车 …），
+  // 与 category（文件类型）语义分离：一张 IMAGE 可属于任意用途。
+  // 可空表示「未分类」，存量 239 张历史图不强制回溯标注。
+  usage        MediaUsage?
   createdBy    String // 上传管理员 ID（AdminUser.id）
 
   blogCovers BlogPost[] // 被博客文章引作封面的反向关系（引用检查用）
@@ -356,6 +388,7 @@ model MediaAsset {
 
   @@index([provider])
   @@index([category])
+  @@index([usage])
   @@index([createdAt])
   @@index([createdBy])
   @@map("media_assets")
@@ -366,6 +399,33 @@ model MediaAsset {
 enum MediaCategory {
   IMAGE
   DOCUMENT
+}
+
+// 媒体用途分类（Phase 5.6）
+//
+// 与 MediaCategory（文件类型）正交：这里回答「这张图用在哪个业务场景」，
+// 取值对齐站点上实际有图的页面，避免造出没有落点的空分类：
+//   · BLOG        文章封面 / 正文配图
+//   · PRODUCT     产品图（产品详情图库）
+//   · CERTIFICATE 证书 / 检测报告（质量 CMS）
+//   · FACTORY     工厂厂房 / 设施（FactorySection OVERVIEW / FACILITY）
+//   · PRODUCTION  生产流程 / 生产设备（FactorySection PRODUCTION / EQUIPMENT）
+//   · LOADING     装柜 / 装车（FactorySection LOADING）
+//   · EXHIBITION  展会照片（FactoryExhibition）
+//   · APPLICATION 应用场景（Application 封面）
+//   · SITE        站点结构化分区配图（SiteSection）
+//   · OTHER       其他 / 暂未归类
+enum MediaUsage {
+  BLOG
+  PRODUCT
+  CERTIFICATE
+  FACTORY
+  PRODUCTION
+  LOADING
+  EXHIBITION
+  APPLICATION
+  SITE
+  OTHER
 }
 
 // ---------- Phase 4.5：企业内容 CMS（Factory / Quality / Applications） ----------
@@ -703,6 +763,8 @@ model AdminUserRole {
 // 与 AdminUser 一一对应（adminUserId 唯一）：联系方式必须挂在真实员工账号上，
 // 不允许创建与账号脱节的虚假员工。
 // 登录邮箱（AdminUser.email）与对外展示邮箱（displayEmail）严格区分。
+// whatsapp 与 phone 均为「+ 国家代码」国际号码：whatsapp 偏即时通讯，
+// phone 为可直接拨打的手机号；二者独立维护，允许只填其一。
 model EmployeeContact {
   id            String  @id @default(cuid())
   adminUserId   String  @unique // 关联员工账号（一对一）
@@ -710,6 +772,9 @@ model EmployeeContact {
   jobTitle      String? // 销售职务
   displayEmail  String? // 对外展示工作邮箱（可与登录邮箱不同）
   whatsapp      String? // WhatsApp 号码（含国际区号，如 +8613800138000）
+  phone         String? // 对外展示手机号（含国际区号，如 +8618463661955）
+  avatarKey     String? // 头像存储对象键（StorageProvider 统一生成，COS/Local 通用）
+  avatarUrl     String? // 头像访问地址快照（provider 生成；COS 场景为 CDN 域名）
   showOnSite    Boolean @default(false) // 是否展示在网站前台
   isLeadContact Boolean @default(false) // 是否作为询盘联系人（参与分配）
   sortOrder     Int     @default(0) // 展示顺序
@@ -1343,4 +1408,57 @@ model ContentRevision {
   @@index([entityType, entityId, publishedAt])
   @@index([publishedAt])
   @@map("content_revisions")
+}
+
+// ============================================================
+// 访客统计（匿名流量旁路模块，零外键、与账号/客户/订单体系完全解耦）
+// ============================================================
+
+/// 访客会话（一次会话一行，事实源）
+///
+/// 设计要点（与访客统计实现规格逐条对应）：
+///   · 零外键：不含 userId / customerId / 任何账号关联；
+///   · visitor_id 为前端生成的 UUID v4，存库但**永不对外返回**
+///     （对外只返回随机主键 id / maskedIp / country / city / visitedAt）；
+///   · first_seen_at 与 last_seen_at 分开：所有统计按 first_seen_at
+///     归属统计日（UTC 日界），跨天会话整条计入开始日；
+///   · visit_count 为该会话内 PV，让区间 PV 一次 SUM 即可得；
+///   · masked_ip 是脱敏网段（IPv4 /24、IPv6 /48），**不是完整 IP**；
+///   · user_agent 截断 200 字符，仅兜底线索，不对外返回；
+///   · is_new_visitor = 该 visitorId 此前无任何会话（不是「今天第一次」）。
+model VisitorSession {
+  id            String    @id @default(cuid())
+  visitorId     String // 前端 UUID v4，去重键，不对外返回
+  firstSeenAt   DateTime  @db.Timestamptz(3) // 会话开始（统计归属依据）
+  lastSeenAt    DateTime  @db.Timestamptz(3) // 最后活动（会话延续判定）
+  visitCount    Int       @default(1) // 会话内 PV
+  country       String? // GeoIP 国家（未启用 GeoIP 时恒 null）
+  region        String? // GeoIP 地区（存库但不返回）
+  city          String? // GeoIP 城市
+  maskedIp      String? // 脱敏网段，如 203.0.113.0/24
+  userAgent     String? // UA 截断 200 字符，不返回
+  isNewVisitor  Boolean // 是否首次会话
+  createdAt     DateTime  @default(now())
+
+  @@index([firstSeenAt], map: "visitor_session_first_seen_at_idx")
+  @@index([visitorId, lastSeenAt], map: "visitor_session_visitor_id_last_seen_at_idx")
+  @@index([country, firstSeenAt], map: "visitor_session_country_first_seen_at_idx")
+  @@map("visitor_session")
+}
+
+/// 访客日统计读模型（一天一行，由日聚合 worker 幂等 UPSERT）
+///
+/// 趋势图查 30 天时直接读本表（30 行），避免对事实源全表 GROUP BY。
+/// 读模型天然滞后：今日数据**永远实时查事实源**，不读本表；
+/// 历史日缺失时回退实时聚合（真实数据，不插值、不补假点）。
+model VisitorDailyStatistic {
+  id             String   @id @default(cuid())
+  statDate       DateTime @unique(map: "visitor_daily_statistic_stat_date_key") @db.Date // 统计日（UTC 日界）
+  uniqueVisitors Int // 当日 UV = COUNT(DISTINCT visitor_id)
+  visits         Int      @default(0) // 当日 PV = SUM(visit_count)
+  newVisitors    Int      @default(0) // 当日新会话数（is_new_visitor = true）
+  computedAt     DateTime @db.Timestamptz(3)
+
+  @@index([statDate], map: "visitor_daily_statistic_stat_date_idx")
+  @@map("visitor_daily_statistic")
 }

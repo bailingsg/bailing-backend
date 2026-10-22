@@ -1,0 +1,2049 @@
+{
+ "generatedAt": "2026-10-19T13:53:11+0800",
+ "source": "https://bailingwooden.com (WordPress REST API, 只读)",
+ "fetchStats": {
+  "products": {
+   "endpoint": "/wp-json/wp/v2/product",
+   "x_wp_total": 34,
+   "fetched": 34,
+   "complete": true
+  },
+  "posts": {
+   "endpoint": "/wp-json/wp/v2/posts",
+   "x_wp_total": 75,
+   "fetched": 75,
+   "complete": true
+  },
+  "pages": {
+   "endpoint": "/wp-json/wp/v2/pages",
+   "x_wp_total": 7,
+   "fetched": 7,
+   "complete": true
+  }
+ },
+ "products": [
+  {
+   "legacyId": 1680,
+   "url": "https://bailingwooden.com/product/white-melamine-block-board-falcata-block-board-4x8-melamine-block-board-for-furniture/",
+   "slug": "white-melamine-block-board-falcata-block-board-4x8-melamine-block-board-for-furniture",
+   "title": "White Melamine Block Board Falcata Block Board 4&#215;8 Melamine Block Board for Furniture",
+   "status": "publish",
+   "date": "2025-12-29T09:54:31",
+   "modified": "2025-12-29T09:58:51",
+   "featuredMediaId": 1125,
+   "categoryIds": [
+    36
+   ],
+   "tagIds": [
+    69
+   ],
+   "contentChars": 7059,
+   "yoastTitle": "White Melamine Block Board Falcata Block Board 4x8 Melamine Block Board for Furniture - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "High-quality block board for furniture and interior decoration. Durable, eco-friendly, warp-resistant, and strong screw holding performance.",
+   "canonical": "https://bailingwooden.com/product/white-melamine-block-board-falcata-block-board-4x8-melamine-block-board-for-furniture/"
+  },
+  {
+   "legacyId": 1679,
+   "url": "https://bailingwooden.com/product/best-selling-4x8-e1-poplar-modern-black-film-faced-plywood-with-1-year-warranty-for-construction/",
+   "slug": "best-selling-4x8-e1-poplar-modern-black-film-faced-plywood-with-1-year-warranty-for-construction",
+   "title": "Best Selling 4&#215;8 E1 Poplar Modern Black Film Faced Plywood with 1 Year Warranty for Construction",
+   "status": "publish",
+   "date": "2025-12-29T09:53:10",
+   "modified": "2025-12-29T09:54:21",
+   "featuredMediaId": 1117,
+   "categoryIds": [
+    41
+   ],
+   "tagIds": [
+    64
+   ],
+   "contentChars": 7073,
+   "yoastTitle": "Best Selling 4x8 E1 Poplar Modern Black Film Faced Plywood with 1 Year Warranty for Construction - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "Premium Film Faced Plywood with smooth waterproof surface, excellent durability, and multiple reuse for various construction projects.",
+   "canonical": "https://bailingwooden.com/product/best-selling-4x8-e1-poplar-modern-black-film-faced-plywood-with-1-year-warranty-for-construction/"
+  },
+  {
+   "legacyId": 1678,
+   "url": "https://bailingwooden.com/product/hot-sell-custom-interior-mdf-wood-door-designs-pvc-door-bedroom-pvc-door/",
+   "slug": "hot-sell-custom-interior-mdf-wood-door-designs-pvc-door-bedroom-pvc-door",
+   "title": "Hot Sell Custom Interior MDF Wood Door Designs PVC Door Bedroom PVC Door",
+   "status": "publish",
+   "date": "2025-12-29T09:50:32",
+   "modified": "2025-12-29T09:51:48",
+   "featuredMediaId": 1236,
+   "categoryIds": [
+    39
+   ],
+   "tagIds": [
+    71
+   ],
+   "contentChars": 6803,
+   "yoastTitle": "Hot Sell Custom Interior MDF Wood Door Designs PVC Door Bedroom PVC Door - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "Durable PVC Door with waterproof, termite-resistant, and low-maintenance surface – perfect for bathrooms, kitchens, bedrooms, and modern interior spaces.",
+   "canonical": "https://bailingwooden.com/product/hot-sell-custom-interior-mdf-wood-door-designs-pvc-door-bedroom-pvc-door/"
+  },
+  {
+   "legacyId": 1675,
+   "url": "https://bailingwooden.com/product/oriented-strand-board-structural-strength-meets-versatility/",
+   "slug": "oriented-strand-board-structural-strength-meets-versatility",
+   "title": "Oriented Strand Board: Structural Strength Meets Versatility",
+   "status": "publish",
+   "date": "2025-12-22T09:47:46",
+   "modified": "2025-12-22T09:51:00",
+   "featuredMediaId": 1169,
+   "categoryIds": [
+    32
+   ],
+   "tagIds": [
+    53
+   ],
+   "contentChars": 8465,
+   "yoastTitle": "Oriented Strand Board: Structural Strength Meets Versatility - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "Oriented Strand Board (OSB) is a versatile, durable, and cost-effective engineered wood for construction, furniture, and packaging.",
+   "canonical": "https://bailingwooden.com/product/oriented-strand-board-structural-strength-meets-versatility/"
+  },
+  {
+   "legacyId": 1674,
+   "url": "https://bailingwooden.com/product/custom-veneer-block-board-lightweight-durable-perfect-for-decoration-furniture/",
+   "slug": "custom-veneer-block-board-lightweight-durable-perfect-for-decoration-furniture",
+   "title": "Custom Veneer Block Board – Lightweight, Durable, Perfect for Decoration &#038; Furniture",
+   "status": "publish",
+   "date": "2025-12-22T09:45:35",
+   "modified": "2025-12-22T09:47:31",
+   "featuredMediaId": 1125,
+   "categoryIds": [
+    36
+   ],
+   "tagIds": [
+    69
+   ],
+   "contentChars": 8024,
+   "yoastTitle": "Custom Veneer Block Board – Lightweight, Durable, Perfect for Decoration & Furniture - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "High-quality block board for furniture and interior decoration. Durable, eco-friendly, warp-resistant, and strong screw holding performance.",
+   "canonical": "https://bailingwooden.com/product/custom-veneer-block-board-lightweight-durable-perfect-for-decoration-furniture/"
+  },
+  {
+   "legacyId": 1237,
+   "url": "https://bailingwooden.com/product/melamine-plywood/",
+   "slug": "melamine-plywood",
+   "title": "Melamine Plywood",
+   "status": "publish",
+   "date": "2025-10-14T08:04:30",
+   "modified": "2025-10-14T08:17:24",
+   "featuredMediaId": 1141,
+   "categoryIds": [
+    33
+   ],
+   "tagIds": [
+    52
+   ],
+   "contentChars": 8500,
+   "yoastTitle": "Melamine Plywood - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "Durable, ready-to-use Melamine Plywood for furniture and interiors. Features a scratch-resistant surface and eco-friendly E2 standard.",
+   "canonical": "https://bailingwooden.com/product/melamine-plywood/"
+  },
+  {
+   "legacyId": 1231,
+   "url": "https://bailingwooden.com/product/uv-marble-sheet/",
+   "slug": "uv-marble-sheet",
+   "title": "UV Marble Sheet",
+   "status": "publish",
+   "date": "2025-10-14T07:04:10",
+   "modified": "2025-10-14T08:20:03",
+   "featuredMediaId": 1120,
+   "categoryIds": [
+    43
+   ],
+   "tagIds": [
+    73
+   ],
+   "contentChars": 4294,
+   "yoastTitle": "UV Marble Sheet - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "Bailing UV Marble Sheet: modern, moisture-proof PVC panels for bathroom & commercial walls. Features fluorescent effects and a 3-year warranty.",
+   "canonical": "https://bailingwooden.com/product/uv-marble-sheet/"
+  },
+  {
+   "legacyId": 1226,
+   "url": "https://bailingwooden.com/product/film-faced-plywood-2/",
+   "slug": "film-faced-plywood-2",
+   "title": "Film Faced Plywood",
+   "status": "publish",
+   "date": "2025-10-14T03:37:51",
+   "modified": "2025-10-14T03:55:57",
+   "featuredMediaId": 1144,
+   "categoryIds": [
+    41
+   ],
+   "tagIds": [
+    64
+   ],
+   "contentChars": 9637,
+   "yoastTitle": "Film Faced Plywood - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "High-quality Film Faced Plywood for concrete construction – durable, waterproof, reusable, and ideal for formwork and building projects.",
+   "canonical": "https://bailingwooden.com/product/film-faced-plywood-2/"
+  },
+  {
+   "legacyId": 1224,
+   "url": "https://bailingwooden.com/product/edge-banding/",
+   "slug": "edge-banding",
+   "title": "Edge Banding",
+   "status": "publish",
+   "date": "2025-10-14T03:28:57",
+   "modified": "2025-10-14T03:57:09",
+   "featuredMediaId": 1116,
+   "categoryIds": [
+    40
+   ],
+   "tagIds": [
+    72
+   ],
+   "contentChars": 6024,
+   "yoastTitle": "Edge Banding - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "High-quality PVC Edge Banding for MDF, plywood, and furniture panels – waterproof, durable, eco-friendly, and easy to install.",
+   "canonical": "https://bailingwooden.com/product/edge-banding/"
+  },
+  {
+   "legacyId": 1216,
+   "url": "https://bailingwooden.com/product/wpc-door/",
+   "slug": "wpc-door",
+   "title": "WPC Door",
+   "status": "publish",
+   "date": "2025-10-11T03:38:42",
+   "modified": "2025-10-14T07:46:55",
+   "featuredMediaId": 1235,
+   "categoryIds": [
+    39
+   ],
+   "tagIds": [
+    71
+   ],
+   "contentChars": 7027,
+   "yoastTitle": "WPC Door - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "Durable WPC Door with waterproof, termite-resistant, and low-maintenance surface – ideal for bathrooms, kitchens, balconies, and modern interior spaces.",
+   "canonical": "https://bailingwooden.com/product/wpc-door/"
+  },
+  {
+   "legacyId": 1215,
+   "url": "https://bailingwooden.com/product/white-primer-door/",
+   "slug": "white-primer-door",
+   "title": "White Primer Door",
+   "status": "publish",
+   "date": "2025-10-11T03:35:19",
+   "modified": "2025-10-14T07:48:46",
+   "featuredMediaId": 1114,
+   "categoryIds": [
+    39
+   ],
+   "tagIds": [
+    71
+   ],
+   "contentChars": 6883,
+   "yoastTitle": "White Primer Door - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "White Primer Door with a smooth, durable, and ready-to-paint surface – ideal for bedrooms, kitchens, offices, and modern interior spaces.",
+   "canonical": "https://bailingwooden.com/product/white-primer-door/"
+  },
+  {
+   "legacyId": 1213,
+   "url": "https://bailingwooden.com/product/pvc-door/",
+   "slug": "pvc-door",
+   "title": "PVC Door",
+   "status": "publish",
+   "date": "2025-10-11T03:28:59",
+   "modified": "2025-10-14T08:03:06",
+   "featuredMediaId": 1236,
+   "categoryIds": [
+    39
+   ],
+   "tagIds": [
+    71
+   ],
+   "contentChars": 6803,
+   "yoastTitle": "PVC Door - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "Durable PVC Door with waterproof, termite-resistant, and low-maintenance surface – perfect for bathrooms, kitchens, bedrooms, and modern interior spaces.",
+   "canonical": "https://bailingwooden.com/product/pvc-door/"
+  },
+  {
+   "legacyId": 1211,
+   "url": "https://bailingwooden.com/product/melamine-door/",
+   "slug": "melamine-door",
+   "title": "Melamine Door",
+   "status": "publish",
+   "date": "2025-10-11T03:07:59",
+   "modified": "2025-10-14T07:45:52",
+   "featuredMediaId": 1111,
+   "categoryIds": [
+    39
+   ],
+   "tagIds": [
+    71
+   ],
+   "contentChars": 7077,
+   "yoastTitle": "Melamine Door - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "The Melamine Door is a durable, stylish, and low-maintenance interior door designed for modern residential and commercial spaces.",
+   "canonical": "https://bailingwooden.com/product/melamine-door/"
+  },
+  {
+   "legacyId": 1209,
+   "url": "https://bailingwooden.com/product/hard-board/",
+   "slug": "hard-board",
+   "title": "Hard Board",
+   "status": "publish",
+   "date": "2025-10-11T02:43:23",
+   "modified": "2025-11-17T07:38:34",
+   "featuredMediaId": 1128,
+   "categoryIds": [
+    37
+   ],
+   "tagIds": [
+    69,
+    70
+   ],
+   "contentChars": 7252,
+   "yoastTitle": "Hard Board - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "High-density hard board with smooth surface and durability. Ideal for furniture, doors, packaging, and interior decoration.",
+   "canonical": "https://bailingwooden.com/product/hard-board/"
+  },
+  {
+   "legacyId": 1206,
+   "url": "https://bailingwooden.com/product/veneer-faced-block-board/",
+   "slug": "veneer-faced-block-board",
+   "title": "Veneer Faced Block Board",
+   "status": "publish",
+   "date": "2025-10-11T02:34:22",
+   "modified": "2025-10-14T07:02:58",
+   "featuredMediaId": 1230,
+   "categoryIds": [
+    36
+   ],
+   "tagIds": [
+    69
+   ],
+   "contentChars": 6826,
+   "yoastTitle": "Veneer Faced Block Board - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "Veneer Faced Block Board with a strong wood core and elegant hardwood surface – ideal for furniture, doors, cabinets, and interiors.",
+   "canonical": "https://bailingwooden.com/product/veneer-faced-block-board/"
+  },
+  {
+   "legacyId": 1203,
+   "url": "https://bailingwooden.com/product/melamine-block-board/",
+   "slug": "melamine-block-board",
+   "title": "Melamine Block Board",
+   "status": "publish",
+   "date": "2025-10-11T02:27:41",
+   "modified": "2025-10-14T05:50:59",
+   "featuredMediaId": 1126,
+   "categoryIds": [
+    36
+   ],
+   "tagIds": [
+    69
+   ],
+   "contentChars": 6824,
+   "yoastTitle": "Melamine Block Board - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "High-quality Melamine Block Board for furniture and interior decoration. Durable, eco-friendly, warp-resistant, and strong screw holding performance.",
+   "canonical": "https://bailingwooden.com/product/melamine-block-board/"
+  },
+  {
+   "legacyId": 1200,
+   "url": "https://bailingwooden.com/product/block-board/",
+   "slug": "block-board",
+   "title": "Block Board",
+   "status": "publish",
+   "date": "2025-10-11T02:17:49",
+   "modified": "2025-10-11T02:27:21",
+   "featuredMediaId": 1125,
+   "categoryIds": [
+    36
+   ],
+   "tagIds": [
+    69
+   ],
+   "contentChars": 8024,
+   "yoastTitle": "Block Board - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "High-quality block board for furniture and interior decoration. Durable, eco-friendly, warp-resistant, and strong screw holding performance.",
+   "canonical": "https://bailingwooden.com/product/block-board/"
+  },
+  {
+   "legacyId": 1198,
+   "url": "https://bailingwooden.com/product/cement-board/",
+   "slug": "cement-board",
+   "title": "Cement Board",
+   "status": "publish",
+   "date": "2025-10-11T02:08:10",
+   "modified": "2025-10-14T05:53:24",
+   "featuredMediaId": 1124,
+   "categoryIds": [
+    35
+   ],
+   "tagIds": [
+    68
+   ],
+   "contentChars": 8358,
+   "yoastTitle": "Cement Board - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "Durable cement boards for walls, ceilings, and floors. Fireproof, moisture-resistant, and ideal for strong, stable, and eco-friendly construction.",
+   "canonical": "https://bailingwooden.com/product/cement-board/"
+  },
+  {
+   "legacyId": 1194,
+   "url": "https://bailingwooden.com/product/gypsum-board/",
+   "slug": "gypsum-board",
+   "title": "Gypsum Board",
+   "status": "publish",
+   "date": "2025-10-11T01:47:04",
+   "modified": "2025-10-14T05:55:56",
+   "featuredMediaId": 1123,
+   "categoryIds": [
+    34
+   ],
+   "tagIds": [
+    67
+   ],
+   "contentChars": 7116,
+   "yoastTitle": "Gypsum Board - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "Premium Gypsum Board for interior walls and ceilings, offering easy installation, excellent fire resistance, and smooth, durable finish.",
+   "canonical": "https://bailingwooden.com/product/gypsum-board/"
+  },
+  {
+   "legacyId": 1173,
+   "url": "https://bailingwooden.com/product/door-skin/",
+   "slug": "door-skin",
+   "title": "Door Skin",
+   "status": "publish",
+   "date": "2025-09-29T05:57:22",
+   "modified": "2025-10-14T05:54:37",
+   "featuredMediaId": 1110,
+   "categoryIds": [
+    38
+   ],
+   "tagIds": [
+    66
+   ],
+   "contentChars": 12903,
+   "yoastTitle": "Door Skin - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "High-quality Door Skin for interior doors – durable, waterproof, customizable designs and colors to enhance any home or office décor.",
+   "canonical": "https://bailingwooden.com/product/door-skin/"
+  },
+  {
+   "legacyId": 1166,
+   "url": "https://bailingwooden.com/product/oriented-strand-board/",
+   "slug": "oriented-strand-board",
+   "title": "Oriented Strand Board",
+   "status": "publish",
+   "date": "2025-09-29T05:41:06",
+   "modified": "2025-10-14T05:58:12",
+   "featuredMediaId": 1169,
+   "categoryIds": [
+    32
+   ],
+   "tagIds": [
+    53
+   ],
+   "contentChars": 8486,
+   "yoastTitle": "Oriented Strand Board - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "Oriented Strand Board (OSB) is a versatile, durable, and cost-effective engineered wood for construction, furniture, and packaging.",
+   "canonical": "https://bailingwooden.com/product/oriented-strand-board/"
+  },
+  {
+   "legacyId": 1146,
+   "url": "https://bailingwooden.com/product/film-faced-plywood/",
+   "slug": "film-faced-plywood",
+   "title": "Film Faced Plywood",
+   "status": "publish",
+   "date": "2025-09-28T02:25:55",
+   "modified": "2025-09-30T09:17:21",
+   "featuredMediaId": 1117,
+   "categoryIds": [
+    41
+   ],
+   "tagIds": [
+    64
+   ],
+   "contentChars": 7052,
+   "yoastTitle": "Film Faced Plywood - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "Premium Film Faced Plywood with smooth waterproof surface, excellent durability, and multiple reuse for various construction projects.",
+   "canonical": "https://bailingwooden.com/product/film-faced-plywood/"
+  },
+  {
+   "legacyId": 845,
+   "url": "https://bailingwooden.com/product/spc-flooring/",
+   "slug": "spc-flooring",
+   "title": "SPC Flooring",
+   "status": "publish",
+   "date": "2025-09-12T02:40:49",
+   "modified": "2025-09-30T09:19:01",
+   "featuredMediaId": 1118,
+   "categoryIds": [
+    42
+   ],
+   "tagIds": [
+    60
+   ],
+   "contentChars": 5951,
+   "yoastTitle": "SPC Flooring - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "SPC flooring is a durable, waterproof, and stylish solution ideal for indoor spaces, offering easy installation and realistic wood designs.",
+   "canonical": "https://bailingwooden.com/product/spc-flooring/"
+  },
+  {
+   "legacyId": 842,
+   "url": "https://bailingwooden.com/product/pu-stone/",
+   "slug": "pu-stone",
+   "title": "PU Stone",
+   "status": "publish",
+   "date": "2025-09-12T02:26:34",
+   "modified": "2025-10-14T08:31:33",
+   "featuredMediaId": 1119,
+   "categoryIds": [
+    43
+   ],
+   "tagIds": [
+    58
+   ],
+   "contentChars": 3747,
+   "yoastTitle": "PU Stone - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "PU Stone is a durable, waterproof, and lightweight material perfect for modern dining surfaces, countertops, and interior decoration.",
+   "canonical": "https://bailingwooden.com/product/pu-stone/"
+  },
+  {
+   "legacyId": 835,
+   "url": "https://bailingwooden.com/product/wpc-wall-panel/",
+   "slug": "wpc-wall-panel",
+   "title": "WPC Wall Panel",
+   "status": "publish",
+   "date": "2025-09-12T02:22:51",
+   "modified": "2025-10-14T06:01:46",
+   "featuredMediaId": 1122,
+   "categoryIds": [
+    44
+   ],
+   "tagIds": [
+    55
+   ],
+   "contentChars": 5040,
+   "yoastTitle": "WPC Wall Panel - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "A WPC (Wood-Plastic Composite) Wall Panel is a modern, eco-friendly cladding solution designed for both residential and commercial exterior applications.",
+   "canonical": "https://bailingwooden.com/product/wpc-wall-panel/"
+  },
+  {
+   "legacyId": 829,
+   "url": "https://bailingwooden.com/product/commercial-plywood/",
+   "slug": "commercial-plywood",
+   "title": "Commercial Plywood",
+   "status": "publish",
+   "date": "2025-09-12T02:10:54",
+   "modified": "2025-09-30T09:04:21",
+   "featuredMediaId": 1140,
+   "categoryIds": [
+    33
+   ],
+   "tagIds": [
+    52
+   ],
+   "contentChars": 8805,
+   "yoastTitle": "Commercial Plywood - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "Commercial Plywood is a durable, cost-effective wood panel ideal for furniture, interior decoration, and versatile construction projects.",
+   "canonical": "https://bailingwooden.com/product/commercial-plywood/"
+  },
+  {
+   "legacyId": 819,
+   "url": "https://bailingwooden.com/product/melamine-particle-board/",
+   "slug": "melamine-particle-board",
+   "title": "Melamine Particle Board",
+   "status": "publish",
+   "date": "2025-09-12T01:43:38",
+   "modified": "2025-09-28T01:33:53",
+   "featuredMediaId": 1137,
+   "categoryIds": [
+    32
+   ],
+   "tagIds": [
+    53
+   ],
+   "contentChars": 4494,
+   "yoastTitle": "Melamine Particle Board - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "Melamine Particle Board is a durable, cost-effective engineered wood ideal for kitchen cabinets, furniture, and modern interior decoration.",
+   "canonical": "https://bailingwooden.com/product/melamine-particle-board/"
+  },
+  {
+   "legacyId": 814,
+   "url": "https://bailingwooden.com/product/hollow-particle-board/",
+   "slug": "hollow-particle-board",
+   "title": "Hollow Particle Board",
+   "status": "publish",
+   "date": "2025-09-12T01:43:22",
+   "modified": "2025-09-28T01:34:25",
+   "featuredMediaId": 1136,
+   "categoryIds": [
+    32
+   ],
+   "tagIds": [
+    53
+   ],
+   "contentChars": 4382,
+   "yoastTitle": "Hollow Particle Board - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "Hollow Particle Board is a modern, versatile, and durable engineered wood product widely used in construction and furniture manufacturing.",
+   "canonical": "https://bailingwooden.com/product/hollow-particle-board/"
+  },
+  {
+   "legacyId": 747,
+   "url": "https://bailingwooden.com/product/uv-mdf/",
+   "slug": "uv-mdf",
+   "title": "UV MDF",
+   "status": "publish",
+   "date": "2025-09-11T07:47:12",
+   "modified": "2025-09-28T01:35:30",
+   "featuredMediaId": 1135,
+   "categoryIds": [
+    23
+   ],
+   "tagIds": [
+    49
+   ],
+   "contentChars": 8827,
+   "yoastTitle": "UV MDF - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "UV MDF Board – A durable, moisture-resistant, and eco-friendly UV-coated fiberboard ideal for furniture, cabinets, and modern interior design projects.",
+   "canonical": "https://bailingwooden.com/product/uv-mdf/"
+  },
+  {
+   "legacyId": 740,
+   "url": "https://bailingwooden.com/product/plain-mdf/",
+   "slug": "plain-mdf",
+   "title": "Plain MDF",
+   "status": "publish",
+   "date": "2025-09-11T07:46:24",
+   "modified": "2025-09-28T01:36:09",
+   "featuredMediaId": 1134,
+   "categoryIds": [
+    23
+   ],
+   "tagIds": [
+    49
+   ],
+   "contentChars": 4297,
+   "yoastTitle": "Plain MDF - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "PET MDF is a durable, moisture-resistant fiberboard with a sleek PET finish, ideal for furniture, cabinets, and modern interiors.",
+   "canonical": "https://bailingwooden.com/product/plain-mdf/"
+  },
+  {
+   "legacyId": 492,
+   "url": "https://bailingwooden.com/product/pet-mdf/",
+   "slug": "pet-mdf",
+   "title": "PET MDF",
+   "status": "publish",
+   "date": "2025-09-08T07:32:10",
+   "modified": "2025-10-14T05:59:34",
+   "featuredMediaId": 1132,
+   "categoryIds": [
+    23
+   ],
+   "tagIds": [
+    49
+   ],
+   "contentChars": 6850,
+   "yoastTitle": "PET MDF - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "PET MDF is a durable, moisture-resistant fiberboard with a sleek PET finish, ideal for furniture, cabinets, and modern interiors.",
+   "canonical": "https://bailingwooden.com/product/pet-mdf/"
+  },
+  {
+   "legacyId": 487,
+   "url": "https://bailingwooden.com/product/melamine-mdf/",
+   "slug": "melamine-mdf",
+   "title": "Melamine MDF",
+   "status": "publish",
+   "date": "2025-09-08T07:23:52",
+   "modified": "2025-09-28T01:38:14",
+   "featuredMediaId": 1131,
+   "categoryIds": [
+    23
+   ],
+   "tagIds": [
+    49
+   ],
+   "contentChars": 6276,
+   "yoastTitle": "Melamine MDF - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "Melamine MDF is a strong, durable, and scratch-resistant fiberboard, perfect for high-quality furniture, cabinets, and interior decoration.",
+   "canonical": "https://bailingwooden.com/product/melamine-mdf/"
+  },
+  {
+   "legacyId": 482,
+   "url": "https://bailingwooden.com/product/fireproof-mdf/",
+   "slug": "fireproof-mdf",
+   "title": "Fireproof MDF",
+   "status": "publish",
+   "date": "2025-09-08T07:12:47",
+   "modified": "2025-09-28T01:39:02",
+   "featuredMediaId": 1129,
+   "categoryIds": [
+    23
+   ],
+   "tagIds": [
+    49
+   ],
+   "contentChars": 4736,
+   "yoastTitle": "Fireproof MDF - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "Fireproof MDF is a flame-retardant fiberboard offering safety, smooth finish, and reliability for interior and furniture applications.",
+   "canonical": "https://bailingwooden.com/product/fireproof-mdf/"
+  },
+  {
+   "legacyId": 471,
+   "url": "https://bailingwooden.com/product/hmr-mdf/",
+   "slug": "hmr-mdf",
+   "title": "HMR MDF",
+   "status": "publish",
+   "date": "2025-09-08T06:30:51",
+   "modified": "2025-09-28T01:42:10",
+   "featuredMediaId": 1130,
+   "categoryIds": [
+    23
+   ],
+   "tagIds": [
+    49
+   ],
+   "contentChars": 4644,
+   "yoastTitle": "HMR MDF - Shouguang Bailing Wood Industry | MDF, Plywood &amp; Decorative Materials",
+   "yoastDescription": "HMR MDF is a strong and durable moisture-resistant fiberboard, perfect for reliable interior design and furniture applications.",
+   "canonical": "https://bailingwooden.com/product/hmr-mdf/"
+  }
+ ],
+ "posts": [
+  {
+   "legacyId": 1878,
+   "url": "https://bailingwooden.com/the-role-of-film-faced-plywood-in-reducing-concrete-construction-costs/",
+   "slug": "the-role-of-film-faced-plywood-in-reducing-concrete-construction-costs",
+   "title": "The Role of Film Faced Plywood in Reducing Concrete Construction Costs",
+   "status": "publish",
+   "date": "2026-06-30T09:01:00",
+   "modified": "2026-06-30T09:10:33",
+   "featuredMediaId": 1195,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 53687,
+   "inlineImages": 2
+  },
+  {
+   "legacyId": 1873,
+   "url": "https://bailingwooden.com/2026-home-decor-trends-the-rise-of-natural-wood-textures-and-wpc-panels/",
+   "slug": "2026-home-decor-trends-the-rise-of-natural-wood-textures-and-wpc-panels",
+   "title": "2026 Home Decor Trends: The Rise of Natural Wood Textures and WPC Panels",
+   "status": "publish",
+   "date": "2026-06-25T08:12:25",
+   "modified": "2026-06-25T08:12:25",
+   "featuredMediaId": 1875,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 10853,
+   "inlineImages": 4
+  },
+  {
+   "legacyId": 1868,
+   "url": "https://bailingwooden.com/how-to-choose-the-best-plywood-for-marine-and-humid-environments/",
+   "slug": "how-to-choose-the-best-plywood-for-marine-and-humid-environments",
+   "title": "How to Choose the Best Plywood for Marine and Humid Environments?",
+   "status": "publish",
+   "date": "2026-06-25T07:33:17",
+   "modified": "2026-06-25T07:47:16",
+   "featuredMediaId": 1832,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 14080,
+   "inlineImages": 5
+  },
+  {
+   "legacyId": 1854,
+   "url": "https://bailingwooden.com/how-gypsum-board-is-used-in-ceiling-and-partition-systems/",
+   "slug": "how-gypsum-board-is-used-in-ceiling-and-partition-systems",
+   "title": "How Gypsum Board Is Used in Ceiling and Partition Systems",
+   "status": "publish",
+   "date": "2026-06-23T09:16:28",
+   "modified": "2026-06-24T01:13:28",
+   "featuredMediaId": 1866,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 58608,
+   "inlineImages": 1
+  },
+  {
+   "legacyId": 1850,
+   "url": "https://bailingwooden.com/beginner-woodworking-tools-dont-fall-for-these-3-budget-trap-mistakes/",
+   "slug": "beginner-woodworking-tools-dont-fall-for-these-3-budget-trap-mistakes",
+   "title": "Beginner Woodworking Tools: Don&#8217;t Fall for These 3 &#8220;Budget Trap&#8221; Mistakes",
+   "status": "publish",
+   "date": "2026-06-18T08:32:09",
+   "modified": "2026-06-18T08:36:10",
+   "featuredMediaId": 1553,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 6425,
+   "inlineImages": 3
+  },
+  {
+   "legacyId": 1846,
+   "url": "https://bailingwooden.com/kiln-drying-vs-air-drying-how-much-do-stability-and-cost-really-differ/",
+   "slug": "kiln-drying-vs-air-drying-how-much-do-stability-and-cost-really-differ",
+   "title": "Kiln Drying vs. Air Drying: How Much Do Stability and Cost Really Differ?",
+   "status": "publish",
+   "date": "2026-06-18T08:12:10",
+   "modified": "2026-06-18T08:15:58",
+   "featuredMediaId": 1847,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 12541,
+   "inlineImages": 3
+  },
+  {
+   "legacyId": 1841,
+   "url": "https://bailingwooden.com/does-fsc-certification-really-matter-why-we-commit-to-sustainable-wood/",
+   "slug": "does-fsc-certification-really-matter-why-we-commit-to-sustainable-wood",
+   "title": "Does FSC Certification Really Matter? Why We Commit to Sustainable Wood",
+   "status": "publish",
+   "date": "2026-06-17T09:51:54",
+   "modified": "2026-06-17T09:51:54",
+   "featuredMediaId": 1842,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 11186,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1834,
+   "url": "https://bailingwooden.com/how-to-identify-high-quality-mdf-a-26-year-experts-perspective/",
+   "slug": "how-to-identify-high-quality-mdf-a-26-year-experts-perspective",
+   "title": "How to Identify High-Quality MDF: A 26-Year Expert’s Perspective",
+   "status": "publish",
+   "date": "2026-06-16T09:44:16",
+   "modified": "2026-06-16T09:45:56",
+   "featuredMediaId": 1836,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 8441,
+   "inlineImages": 1
+  },
+  {
+   "legacyId": 1829,
+   "url": "https://bailingwooden.com/inside-our-quality-inspection-process-how-bailing-wood-ensures-zero-defect-shipments/",
+   "slug": "inside-our-quality-inspection-process-how-bailing-wood-ensures-zero-defect-shipments",
+   "title": "Inside Our Quality Inspection Process: How Bailing Wood Ensures Zero-Defect Shipments",
+   "status": "publish",
+   "date": "2026-06-15T09:35:41",
+   "modified": "2026-06-15T09:36:07",
+   "featuredMediaId": 1830,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 12442,
+   "inlineImages": 3
+  },
+  {
+   "legacyId": 1790,
+   "url": "https://bailingwooden.com/wpc-wall-panels-in-high-humidity-environments-beyond-aesthetics/",
+   "slug": "wpc-wall-panels-in-high-humidity-environments-beyond-aesthetics",
+   "title": "WPC Wall Panels in High-Humidity Environments: Beyond Aesthetics",
+   "status": "publish",
+   "date": "2026-06-15T09:21:58",
+   "modified": "2026-06-16T00:59:54",
+   "featuredMediaId": 1791,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 8037,
+   "inlineImages": 1
+  },
+  {
+   "legacyId": 1826,
+   "url": "https://bailingwooden.com/minimalist-vs-log-style-veneer-finishes-guide/",
+   "slug": "minimalist-vs-log-style-veneer-finishes-guide",
+   "title": "Minimalist vs. Log Style: Veneer Finishes Guide",
+   "status": "publish",
+   "date": "2026-06-15T08:14:45",
+   "modified": "2026-06-16T00:53:19",
+   "featuredMediaId": 1827,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 9197,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1823,
+   "url": "https://bailingwooden.com/commercial-space-case-studies-bailing-fireproof-decorative-panels-in-hotels-offices-showrooms/",
+   "slug": "commercial-space-case-studies-bailing-fireproof-decorative-panels-in-hotels-offices-showrooms",
+   "title": "Commercial Space Case Studies: Bailing Fireproof &#038; Decorative Panels in Hotels, Offices &#038; Showrooms",
+   "status": "publish",
+   "date": "2026-06-12T08:08:49",
+   "modified": "2026-06-12T08:08:49",
+   "featuredMediaId": 1824,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 7572,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1799,
+   "url": "https://bailingwooden.com/the-beauty-of-natural-living-why-wooden-home-products-are-becoming-popular-again/",
+   "slug": "the-beauty-of-natural-living-why-wooden-home-products-are-becoming-popular-again",
+   "title": "The Beauty of Natural Living: Why Wooden Home Products Are Becoming Popular Again",
+   "status": "publish",
+   "date": "2026-06-11T09:39:54",
+   "modified": "2026-06-11T09:40:12",
+   "featuredMediaId": 1800,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 5536,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1796,
+   "url": "https://bailingwooden.com/blockboard-manufacturing-a-complete-overview-of-the-production-process-materials-and-applications/",
+   "slug": "blockboard-manufacturing-a-complete-overview-of-the-production-process-materials-and-applications",
+   "title": "Blockboard Manufacturing: A Complete Overview of the Production Process, Materials, and Applications",
+   "status": "publish",
+   "date": "2026-06-09T09:46:40",
+   "modified": "2026-06-09T09:46:40",
+   "featuredMediaId": 1743,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 9033,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1786,
+   "url": "https://bailingwooden.com/top-7-questions-about-melamine-plywood-a-comprehensive-faq-guide-for-professionals/",
+   "slug": "top-7-questions-about-melamine-plywood-a-comprehensive-faq-guide-for-professionals",
+   "title": "Top 7 Questions About Melamine Plywood: A Comprehensive FAQ Guide for Professionals",
+   "status": "publish",
+   "date": "2026-05-20T09:22:46",
+   "modified": "2026-05-20T09:22:46",
+   "featuredMediaId": 1240,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 8752,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1817,
+   "url": "https://bailingwooden.com/from-log-to-finished-board-how-bailings-26-years-of-experience-ensures-every-panels-stability/",
+   "slug": "from-log-to-finished-board-how-bailings-26-years-of-experience-ensures-every-panels-stability",
+   "title": "From Log to Finished Board: How Bailing’s 26 Years of Experience Ensures Every Panel’s Stability",
+   "status": "publish",
+   "date": "2026-05-19T07:50:27",
+   "modified": "2026-06-12T07:51:15",
+   "featuredMediaId": 1818,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 10030,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1804,
+   "url": "https://bailingwooden.com/why-wooden-kitchenware-is-a-healthier-and-more-sustainable-choice/",
+   "slug": "why-wooden-kitchenware-is-a-healthier-and-more-sustainable-choice",
+   "title": "Why Wooden Kitchenware Is a Healthier and More Sustainable Choice",
+   "status": "publish",
+   "date": "2026-04-20T09:45:38",
+   "modified": "2026-06-11T09:46:28",
+   "featuredMediaId": 1346,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 1808,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1802,
+   "url": "https://bailingwooden.com/from-forest-to-home-the-craftsmanship-behind-wooden-products/",
+   "slug": "from-forest-to-home-the-craftsmanship-behind-wooden-products",
+   "title": "From Forest to Home: The Craftsmanship Behind Wooden Products",
+   "status": "publish",
+   "date": "2026-04-11T09:42:57",
+   "modified": "2026-06-11T09:43:36",
+   "featuredMediaId": 1646,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 1800,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1774,
+   "url": "https://bailingwooden.com/gypsum-board-ceilings-types-pros-cons/",
+   "slug": "gypsum-board-ceilings-types-pros-cons",
+   "title": "Gypsum Board Ceilings: Types, Pros &#038; Cons",
+   "status": "publish",
+   "date": "2026-03-24T09:38:47",
+   "modified": "2026-03-24T09:38:47",
+   "featuredMediaId": 1646,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 6540,
+   "inlineImages": 2
+  },
+  {
+   "legacyId": 1771,
+   "url": "https://bailingwooden.com/advantages-of-wpc-fluted-wall-panels-a-modern-solution-for-stylish-and-durable-interiors/",
+   "slug": "advantages-of-wpc-fluted-wall-panels-a-modern-solution-for-stylish-and-durable-interiors",
+   "title": "Advantages of WPC Fluted Wall Panels: A Modern Solution for Stylish and Durable Interiors",
+   "status": "publish",
+   "date": "2026-03-12T09:46:21",
+   "modified": "2026-03-12T09:46:21",
+   "featuredMediaId": 1374,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 4679,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1820,
+   "url": "https://bailingwooden.com/home-renovation-which-bailing-board-for-bedroom-living-room-and-kitchen/",
+   "slug": "home-renovation-which-bailing-board-for-bedroom-living-room-and-kitchen",
+   "title": "Home Renovation: Which Bailing Board for Bedroom, Living Room, and Kitchen?",
+   "status": "publish",
+   "date": "2026-03-02T08:00:26",
+   "modified": "2026-06-12T08:01:24",
+   "featuredMediaId": 1821,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 10378,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1767,
+   "url": "https://bailingwooden.com/high-performance-melamine-block-board-for-flawless-interiors/",
+   "slug": "high-performance-melamine-block-board-for-flawless-interiors",
+   "title": "High-Performance Melamine Block Board for Flawless Interiors",
+   "status": "publish",
+   "date": "2026-02-28T10:02:58",
+   "modified": "2026-02-28T10:02:58",
+   "featuredMediaId": 1492,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 20563,
+   "inlineImages": 2
+  },
+  {
+   "legacyId": 1634,
+   "url": "https://bailingwooden.com/how-to-pick-durable-and-stylish-plywood-for-your-wardrobe/",
+   "slug": "how-to-pick-durable-and-stylish-plywood-for-your-wardrobe",
+   "title": "How to Pick Durable and Stylish Plywood for Your Wardrobe",
+   "status": "publish",
+   "date": "2026-02-26T05:48:37",
+   "modified": "2026-02-26T10:07:25",
+   "featuredMediaId": 1635,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 14482,
+   "inlineImages": 2
+  },
+  {
+   "legacyId": 1807,
+   "url": "https://bailingwooden.com/mdf-vs-plywood-vs-particle-board-bailing-guide/",
+   "slug": "mdf-vs-plywood-vs-particle-board-bailing-guide",
+   "title": "MDF vs Plywood vs Particle Board – Bailing Guide",
+   "status": "publish",
+   "date": "2026-02-12T01:17:31",
+   "modified": "2026-06-12T01:23:26",
+   "featuredMediaId": 1808,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 11203,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1437,
+   "url": "https://bailingwooden.com/how-can-pvc-edge-banding-improve-wpc-door-production/",
+   "slug": "how-can-pvc-edge-banding-improve-wpc-door-production",
+   "title": "Improving WPC Door Production with PVC Edge Banding",
+   "status": "publish",
+   "date": "2026-02-06T09:36:08",
+   "modified": "2026-02-06T09:56:21",
+   "featuredMediaId": 1439,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 18087,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1442,
+   "url": "https://bailingwooden.com/how-to-properly-finish-melamine-plywood-for-moisture-prone-areas/",
+   "slug": "how-to-properly-finish-melamine-plywood-for-moisture-prone-areas",
+   "title": "How to Properly Finish Melamine Plywood for Moisture-Prone Areas",
+   "status": "publish",
+   "date": "2026-01-30T09:02:36",
+   "modified": "2026-07-01T02:23:55",
+   "featuredMediaId": 1141,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 8980,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1812,
+   "url": "https://bailingwooden.com/from-vision-to-reality-how-bailing-wood-controls-formaldehyde-and-achieves-green-certification/",
+   "slug": "from-vision-to-reality-how-bailing-wood-controls-formaldehyde-and-achieves-green-certification",
+   "title": "From Vision to Reality: How Bailing Wood Controls Formaldehyde and Achieves Green Certification",
+   "status": "publish",
+   "date": "2026-01-30T01:47:16",
+   "modified": "2026-06-12T01:49:48",
+   "featuredMediaId": 1813,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 11102,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1753,
+   "url": "https://bailingwooden.com/trends-in-eco-friendly-plywood-formaldehyde-emission-standards-and-green-certifications/",
+   "slug": "trends-in-eco-friendly-plywood-formaldehyde-emission-standards-and-green-certifications",
+   "title": "Trends in Eco-Friendly Plywood: Formaldehyde Emission Standards and Green Certifications",
+   "status": "publish",
+   "date": "2026-01-27T09:45:23",
+   "modified": "2026-01-27T09:45:23",
+   "featuredMediaId": 928,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 5008,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1745,
+   "url": "https://bailingwooden.com/premium-hard-boards-for-industrial-interior-use/",
+   "slug": "premium-hard-boards-for-industrial-interior-use",
+   "title": "Premium Hard Boards for Industrial &#038; Interior Use",
+   "status": "publish",
+   "date": "2026-01-23T08:28:59",
+   "modified": "2026-01-23T08:58:08",
+   "featuredMediaId": 1743,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [
+    92,
+    88,
+    85,
+    86,
+    87,
+    90,
+    84,
+    89,
+    83,
+    91
+   ],
+   "authorId": 1,
+   "contentChars": 34375,
+   "inlineImages": 6
+  },
+  {
+   "legacyId": 1711,
+   "url": "https://bailingwooden.com/premium-block-boards-for-durable-interiors/",
+   "slug": "premium-block-boards-for-durable-interiors",
+   "title": "Premium Block Boards for Durable Interiors",
+   "status": "publish",
+   "date": "2026-01-22T09:17:46",
+   "modified": "2026-03-06T09:41:44",
+   "featuredMediaId": 1507,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [
+    76,
+    78,
+    77,
+    80,
+    82,
+    75,
+    79,
+    81
+   ],
+   "authorId": 1,
+   "contentChars": 34864,
+   "inlineImages": 6
+  },
+  {
+   "legacyId": 1705,
+   "url": "https://bailingwooden.com/welcome-to-bailing-wood-industry-co-ltd/",
+   "slug": "welcome-to-bailing-wood-industry-co-ltd",
+   "title": "Welcome to Bailing Wood Industry Co., Ltd.",
+   "status": "publish",
+   "date": "2026-01-21T09:45:23",
+   "modified": "2026-01-21T09:45:23",
+   "featuredMediaId": 928,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 2144,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1703,
+   "url": "https://bailingwooden.com/cement-board-a-durable-and-versatile-building-material/",
+   "slug": "cement-board-a-durable-and-versatile-building-material",
+   "title": "Cement Board: A Durable and Versatile Building Material",
+   "status": "publish",
+   "date": "2026-01-15T09:09:38",
+   "modified": "2026-01-15T09:09:38",
+   "featuredMediaId": 1124,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 4259,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1700,
+   "url": "https://bailingwooden.com/how-to-choose-high-quality-veneer-faced-block-board/",
+   "slug": "how-to-choose-high-quality-veneer-faced-block-board",
+   "title": "How to Choose High-Quality Veneer Faced Block Board",
+   "status": "publish",
+   "date": "2026-01-14T09:28:45",
+   "modified": "2026-01-14T09:28:45",
+   "featuredMediaId": 1701,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 6715,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1370,
+   "url": "https://bailingwooden.com/best-spc-plank-visuals-for-a-living-room/",
+   "slug": "best-spc-plank-visuals-for-a-living-room",
+   "title": "Best SPC plank visuals for a living room",
+   "status": "publish",
+   "date": "2026-01-06T09:32:25",
+   "modified": "2026-01-06T09:55:50",
+   "featuredMediaId": 1371,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 7493,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1690,
+   "url": "https://bailingwooden.com/plywood-maintenance-tips-prevent-moisture-cracks-and-warping/",
+   "slug": "plywood-maintenance-tips-prevent-moisture-cracks-and-warping",
+   "title": "Plywood Maintenance Tips: Prevent Moisture, Cracks, and Warping",
+   "status": "publish",
+   "date": "2026-01-04T10:04:57",
+   "modified": "2026-01-04T10:05:49",
+   "featuredMediaId": 1684,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 5078,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1682,
+   "url": "https://bailingwooden.com/gypsum-board-office-partitions-interior-design/",
+   "slug": "gypsum-board-office-partitions-interior-design",
+   "title": "Gypsum Board Office Partitions &#8211; Interior Design",
+   "status": "publish",
+   "date": "2025-12-31T08:27:20",
+   "modified": "2025-12-31T08:30:18",
+   "featuredMediaId": 1684,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 14316,
+   "inlineImages": 2
+  },
+  {
+   "legacyId": 1433,
+   "url": "https://bailingwooden.com/how-can-flat-lamination-perfect-pvc-film-on-wpc-panels/",
+   "slug": "how-can-flat-lamination-perfect-pvc-film-on-wpc-panels",
+   "title": "How Can Flat Lamination Perfect PVC Film on WPC Panels?",
+   "status": "publish",
+   "date": "2025-12-30T07:00:07",
+   "modified": "2025-12-30T09:52:26",
+   "featuredMediaId": 1434,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 14772,
+   "inlineImages": 1
+  },
+  {
+   "legacyId": 1670,
+   "url": "https://bailingwooden.com/the-comprehensive-guide-to-blockboard-manufacturing-process/",
+   "slug": "the-comprehensive-guide-to-blockboard-manufacturing-process",
+   "title": "The Comprehensive Guide to Blockboard Manufacturing Process",
+   "status": "publish",
+   "date": "2025-12-17T09:35:38",
+   "modified": "2025-12-17T09:35:38",
+   "featuredMediaId": 1671,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 9325,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1667,
+   "url": "https://bailingwooden.com/what-defines-a-premium-woodgrain-print-on-cabinet-edge-tape/",
+   "slug": "what-defines-a-premium-woodgrain-print-on-cabinet-edge-tape",
+   "title": "What Defines A Premium Woodgrain Print On Cabinet Edge Tape?",
+   "status": "publish",
+   "date": "2025-12-16T09:52:16",
+   "modified": "2025-12-16T09:52:16",
+   "featuredMediaId": 1668,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 8155,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1397,
+   "url": "https://bailingwooden.com/the-pros-and-cons-of-solid-wood-and-panel-furniture/",
+   "slug": "the-pros-and-cons-of-solid-wood-and-panel-furniture",
+   "title": "The Pros and Cons of Solid Wood and Panel Furniture",
+   "status": "publish",
+   "date": "2025-12-15T10:03:35",
+   "modified": "2026-05-15T09:43:55",
+   "featuredMediaId": 1402,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 14620,
+   "inlineImages": 4
+  },
+  {
+   "legacyId": 1662,
+   "url": "https://bailingwooden.com/plywood-dining-table-design-modern-durable/",
+   "slug": "plywood-dining-table-design-modern-durable",
+   "title": "Plywood Dining Table Design: Modern &#038; Durable",
+   "status": "publish",
+   "date": "2025-12-12T09:49:45",
+   "modified": "2025-12-12T09:49:45",
+   "featuredMediaId": 1663,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 15455,
+   "inlineImages": 4
+  },
+  {
+   "legacyId": 1657,
+   "url": "https://bailingwooden.com/indoor-decoration-osb-or-plywood/",
+   "slug": "indoor-decoration-osb-or-plywood",
+   "title": "Indoor Decoration, OSB or Plywood?",
+   "status": "publish",
+   "date": "2025-12-11T09:13:35",
+   "modified": "2025-12-11T09:18:00",
+   "featuredMediaId": 1560,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 11472,
+   "inlineImages": 3
+  },
+  {
+   "legacyId": 1640,
+   "url": "https://bailingwooden.com/gypsum-board-ceiling-types-advantages-and-disadvantages/",
+   "slug": "gypsum-board-ceiling-types-advantages-and-disadvantages",
+   "title": "Gypsum Board Ceiling: Types, Advantages, and Disadvantages",
+   "status": "publish",
+   "date": "2025-12-09T08:52:25",
+   "modified": "2025-12-09T09:08:29",
+   "featuredMediaId": 1646,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 6540,
+   "inlineImages": 2
+  },
+  {
+   "legacyId": 1623,
+   "url": "https://bailingwooden.com/top-diy-furniture-projects-using-blockboard/",
+   "slug": "top-diy-furniture-projects-using-blockboard",
+   "title": "Top DIY Furniture Projects Using Blockboard",
+   "status": "publish",
+   "date": "2025-12-05T01:56:15",
+   "modified": "2026-02-26T10:07:01",
+   "featuredMediaId": 1627,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 16278,
+   "inlineImages": 4
+  },
+  {
+   "legacyId": 1611,
+   "url": "https://bailingwooden.com/the-hidden-costs-of-cheap-plywood/",
+   "slug": "the-hidden-costs-of-cheap-plywood",
+   "title": "The Hidden Costs of Cheap Plywood",
+   "status": "publish",
+   "date": "2025-12-04T07:56:12",
+   "modified": "2025-12-04T08:14:54",
+   "featuredMediaId": 1619,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 11941,
+   "inlineImages": 2
+  },
+  {
+   "legacyId": 1603,
+   "url": "https://bailingwooden.com/what-is-plywood-texture/",
+   "slug": "what-is-plywood-texture",
+   "title": "What Is Plywood Texture?",
+   "status": "publish",
+   "date": "2025-12-03T05:53:18",
+   "modified": "2026-02-04T10:01:32",
+   "featuredMediaId": 1604,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 11033,
+   "inlineImages": 2
+  },
+  {
+   "legacyId": 1580,
+   "url": "https://bailingwooden.com/differences-and-advantages-between-oriented-strand-board-osb-and-ordinary-strand-board/",
+   "slug": "differences-and-advantages-between-oriented-strand-board-osb-and-ordinary-strand-board",
+   "title": "Differences and Advantages Between Oriented Strand Board (OSB) and Ordinary Strand Board",
+   "status": "publish",
+   "date": "2025-12-02T06:24:07",
+   "modified": "2025-12-02T07:06:09",
+   "featuredMediaId": 1596,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 24293,
+   "inlineImages": 4
+  },
+  {
+   "legacyId": 1570,
+   "url": "https://bailingwooden.com/best-plywood-for-furniture-in-2025-7-types-ranked-by-expert/",
+   "slug": "best-plywood-for-furniture-in-2025-7-types-ranked-by-expert",
+   "title": "Best Plywood for Furniture in 2025: 7 Types Ranked by Expert",
+   "status": "publish",
+   "date": "2025-12-01T03:45:35",
+   "modified": "2025-12-01T03:55:27",
+   "featuredMediaId": 1578,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 14955,
+   "inlineImages": 5
+  },
+  {
+   "legacyId": 1564,
+   "url": "https://bailingwooden.com/how-to-check-plywood-quality-before-buying-a-practical-no-nonsense-guide/",
+   "slug": "how-to-check-plywood-quality-before-buying-a-practical-no-nonsense-guide",
+   "title": "How to Check Plywood Quality Before Buying: A Practical, No-Nonsense Guide",
+   "status": "publish",
+   "date": "2025-11-29T07:00:52",
+   "modified": "2025-11-29T07:11:47",
+   "featuredMediaId": 1567,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 14892,
+   "inlineImages": 1
+  },
+  {
+   "legacyId": 1556,
+   "url": "https://bailingwooden.com/why-choose-wood-acoustic-wall-panels-for-interior-soundproofing/",
+   "slug": "why-choose-wood-acoustic-wall-panels-for-interior-soundproofing",
+   "title": "Why Choose Wood Acoustic Wall Panels for Interior Soundproofing",
+   "status": "publish",
+   "date": "2025-11-28T08:48:58",
+   "modified": "2025-11-28T09:03:21",
+   "featuredMediaId": 1561,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 21776,
+   "inlineImages": 3
+  },
+  {
+   "legacyId": 1552,
+   "url": "https://bailingwooden.com/hardboard-information-and-applications/",
+   "slug": "hardboard-information-and-applications",
+   "title": "Hardboard Information and Applications",
+   "status": "publish",
+   "date": "2025-11-27T08:59:09",
+   "modified": "2025-11-27T08:59:09",
+   "featuredMediaId": 1553,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 8246,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1534,
+   "url": "https://bailingwooden.com/gypsum-board-or-cement-board-which-should-you-use/",
+   "slug": "gypsum-board-or-cement-board-which-should-you-use",
+   "title": "Gypsum Board or Cement Board: Which Should You Use?",
+   "status": "publish",
+   "date": "2025-11-26T03:46:55",
+   "modified": "2025-11-26T03:50:23",
+   "featuredMediaId": 1535,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 5826,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1526,
+   "url": "https://bailingwooden.com/why-high-quality-shuttering-plywood-is-crucial-for-safe-and-strong-concrete-structures/",
+   "slug": "why-high-quality-shuttering-plywood-is-crucial-for-safe-and-strong-concrete-structures",
+   "title": "Why High-quality shuttering plywood is Crucial for Safe and Strong Concrete Structures",
+   "status": "publish",
+   "date": "2025-11-25T08:44:59",
+   "modified": "2025-11-25T08:47:09",
+   "featuredMediaId": 1527,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 15037,
+   "inlineImages": 2
+  },
+  {
+   "legacyId": 1504,
+   "url": "https://bailingwooden.com/gypsum-board-uses-and-benefits/",
+   "slug": "gypsum-board-uses-and-benefits",
+   "title": "GYPSUM BOARD &#8211; USES AND BENEFITS",
+   "status": "publish",
+   "date": "2025-11-24T02:50:49",
+   "modified": "2025-11-24T03:34:52",
+   "featuredMediaId": 1507,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 55323,
+   "inlineImages": 11
+  },
+  {
+   "legacyId": 1499,
+   "url": "https://bailingwooden.com/osb-vs-ordinary-strand-board-a-comprehensive-comparison/",
+   "slug": "osb-vs-ordinary-strand-board-a-comprehensive-comparison",
+   "title": "OSB vs. Ordinary Strand Board: A Comprehensive Comparison",
+   "status": "publish",
+   "date": "2025-11-21T03:37:22",
+   "modified": "2025-11-21T05:46:30",
+   "featuredMediaId": 1501,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 6710,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1495,
+   "url": "https://bailingwooden.com/how-to-install-a-door-skin-on-an-interior-door-a-complete-step-by-step-guide/",
+   "slug": "how-to-install-a-door-skin-on-an-interior-door-a-complete-step-by-step-guide",
+   "title": "How to Install a Door Skin on an Interior Door: A Complete Step-by-Step Guide",
+   "status": "publish",
+   "date": "2025-11-20T07:05:52",
+   "modified": "2025-11-20T07:07:53",
+   "featuredMediaId": 1496,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 6168,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1486,
+   "url": "https://bailingwooden.com/enhance-your-interior-projects-with-melamine-block-board/",
+   "slug": "enhance-your-interior-projects-with-melamine-block-board",
+   "title": "Enhance Your Interior Projects with Melamine Block Board",
+   "status": "publish",
+   "date": "2025-11-19T02:40:23",
+   "modified": "2025-11-19T03:35:03",
+   "featuredMediaId": 1492,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 20572,
+   "inlineImages": 2
+  },
+  {
+   "legacyId": 1474,
+   "url": "https://bailingwooden.com/understanding-the-different-grades-of-plywood/",
+   "slug": "understanding-the-different-grades-of-plywood",
+   "title": "Understanding the Different Grades of Plywood",
+   "status": "publish",
+   "date": "2025-11-18T09:31:38",
+   "modified": "2025-11-18T09:33:20",
+   "featuredMediaId": 1475,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 9118,
+   "inlineImages": 1
+  },
+  {
+   "legacyId": 1464,
+   "url": "https://bailingwooden.com/best-uses-of-hardboard-in-furniture-and-cabinetry/",
+   "slug": "best-uses-of-hardboard-in-furniture-and-cabinetry",
+   "title": "Best uses of hardboard in furniture and cabinetry",
+   "status": "publish",
+   "date": "2025-11-17T08:15:13",
+   "modified": "2025-11-17T08:17:52",
+   "featuredMediaId": 1472,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 13179,
+   "inlineImages": 5
+  },
+  {
+   "legacyId": 1447,
+   "url": "https://bailingwooden.com/osb-vs-particle-board-whats-the-difference-and-which-one-should-you-choose/",
+   "slug": "osb-vs-particle-board-whats-the-difference-and-which-one-should-you-choose",
+   "title": "OSB vs Particle Board: What’s the Difference and Which One Should You Choose?",
+   "status": "publish",
+   "date": "2025-11-15T06:36:30",
+   "modified": "2026-01-07T09:47:11",
+   "featuredMediaId": 1449,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 10992,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1426,
+   "url": "https://bailingwooden.com/why-choose-self-adhesive-pvc-film-for-hotel-renovation/",
+   "slug": "why-choose-self-adhesive-pvc-film-for-hotel-renovation",
+   "title": "Why Choose Self Adhesive PVC Film For Hotel Renovation?",
+   "status": "publish",
+   "date": "2025-11-11T09:26:43",
+   "modified": "2025-11-11T09:26:43",
+   "featuredMediaId": 1430,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 39855,
+   "inlineImages": 2
+  },
+  {
+   "legacyId": 1415,
+   "url": "https://bailingwooden.com/how-to-identify-the-quality-of-the-pvc-edge-banding-tape/",
+   "slug": "how-to-identify-the-quality-of-the-pvc-edge-banding-tape",
+   "title": "How to identify the quality of the PVC Edge Banding Tape？",
+   "status": "publish",
+   "date": "2025-11-10T09:43:00",
+   "modified": "2025-11-10T09:50:20",
+   "featuredMediaId": 1422,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 21429,
+   "inlineImages": 3
+  },
+  {
+   "legacyId": 1409,
+   "url": "https://bailingwooden.com/can-plywood-be-used-outdoors-a-guide-for-homeowners-builders/",
+   "slug": "can-plywood-be-used-outdoors-a-guide-for-homeowners-builders",
+   "title": "Can Plywood Be Used Outdoors? A Guide for Homeowners &#038; Builders",
+   "status": "publish",
+   "date": "2025-11-06T09:49:25",
+   "modified": "2025-11-06T09:50:34",
+   "featuredMediaId": 1410,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 9192,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1404,
+   "url": "https://bailingwooden.com/the-advantages-and-maintenance-of-panel-office-furniture/",
+   "slug": "the-advantages-and-maintenance-of-panel-office-furniture",
+   "title": "The Advantages and Maintenance of Panel Office Furniture",
+   "status": "publish",
+   "date": "2025-11-05T09:48:12",
+   "modified": "2025-11-05T09:48:12",
+   "featuredMediaId": 1406,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 6207,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1395,
+   "url": "https://bailingwooden.com/difference-between-partical-board-and-mdf/",
+   "slug": "difference-between-partical-board-and-mdf",
+   "title": "Difference between partical board and MDF",
+   "status": "publish",
+   "date": "2025-11-04T09:54:48",
+   "modified": "2025-11-04T09:56:34",
+   "featuredMediaId": 751,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 7034,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1388,
+   "url": "https://bailingwooden.com/edge-banding-an-essential-component-of-high-quality-furniture-and-panels/",
+   "slug": "edge-banding-an-essential-component-of-high-quality-furniture-and-panels",
+   "title": "Edge banding: an essential component of high-quality furniture and panels",
+   "status": "publish",
+   "date": "2025-11-03T09:32:30",
+   "modified": "2025-11-03T09:40:32",
+   "featuredMediaId": 1116,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 4238,
+   "inlineImages": 3
+  },
+  {
+   "legacyId": 1383,
+   "url": "https://bailingwooden.com/birch-plywood-vs-regular-plywood-what-you-need-to-know/",
+   "slug": "birch-plywood-vs-regular-plywood-what-you-need-to-know",
+   "title": "Birch Plywood vs. Regular Plywood: What You Need to Know",
+   "status": "publish",
+   "date": "2025-11-01T09:09:05",
+   "modified": "2025-11-01T09:17:06",
+   "featuredMediaId": 1385,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 6051,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1379,
+   "url": "https://bailingwooden.com/advantages-and-disadvantages-of-uv-marble-sheet/",
+   "slug": "advantages-and-disadvantages-of-uv-marble-sheet",
+   "title": "Advantages and disadvantages of uv marble sheet",
+   "status": "publish",
+   "date": "2025-10-31T10:03:15",
+   "modified": "2025-10-31T10:03:15",
+   "featuredMediaId": 1120,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 17282,
+   "inlineImages": 4
+  },
+  {
+   "legacyId": 1377,
+   "url": "https://bailingwooden.com/how-to-identify-high-quality-veneer-faced-blockboard-key-standards/",
+   "slug": "how-to-identify-high-quality-veneer-faced-blockboard-key-standards",
+   "title": "How to Identify High-Quality Veneer-Faced Blockboard: Key Standards",
+   "status": "publish",
+   "date": "2025-10-30T09:48:06",
+   "modified": "2025-10-30T09:48:17",
+   "featuredMediaId": 1230,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 8146,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1369,
+   "url": "https://bailingwooden.com/comprehensive-guide-to-wall-panels-materials-styles-and-applications/",
+   "slug": "comprehensive-guide-to-wall-panels-materials-styles-and-applications",
+   "title": "Comprehensive Guide to Wall Panels: Materials, Styles, and Applications",
+   "status": "publish",
+   "date": "2025-10-29T10:50:17",
+   "modified": "2025-10-29T10:51:42",
+   "featuredMediaId": 1374,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 9629,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1350,
+   "url": "https://bailingwooden.com/strength-and-durability-in-blockboard-the-manufacturing-process/",
+   "slug": "strength-and-durability-in-blockboard-the-manufacturing-process",
+   "title": "Strength and Durability in Blockboard: The Manufacturing Process",
+   "status": "publish",
+   "date": "2025-10-24T09:45:22",
+   "modified": "2025-10-24T09:47:57",
+   "featuredMediaId": 1125,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 7121,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1339,
+   "url": "https://bailingwooden.com/melamine-vs-plywood-cabinets-which-is-best-for-your-kitchen-remodel/",
+   "slug": "melamine-vs-plywood-cabinets-which-is-best-for-your-kitchen-remodel",
+   "title": "Melamine vs. Veneer Plywood Cabinets: Which is Best for Your Kitchen Remodel?",
+   "status": "publish",
+   "date": "2025-10-23T09:35:55",
+   "modified": "2025-10-24T09:03:21",
+   "featuredMediaId": 1340,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 14990,
+   "inlineImages": 4
+  },
+  {
+   "legacyId": 1334,
+   "url": "https://bailingwooden.com/compare-spc-vs-wpc-flooring-pros-and-cons/",
+   "slug": "compare-spc-vs-wpc-flooring-pros-and-cons",
+   "title": "Compare SPC vs WPC flooring pros and cons",
+   "status": "publish",
+   "date": "2025-10-21T10:04:23",
+   "modified": "2025-10-24T09:58:24",
+   "featuredMediaId": 1118,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 10613,
+   "inlineImages": 0
+  },
+  {
+   "legacyId": 1297,
+   "url": "https://bailingwooden.com/the-versatile-uses-of-film-faced-plywood-strength-durability-and-performance/",
+   "slug": "the-versatile-uses-of-film-faced-plywood-strength-durability-and-performance",
+   "title": "The Versatile Uses of Film-Faced Plywood: Strength, Durability, and Performance",
+   "status": "publish",
+   "date": "2025-10-20T05:47:13",
+   "modified": "2025-10-20T06:19:10",
+   "featuredMediaId": 1332,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 41553,
+   "inlineImages": 14
+  },
+  {
+   "legacyId": 1293,
+   "url": "https://bailingwooden.com/what-are-the-advantages-of-melamine-block-boards-over-other-core-materials/",
+   "slug": "what-are-the-advantages-of-melamine-block-boards-over-other-core-materials",
+   "title": "What are the advantages of melamine block boards over other core materials",
+   "status": "publish",
+   "date": "2025-10-18T10:04:00",
+   "modified": "2025-10-20T06:17:19",
+   "featuredMediaId": 1330,
+   "categoryIds": [
+    1
+   ],
+   "tagIds": [],
+   "authorId": 1,
+   "contentChars": 3663,
+   "inlineImages": 0
+  }
+ ],
+ "pages": [
+  {
+   "legacyId": 1357,
+   "url": "https://bailingwooden.com/news-2/",
+   "slug": "news-2",
+   "title": "News"
+  },
+  {
+   "legacyId": 1280,
+   "url": "https://bailingwooden.com/products/",
+   "slug": "products",
+   "title": "Products"
+  },
+  {
+   "legacyId": 797,
+   "url": "https://bailingwooden.com/video/",
+   "slug": "video",
+   "title": "Video"
+  },
+  {
+   "legacyId": 20,
+   "url": "https://bailingwooden.com/news/",
+   "slug": "news",
+   "title": "News1"
+  },
+  {
+   "legacyId": 18,
+   "url": "https://bailingwooden.com/contact-us/",
+   "slug": "contact-us",
+   "title": "Contact us"
+  },
+  {
+   "legacyId": 16,
+   "url": "https://bailingwooden.com/about-us/",
+   "slug": "about-us",
+   "title": "About us"
+  },
+  {
+   "legacyId": 14,
+   "url": "https://bailingwooden.com/",
+   "slug": "home",
+   "title": "Home"
+  }
+ ],
+ "note": "pages 仅盘点不迁移（任务范围为产品与文章）；yoast_title/description 来自 REST yoast_head_json"
+}

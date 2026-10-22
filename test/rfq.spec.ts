@@ -47,6 +47,7 @@ describe('RfqService', () => {
   let prisma: {
     rfq: { create: jest.Mock; count: jest.Mock; findMany: jest.Mock; findUnique: jest.Mock; update: jest.Mock };
     product: { findFirst: jest.Mock };
+    employeeContact: { findFirst: jest.Mock };
     leadAssignment: { create: jest.Mock; findFirst: jest.Mock };
     leadRoundRobinState: { upsert: jest.Mock };
     leadDistributionItem: { update: jest.Mock; findMany: jest.Mock };
@@ -66,6 +67,7 @@ describe('RfqService', () => {
         update: jest.fn(),
       },
       product: { findFirst: jest.fn() },
+      employeeContact: { findFirst: jest.fn() },
       leadAssignment: { create: jest.fn(), findFirst: jest.fn() },
       leadRoundRobinState: { upsert: jest.fn() },
       leadDistributionItem: { update: jest.fn(), findMany: jest.fn() },
@@ -149,6 +151,59 @@ describe('RfqService', () => {
       expect(prisma.rfq.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ sourceIp: '1.2.3.4', userAgent: 'jest' }) }),
       );
+    });
+  });
+
+  describe('直发模式（Sales Contacts 指定销售员）', () => {
+    beforeEach(() => {
+      // 默认解析不到直发收件人（其余用例走原轮询路径）
+      prisma.employeeContact.findFirst.mockResolvedValue(null);
+    });
+
+    it('directEmail 命中已公开销售时应直接归属且不调用分配引擎', async () => {
+      prisma.employeeContact.findFirst.mockResolvedValue({
+        adminUserId: 'admin_1',
+        displayEmail: 'sales@bailingwooden.com',
+      });
+      prisma.rfq.create.mockResolvedValue(makeRfq({ assigneeId: 'admin_1' }));
+
+      await service.create({ ...validDto, directEmail: 'sales@bailingwooden.com' });
+
+      expect(prisma.employeeContact.findFirst).toHaveBeenCalledWith({
+        where: {
+          displayEmail: { equals: 'sales@bailingwooden.com', mode: 'insensitive' },
+          showOnSite: true,
+          adminUser: { isActive: true },
+        },
+        select: { adminUserId: true, displayEmail: true },
+      });
+      // 入库即归属：不经过分配引擎，轮询指针 / 倾斜计划完全不被触碰
+      expect(prisma.rfq.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            assigneeId: 'admin_1',
+            assignedAt: expect.any(Date),
+          }),
+        }),
+      );
+      expect(prisma.leadAssignment.create).not.toHaveBeenCalled();
+      expect(prisma.leadRoundRobinState.upsert).not.toHaveBeenCalled();
+    });
+
+    it('directEmail 不是已公开联系人时应静默回落到正常轮询', async () => {
+      prisma.rfq.create.mockResolvedValue(makeRfq());
+
+      await service.create({ ...validDto, directEmail: 'stranger@evil.com' });
+
+      expect(prisma.rfq.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.not.objectContaining({ assigneeId: expect.anything() }),
+        }),
+      );
+      // 线索优先：仍然入库（create 被调用），分配引擎照常工作
+      expect(prisma.rfq.create).toHaveBeenCalledTimes(1);
+      expect(prisma.leadAssignment.create).not.toHaveBeenCalled();
+      expect(prisma.leadRoundRobinState.upsert).not.toHaveBeenCalled();
     });
   });
 

@@ -17,6 +17,7 @@ import { MailModule } from './modules/mail/mail.module';
 import { SamplesModule } from './modules/samples/samples.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
+import { VisitorModule } from './modules/visitor/visitor.module';
 
 @Module({
   imports: [
@@ -51,6 +52,8 @@ import { InventoryModule } from './modules/inventory/inventory.module';
     OrdersModule,
     // Phase 5.3：库存管理（单仓库 / 可关联订单 / 订单号手动填写）
     InventoryModule,
+    // 访客统计（匿名流量旁路）：公开 track 上报 + 后台聚合与明细（见 modules/visitor/visitor.module.ts）
+    VisitorModule,
   ],
 })
 export class AppModule {}

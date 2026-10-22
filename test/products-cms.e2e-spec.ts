@@ -266,6 +266,40 @@ describe('Products CMS（e2e）', () => {
     product1Id = res.body.data.id as string;
   });
 
+  it('Product create：详细描述按富文本净化后入库（剥离 script / 无关属性，保留结构）', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/cms/products')
+      .set(auth())
+      .send({
+        name: 'E2E Rich Text Product',
+        slug: `${SLUG_PREFIX}${RUN_ID}-rich`,
+        categoryId: categoryAId,
+        description:
+          '<div class="module_attribute" data-module-name="module_attribute">' +
+          '<h2>Composition</h2><p>Solid wood core.</p>' +
+          '<script>alert(1)</script><a href="javascript:alert(2)">bad</a>' +
+          '<a href="https://example.com">ok</a></div>',
+        shortDescription: 'rich text product',
+      })
+      .expect(201);
+
+    const html = res.body.data.description as string;
+    // 结构与正文保留
+    expect(html).toContain('<h2>Composition</h2>');
+    expect(html).toContain('<p>Solid wood core.</p>');
+    expect(html).toContain('href="https://example.com"');
+    // 危险内容与迁移残留属性剥离
+    expect(html).not.toContain('<script');
+    expect(html).not.toContain('javascript:');
+    expect(html).not.toContain('module_attribute');
+    expect(html).not.toContain('data-module-name');
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/cms/products/${res.body.data.id}`)
+      .set(auth())
+      .expect(200);
+  });
+
   it('Product create：重复 slug 返回 409；分类不存在返回 400', async () => {
     await request(app.getHttpServer())
       .post('/api/v1/cms/products')
@@ -325,6 +359,14 @@ describe('Products CMS（e2e）', () => {
         slug: `${SLUG_PREFIX}${RUN_ID}-short-desc`,
         categoryId: categoryAId,
         description: 'too short',
+      },
+      {
+        // Phase 5.5：简短描述上限 100 字（列表卡片 + SEO 摘要唯一来源）
+        name: 'Overlong Short Description',
+        slug: `${SLUG_PREFIX}${RUN_ID}-long-short-desc`,
+        categoryId: categoryAId,
+        description: 'x'.repeat(20),
+        shortDescription: 'y'.repeat(101),
       },
     ];
 

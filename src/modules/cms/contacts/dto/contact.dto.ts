@@ -47,6 +47,9 @@ export function normalizeWhatsapp(raw: string): string | null {
 export const WHATSAPP_HINT =
   '请填写完整国际号码，以 + 和国家代码开头（如 +8613800138000），仅含数字，可含空格或连字符。';
 
+/** 手机号填写提示：与 WhatsApp 同规则（均为「+ 国家代码」国际号码） */
+export const PHONE_HINT = WHATSAPP_HINT;
+
 /**
  * 创建 / 更新员工联系方式（同一 DTO，PUT 语义为「每个员工一条」）。
  *
@@ -54,6 +57,7 @@ export const WHATSAPP_HINT =
  *   · adminUserId 必须指向**真实存在且启用**的员工账号（防幽灵员工）
  *   · displayName 可登录邮箱不同（对外展示名 vs 登录邮箱）
  *   · displayEmail 与 adminUserId 的登录邮箱相互独立：展示邮箱可以另设
+ *   · whatsapp / phone 均为「+ 国家代码」国际号码，彼此独立（可只填其一）
  *   · internalNote 绝不对外公开（公开接口不读该字段）
  */
 export class UpsertContactDto {
@@ -94,6 +98,25 @@ export class UpsertContactDto {
   @Matches(/^\+\d{8,15}$/, { message: WHATSAPP_HINT })
   @MaxLength(20)
   whatsapp?: string;
+
+  /**
+   * 对外展示手机号（可直接拨打）。
+   * 与 whatsapp 同规则：只接受「+ 国家代码」国际号码，数字总长 8–15 位。
+   * 二者相互独立：whatsapp 偏即时通讯，phone 偏语音通话，允许只填其一。
+   */
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => {
+    if (typeof value !== 'string') return value;
+    const trimmed = value.trim();
+    // 未提供 / 空串 → undefined，交给 @IsOptional 跳过（表示「不修改/清空由 Service 处理」）
+    if (trimmed === '') return undefined;
+    const normalized = normalizeWhatsapp(trimmed);
+    // 归一化失败 → 保留原值，让后续 @Matches 报错
+    return normalized ?? trimmed;
+  })
+  @Matches(/^\+\d{8,15}$/, { message: PHONE_HINT })
+  @MaxLength(20)
+  phone?: string;
 
   @IsOptional()
   @Transform(toBool)

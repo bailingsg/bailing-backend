@@ -53,7 +53,8 @@ export class SeoSitemapService {
     for (const p of products) {
       if (productNoindex.has(p.id)) continue;
       entries.push({
-        path: `/products/${p.slug}`,
+        // 前台详情路由以产品 id 拼接（/products/[id]）
+        path: `/products/${p.id}`,
         lastModified: p.updatedAt.toISOString(),
         changeFrequency: 'weekly',
         priority: 0.7,

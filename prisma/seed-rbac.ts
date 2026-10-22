@@ -63,15 +63,20 @@ const CONTENT_EDITOR_PERMISSIONS: readonly string[] = [
   'seo.manage',
 ];
 
-/** 销售（询盘跟进）角色默认权限：看询盘 + 跟进状态 + 分配情况 + 联系方式只读 */
+/**
+ * 销售角色默认权限（业务人员）。
+ *
+ * 2026-10-19 起按业务定位收敛为「最小可用集」：
+ *   工作台 + 样品 / 订单 / 库存（业务员自己的数据）+ 员工联系方式只读。
+ * 明确**不授予**：
+ *   · rfq.* / lead_distribution.*（询盘及其分配由主管/管理员负责）
+ *   · products.* / media.*（产品与媒体库属内容团队维护）
+ * 需要放宽时，请在「角色与权限」页为该角色显式勾选，不要改本常量——
+ * 本常量代表最小权限基线，是审计依据。
+ */
 export const SALES_PERMISSIONS: readonly string[] = [
   'dashboard.read',
-  'rfq.read',
-  'rfq.update',
   'contacts.read',
-  'lead_distribution.read',
-  'products.read',
-  'media.read',
   // Phase 5.1：样品管理（持有 / 被授权查看 / 出库申请；审批由持有人身份判定）
   'samples.read',
   'samples.create',
@@ -119,7 +124,7 @@ const BUILTIN_ROLES: readonly BuiltinRole[] = [
   {
     key: 'SALES',
     name: '销售',
-    description: '查看询盘分配情况与员工对外联系方式，不参与内容与账号管理。',
+    description: '业务人员：工作台概览、样品 / 订单 / 库存（仅自己的数据）与员工联系方式只读，不参与内容与账号管理。',
     sortOrder: 20,
     isSystem: false,
     permissions: SALES_PERMISSIONS,

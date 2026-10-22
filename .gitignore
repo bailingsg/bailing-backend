@@ -14,6 +14,9 @@ coverage/
 .env.*
 !.env.example
 
+# 员工账号批量导入的一次性明文口令（导入脚本产出，人工分发后即删）
+.team-import-credentials.local.json
+
 # Logs
 # 本地上传文件（产品图片，Phase 4.2）
 uploads/
@@ -34,3 +37,4 @@ Thumbs.db
 # Prisma local artifacts
 prisma/*.db
 prisma/*.db-journal
+prisma/scripts/.backups/

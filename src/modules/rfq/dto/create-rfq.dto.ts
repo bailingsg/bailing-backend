@@ -84,4 +84,20 @@ export class CreateRfqDto {
   @IsString()
   @MaxLength(500)
   attachmentUrl?: string;
+
+  /**
+   * 直发收件邮箱（可选，来自「发送给某销售」弹窗）。
+   *
+   * 访客在 Sales Contacts 卡片点击销售员邮箱时带上该字段：询盘直达该销售员的
+   * 站内信箱，**不参与询盘轮转 / 倾斜计划分配**（避免占用他人的轮询顺位）。
+   *
+   * 安全约束：服务端会校验该邮箱必须是「已公开展示（showOnSite）且账号启用」
+   * 的员工对外工作邮箱，否则视为无效并照常走轮询分配——公开接口绝不能被当成
+   * 任意收件人的开放邮件中继。
+   */
+  @IsOptional()
+  @Transform(trimString)
+  @IsEmail()
+  @MaxLength(160)
+  directEmail?: string;
 }

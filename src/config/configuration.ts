@@ -97,5 +97,39 @@ export default () => {
      * 留空时兜底收件人退化为发件邮箱自身（SMTP_USER）。
      */
     inquiryNotifyEmail: process.env.INQUIRY_NOTIFY_EMAIL ?? '',
+
+    /**
+     * 访客统计（匿名流量旁路模块）。
+     *
+     *   · TRUST_PROXY —— 代理层数。线上链路为 客户端 → nginx → 后端容器，
+     *     不配置时 req.ip 会拿到 nginx 内网地址，GeoIP 与限流全部塌成一个值。
+     *     线上固定为 1（信任紧邻一层反代）。取值 'true' 一律强制降级为 1 并告警
+     *     （true = 信任任意来源的 X-Forwarded-For，任何客户端可伪造来源 IP）。
+     *   · VISITOR_AGGREGATION_ENABLED —— 日聚合 worker 开关（默认开）。
+     */
+    trustProxy: normalizeTrustProxy(process.env.TRUST_PROXY),
+    visitorAggregationEnabled: process.env.VISITOR_AGGREGATION_ENABLED !== 'false',
   };
 };
+
+/**
+ * TRUST_PROXY 归一化：
+ *   · 未设置        → undefined（不调用 app.set，Express 默认不信任代理）
+ *   · 数字 n (n>=1) → n
+ *   · 'true'        → 强制降级为 1（见 configuration.ts 注释中的安全说明）
+ *   · 其它非法值     → undefined（视为未设置）
+ */
+function normalizeTrustProxy(raw: string | undefined): number | undefined {
+  if (raw === undefined || raw === '') return undefined;
+  const trimmed = raw.trim();
+  if (trimmed.toLowerCase() === 'true') {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[config] TRUST_PROXY=true 不安全（任意客户端可伪造 X-Forwarded-For），已强制降级为 1',
+    );
+    return 1;
+  }
+  const parsed = Number.parseInt(trimmed, 10);
+  if (Number.isFinite(parsed) && parsed >= 1) return parsed;
+  return undefined;
+}

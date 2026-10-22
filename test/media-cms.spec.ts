@@ -16,6 +16,7 @@ import {
 import { MediaService } from '../src/modules/media/media.service';
 import { PrismaService } from '../src/modules/prisma/prisma.service';
 import type { ListMediaQueryDto } from '../src/modules/media/dto/list-media-query.dto';
+import { makeRevalidationMock } from './helpers/revalidation-mock';
 
 /**
  * Media CMS 单元测试（Phase 4.3）。
@@ -321,7 +322,11 @@ describe('MediaService（unit）', () => {
       model.count.mockResolvedValue(0);
     }
     storage = makeStorageMock();
-    service = new MediaService(prisma as unknown as PrismaService, storage);
+    service = new MediaService(
+      prisma as unknown as PrismaService,
+      storage,
+      makeRevalidationMock(),
+    );
   });
 
   /* ------------------------- 上传 ------------------------- */

@@ -100,11 +100,45 @@ const DROP_VOID = new Set(['meta', 'base', 'link', 'input']);
 
 /** 逐标签属性白名单（未列出的标签不允许任何属性） */
 const ALLOWED_ATTRS: Record<string, Set<string>> = {
-  a: new Set(['href', 'title', 'target', 'rel']),
-  img: new Set(['src', 'alt', 'title', 'width', 'height']),
+  a: new Set(['href', 'title', 'target', 'rel', 'class']),
+  img: new Set(['src', 'alt', 'title', 'width', 'height', 'class', 'loading']),
   td: new Set(['colspan', 'rowspan']),
   th: new Set(['colspan', 'rowspan', 'scope']),
+  p: new Set(['class']),
+  h1: new Set(['class']),
+  h2: new Set(['class']),
+  h3: new Set(['class']),
+  h4: new Set(['class']),
+  h5: new Set(['class']),
+  h6: new Set(['class']),
+  ul: new Set(['class']),
+  ol: new Set(['class']),
+  li: new Set(['class']),
+  blockquote: new Set(['class']),
+  pre: new Set(['class']),
+  table: new Set(['class']),
+  figure: new Set(['class']),
+  figcaption: new Set(['class']),
+  div: new Set(['class']),
 };
+
+/**
+ * 受控排版 class 白名单（正文样式唯一入口）。
+ *
+ * 背景：Phase 5.4 迁移的存量正文 HTML 里混有来源不受控的 class
+ * （Tailwind 工具类、wp-image-*、ds-markdown-paragraph 等），会与新站
+ * Tailwind utilities 层冲突、造成文章间排版不一致（见 docs/article-style-diff-report.md D-03）。
+ * 清洗管线把这些"有视觉语义但属性不受控"的结构转换为下列受控 class 后重新入库；
+ * 为避免 CMS 再次保存时被 sanitizer 剥掉（样式静默丢失)，这里只放行这一组
+ * **命名空间封闭**的 class —— 历史上被剥掉的其它 class 仍然一律剥掉，行为不变。
+ */
+export const PROSE_ALLOWED_CLASSES = new Set([
+  'prose-boxed-heading', // 盒式标题（旧内联 border-left + 背景的受控替代）
+  'prose-table-scroll', // 宽表格横向滚动容器
+]);
+
+/** img.loading 合法值（其余按缺省处理，不写入） */
+const IMG_LOADING_VALUES = new Set(['lazy', 'eager']);
 
 /** 需要做协议校验的属性 */
 const URL_ATTRS = new Set(['href', 'src']);
@@ -243,6 +277,19 @@ function sanitizeAttrs(tag: string, raw: string): string {
   for (const { name, value } of parseAttributes(raw)) {
     const key = name.toLowerCase();
     if (!allowed.has(key)) continue;
+
+    if (key === 'class') {
+      // 只保留受控排版 class token；污染 token 逐个剔除（部分保留，不做一票否决）
+      const kept = value.split(/\s+/).filter((token) => PROSE_ALLOWED_CLASSES.has(token));
+      if (kept.length > 0) parts.push(`class="${escapeAttr(kept.join(' '))}"`);
+      continue;
+    }
+
+    if (key === 'loading' && tag === 'img') {
+      const v = value.trim().toLowerCase();
+      if (IMG_LOADING_VALUES.has(v)) parts.push(`loading="${v}"`);
+      continue;
+    }
 
     if (URL_ATTRS.has(key)) {
       const safe = sanitizeUrl(value);

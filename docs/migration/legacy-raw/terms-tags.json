@@ -1,0 +1,146 @@
+{
+ "92": {
+  "id": 92,
+  "name": "Building Materials",
+  "slug": "building-materials",
+  "count": 1,
+  "parent": null,
+  "description": ""
+ },
+ "88": {
+  "id": 88,
+  "name": "Construction Materials",
+  "slug": "construction-materials",
+  "count": 1,
+  "parent": null,
+  "description": ""
+ },
+ "85": {
+  "id": 85,
+  "name": "Durable Boards",
+  "slug": "durable-boards",
+  "count": 1,
+  "parent": null,
+  "description": ""
+ },
+ "76": {
+  "id": 76,
+  "name": "Durable Interior Boards",
+  "slug": "durable-interior-boards",
+  "count": 1,
+  "parent": null,
+  "description": ""
+ },
+ "86": {
+  "id": 86,
+  "name": "Eco-Friendly Boards",
+  "slug": "eco-friendly-boards",
+  "count": 1,
+  "parent": null,
+  "description": ""
+ },
+ "78": {
+  "id": 78,
+  "name": "Furniture Grade Panel",
+  "slug": "furniture-grade-panel",
+  "count": 1,
+  "parent": null,
+  "description": ""
+ },
+ "87": {
+  "id": 87,
+  "name": "Furniture Materials",
+  "slug": "furniture-materials",
+  "count": 1,
+  "parent": null,
+  "description": ""
+ },
+ "90": {
+  "id": 90,
+  "name": "Hardwood Panels",
+  "slug": "hardwood-panels",
+  "count": 1,
+  "parent": null,
+  "description": ""
+ },
+ "84": {
+  "id": 84,
+  "name": "High-Quality Boards",
+  "slug": "high-quality-boards",
+  "count": 1,
+  "parent": null,
+  "description": ""
+ },
+ "77": {
+  "id": 77,
+  "name": "High-Strength Core",
+  "slug": "high-strength-core",
+  "count": 1,
+  "parent": null,
+  "description": ""
+ },
+ "80": {
+  "id": 80,
+  "name": "Interior Construction Material",
+  "slug": "interior-construction-material",
+  "count": 1,
+  "parent": null,
+  "description": ""
+ },
+ "89": {
+  "id": 89,
+  "name": "Interior Design Boards",
+  "slug": "interior-design-boards",
+  "count": 1,
+  "parent": null,
+  "description": ""
+ },
+ "82": {
+  "id": 82,
+  "name": "Long-Lasting Performance",
+  "slug": "long-lasting-performance",
+  "count": 1,
+  "parent": null,
+  "description": ""
+ },
+ "75": {
+  "id": 75,
+  "name": "Premium Block Board",
+  "slug": "premium-block-board",
+  "count": 1,
+  "parent": null,
+  "description": ""
+ },
+ "83": {
+  "id": 83,
+  "name": "Premium Hard Boards",
+  "slug": "premium-hard-boards",
+  "count": 1,
+  "parent": null,
+  "description": ""
+ },
+ "79": {
+  "id": 79,
+  "name": "Solid Wood Core",
+  "slug": "solid-wood-core",
+  "count": 1,
+  "parent": null,
+  "description": ""
+ },
+ "91": {
+  "id": 91,
+  "name": "Strong Boards",
+  "slug": "strong-boards",
+  "count": 1,
+  "parent": null,
+  "description": ""
+ },
+ "81": {
+  "id": 81,
+  "name": "Warp-Resistant",
+  "slug": "warp-resistant",
+  "count": 1,
+  "parent": null,
+  "description": ""
+ }
+}

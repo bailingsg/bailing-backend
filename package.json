@@ -23,6 +23,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "ts-node prisma/seed.ts",
     "db:phase1-backfill": "ts-node prisma/scripts/phase1-backfill-publishing.ts",
+    "db:restrict-sales": "ts-node prisma/scripts/restrict-sales-permissions.ts",
     "prisma:studio": "prisma studio",
     "db:up": "docker compose --env-file .env -f infrastructure/docker/docker-compose.yml up -d",
     "db:down": "docker compose --env-file .env -f infrastructure/docker/docker-compose.yml down",

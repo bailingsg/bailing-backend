@@ -1,0 +1,206 @@
+{
+  "scannedDir": "C:\\Users\\Administrator\\Desktop\\bailing-image-export",
+  "totalFiles": 444,
+  "manifestRows": 443,
+  "byBucket": {
+    "page": 66,
+    "unlisted": 1,
+    "post": 125,
+    "product": 134,
+    "site-asset": 103,
+    "external": 15
+  },
+  "filesNotInManifest": [
+    "pages/about-us/logo.webp"
+  ],
+  "manifestEntriesMissingOnDisk": [],
+  "dimensionsUnresolved": [
+    "site-assets/favicon.ico"
+  ],
+  "duplicateSha256Groups": {
+    "78e6a76d44f051e4daed38de479ac746d6d68111b2d3554c1a6e04b9107262b1": [
+      "pages/about-us/727baa944881ca6ddf5cfe048f47a44.webp",
+      "pages/about-us/logo.webp"
+    ],
+    "75dd203a9af12795dbf000f2f549d6694e8b842c222d1cef2719df56538b5867": [
+      "pages/contact-us/JFKLXLK5-1.webp",
+      "site-assets/from-staging/JFKLXLK5-1.webp"
+    ],
+    "0ed4d496f3175649477c40beb91373ace5e5b07bc5daefd2b07a8c4281de68b5": [
+      "pages/contact-us/JFKLXLK5-2.webp",
+      "site-assets/from-staging/JFKLXLK5-2.webp"
+    ],
+    "2b387bec548ff5895861329b0096f9a499e96f5bfe5286f80da76d6cf1e61f1d": [
+      "pages/contact-us/JFKLXLK5-3.webp",
+      "site-assets/from-staging/JFKLXLK5-3.webp"
+    ],
+    "ebd972707a952aa6cca34d8ae87f34d8d20b3a6b4f423cdefd70af92fc136ee2": [
+      "pages/contact-us/team-1.webp",
+      "site-assets/from-staging/team-1.webp"
+    ],
+    "15b3df8ce32e19ec05ed9230b266ee01ed43ca075d07cb3a762800e7ad76b5f3": [
+      "pages/contact-us/team-10.webp",
+      "site-assets/from-staging/team-10.webp"
+    ],
+    "eb61a4e79f96f7f47a64bda5221a55e6ff0dd223c393482083595dd18af4b0d7": [
+      "pages/contact-us/team-2.webp",
+      "site-assets/from-staging/team-2.webp"
+    ],
+    "e4e2e6f1b7c3b13cff545f7e5a07b46b7c19e0b3e0c781116f06ccd11bab93d2": [
+      "pages/contact-us/team-23.webp",
+      "site-assets/from-staging/team-23.webp"
+    ],
+    "4f4de48e5c463384e5ddeb8c4e42648b72911a6e710cae4b796f776d3af82d0f": [
+      "pages/contact-us/team-3.webp",
+      "site-assets/from-staging/team-3.webp"
+    ],
+    "1b7bea4b5d29bcf80101fd8a996c7fa864e36d11a2008591204b6e1d08a4cb69": [
+      "pages/contact-us/team-4.webp",
+      "site-assets/from-staging/team-4.webp"
+    ],
+    "90511437c18f07b032a6c2d650e45673af0d0b4c1761263934ac5822924224fd": [
+      "pages/contact-us/team-5.webp",
+      "site-assets/from-staging/team-5.webp"
+    ],
+    "44a63d2464e14173aa6bf70bcb47a263d51d683ab377b805cd22a5e27ef04665": [
+      "pages/contact-us/team-6.webp",
+      "site-assets/from-staging/team-6.webp"
+    ],
+    "c59a84074a0cffdc2de12034007776c06fa59f8f4b4b599f1f7525104e6e463b": [
+      "pages/contact-us/team-7.webp",
+      "site-assets/from-staging/team-7.webp"
+    ],
+    "f1b8fa2ab47b34c2a9df0e4394cc64431188befbf1b6f063c45b76f84d4de5ba": [
+      "pages/contact-us/team-8.webp",
+      "site-assets/from-staging/team-8.webp"
+    ],
+    "22daf6399daf6f7b58624a82bd9cb271ed216541b4ab669c7f3a074064ff0534": [
+      "pages/contact-us/team-9.webp",
+      "site-assets/from-staging/team-9.webp"
+    ],
+    "1d5f0b133e71d961938834be8dfef782b94bd8f77bab1bc3a1dd3ba8d66e7ff9": [
+      "pages/contact-us/team31.webp",
+      "site-assets/from-staging/team31.webp"
+    ],
+    "cdbe251c848807007d03e92ab8d713d58e0e9e3208758606fb80028a8df38261": [
+      "pages/home/IMG_4535-13.webp",
+      "products/oriented-strand-board-structural-strength-meets-versatility/00_IMG_4535-16.webp",
+      "products/oriented-strand-board/00_IMG_4535-16.webp"
+    ],
+    "b42b2b06b9eda44e72a86e05b0c2cbc7503e0430dc8f7e8978d744b6bde51fb0": [
+      "posts/gypsum-board-office-partitions-interior-design/gypsum_plasterboard.webp",
+      "posts/gypsum-board-uses-and-benefits/gypsum_plasterboard.webp"
+    ],
+    "6ee92f7ee8de49f1b5fbd9b9752b6c78c3b4c208548f243747e5cf135d53e5f5": [
+      "posts/gypsum-board-office-partitions-interior-design/less_shrinkage_cracks.webp",
+      "posts/gypsum-board-uses-and-benefits/less_shrinkage_cracks-1.webp"
+    ],
+    "5b6425a1a97bd8d5d620ffce4738801581889658edd8e2d4d824bc8a3c399c57": [
+      "posts/the-pros-and-cons-of-solid-wood-and-panel-furniture/a_0002_acsd-2-1.webp",
+      "posts/the-pros-and-cons-of-solid-wood-and-panel-furniture/a_0002_acsd-2.webp"
+    ],
+    "ab5f9949fa36aad242f5d17bc17dfe1642c949fecd681421ad6e34fd04eb1aac": [
+      "products/best-selling-4x8-e1-poplar-modern-black-film-faced-plywood-with-1-year-warranty-for-construction/00_IMG_4535-5.webp",
+      "products/film-faced-plywood/00_IMG_4535-5.webp"
+    ],
+    "0e45cf32a5694116234af4a288e9ab5e5436945cf350be55b55bbc3e5728a450": [
+      "products/best-selling-4x8-e1-poplar-modern-black-film-faced-plywood-with-1-year-warranty-for-construction/01_IMG_4532.png",
+      "products/film-faced-plywood-2/02_IMG_4532.png",
+      "products/film-faced-plywood/01_IMG_4532.png"
+    ],
+    "6492cdfa220c950836ce855f82d0ebeed36c232655876d7e7779bfccb32f866d": [
+      "products/best-selling-4x8-e1-poplar-modern-black-film-faced-plywood-with-1-year-warranty-for-construction/02_IMG_4535-1-13.webp",
+      "products/film-faced-plywood-2/00_IMG_4535-1-13.webp",
+      "products/film-faced-plywood-2/01_IMG_4535-1-13.webp",
+      "products/film-faced-plywood/02_IMG_4535-1-13.webp"
+    ],
+    "48b2a6ec5560716cc1d074611bc9644d9443bced958ddd10572b0aa0045cd73b": [
+      "products/best-selling-4x8-e1-poplar-modern-black-film-faced-plywood-with-1-year-warranty-for-construction/03_H74f551a4c6e947f787800957ae3a2c56h.webp",
+      "products/film-faced-plywood/03_H74f551a4c6e947f787800957ae3a2c56h.webp"
+    ],
+    "c4d0b0c570d3adefc9eba0f2b968376cdb1271a37d67060d8c5907a82b8e9d1d": [
+      "products/block-board/00_IMG_4535-1-7.webp",
+      "products/custom-veneer-block-board-lightweight-durable-perfect-for-decoration-furniture/00_IMG_4535-1-7.webp",
+      "products/white-melamine-block-board-falcata-block-board-4x8-melamine-block-board-for-furniture/00_IMG_4535-1-7.webp"
+    ],
+    "d5458c2aef9a629a4b5b9b77962fc65625295e8fd81c0c768ae456faaa8d97eb": [
+      "products/block-board/01_photobank-1-1.webp",
+      "products/custom-veneer-block-board-lightweight-durable-perfect-for-decoration-furniture/01_photobank-1-1.webp",
+      "products/white-melamine-block-board-falcata-block-board-4x8-melamine-block-board-for-furniture/01_photobank-1-1.webp"
+    ],
+    "c520bc1056132d697ff824f7d37333f38074ba207d4c9ad439d44f69c5da92e1": [
+      "products/block-board/02_photobank-18.webp",
+      "products/custom-veneer-block-board-lightweight-durable-perfect-for-decoration-furniture/02_photobank-18.webp",
+      "products/white-melamine-block-board-falcata-block-board-4x8-melamine-block-board-for-furniture/02_photobank-18.webp"
+    ],
+    "469c91748c78355aac4b2f40227fda7fbd8202d016f12fc13f2e0c3e3e88dd1c": [
+      "products/commercial-plywood/03_IMG_4535.webp",
+      "products/commercial-plywood/IMG_4535-1.webp"
+    ],
+    "83a48e788b26ef444b95ded54ba3e9f1065937352c7cfb67ea07a9ca136305db": [
+      "products/fireproof-mdf/01_photobank-7-2.webp",
+      "site-assets/photobank-7-1.webp",
+      "site-assets/photobank-7.webp"
+    ],
+    "33c71c22ae4dc8f99cf58203a1b7538af8f4be24a8ee8287cf34f0f52bb84ab5": [
+      "products/hard-board/01_photobank-4-2.webp",
+      "products/plain-mdf/02_photobank-4-2.webp"
+    ],
+    "c6deca1577fbb841739e34e593597f551fc778508232f1658d0bf6d324c5e162": [
+      "products/hmr-mdf/02_photobank-3-3.webp",
+      "site-assets/photobank-3-1.webp",
+      "site-assets/photobank-3.webp"
+    ],
+    "d5bc96155a4ce81cfa7b1de255330dbff63c318e4da9db60aa280443b264c0c5": [
+      "products/hot-sell-custom-interior-mdf-wood-door-designs-pvc-door-bedroom-pvc-door/00_IMG_4535528.webp",
+      "products/pvc-door/00_IMG_4535528.webp"
+    ],
+    "98806d61098ae06bc823104b8679564d8d3cebd2c64297e90f916e564623525f": [
+      "products/hot-sell-custom-interior-mdf-wood-door-designs-pvc-door-bedroom-pvc-door/01_DSC041845.webp",
+      "products/pvc-door/01_DSC041845.webp"
+    ],
+    "0db2c351d5a114d927110f126d4fdfc8f2fac4ebbe22caceda7a752e086b5614": [
+      "products/melamine-mdf/IMG_9146-1.webp",
+      "site-assets/IMG_9146.webp"
+    ],
+    "4d0125872b9ca87f326fa9de564a3146fee9eafdf1f94bc2de7331da93008216": [
+      "products/melamine-particle-board/00_0217091559-1.webp",
+      "products/melamine-particle-board/0217091559.webp"
+    ],
+    "c4aad50047bb67cf3c65e361510880190ff5b33df6286afa1a9cdaad7cac1389": [
+      "products/melamine-plywood/02_2533.webp",
+      "site-assets/2.webp"
+    ],
+    "91cfb9678dd4bd5bc0743876e3f53e0d3847fb7700dcd9cb817293e4e910e5e0": [
+      "products/oriented-strand-board-structural-strength-meets-versatility/01_IMG_4338.webp",
+      "products/oriented-strand-board/01_IMG_4338.webp"
+    ],
+    "ed5218a35e286d2a6030d0859982a7b9bb3e60af8d881ffebf10d523620b7179": [
+      "products/oriented-strand-board-structural-strength-meets-versatility/02_IMG_4340-1.webp",
+      "products/oriented-strand-board/02_IMG_4340-1.webp",
+      "site-assets/IMG_4340.webp"
+    ],
+    "832a3fde392b44c56e62f9b98e42260db93ebe5448ea8b2ecd48d8bdee2d3be5": [
+      "products/oriented-strand-board-structural-strength-meets-versatility/03_IMG_9367.webp",
+      "products/oriented-strand-board/03_IMG_9367.webp"
+    ],
+    "e68117bb512166a5b08da1ed378af4053de7336acf6e07a4a827d3940a2ebaa8": [
+      "products/plain-mdf/photobank-1.webp",
+      "site-assets/photobank-1-1.webp"
+    ],
+    "975b7f8c48b30e6c7beb500f37af081b21940be04a53bdd7781ae201b27d9e2a": [
+      "products/wpc-door/00_c6712d45-51e3a17.webp",
+      "products/wpc-door/01_c6712d45-51e3a17.webp"
+    ],
+    "bab54ab5e385824f6b6f52ff64315319f0ea4b4371a06481d171f8dd644753cc": [
+      "products/wpc-wall-panel/01_b04dff8a8p05cccae62da93c10f31b32-1.webp",
+      "site-assets/b04dff8a8p05cccae62da93c10f31b32.webp"
+    ],
+    "a765c2ceb4f718919a56f64841f17c76b06aaf23c394dfc5277bc8cfa45f2ed8": [
+      "site-assets/PLYWOOD-1.webp",
+      "site-assets/PLYWOOD.webp"
+    ]
+  },
+  "duplicateProductSlotGroups": {},
+  "duplicateSha256FileCount": 96
+}

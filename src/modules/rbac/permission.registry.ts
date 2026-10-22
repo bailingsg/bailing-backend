@@ -99,6 +99,9 @@ export const PERMISSION_MODULES: readonly PermissionModuleDefinition[] = [
   // Phase 5.2：订单管理（业务员订单 / 附件）
   { key: 'orders', name: '订单管理', sortOrder: 160 },
   { key: 'inventory', name: '库存管理', sortOrder: 165 },
+  // 访客统计（匿名流量旁路）：聚合数字（卡片/趋势图）与会话级明细
+  { key: 'visitor_stats', name: '访客统计', sortOrder: 170 },
+  { key: 'visitor_records', name: '访客记录', sortOrder: 175 },
 ] as const;
 
 /**
@@ -871,6 +874,28 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
     description: '删除库存记录（业务员仅自己创建的；管理员全部；不级联删除订单）',
     isNav: false,
     sortOrder: 40,
+  },
+
+  // ── 访客统计（匿名流量旁路，与账号/客户/订单零关联） ──────────
+  {
+    key: 'visitor_stats.read',
+    module: 'visitor_stats',
+    action: 'read',
+    name: '查看访客统计',
+    description: 'Dashboard 访客概览卡片与 UV/PV 趋势图（聚合数字，不包含会话明细）',
+    isNav: false,
+    sortOrder: 10,
+  },
+  {
+    // 会话级明细属经营分析数据：seed 只授超级管理员（等价「仅 ADMIN」），
+    // 与聚合数字的 visitor_stats.read 刻意分离。
+    key: 'visitor_records.read',
+    module: 'visitor_records',
+    action: 'read',
+    name: '查看访客记录',
+    description: '访客会话级明细列表（脱敏 IP 网段 + 国家 + 城市 + 时间；仅管理员）',
+    isNav: true,
+    sortOrder: 10,
   },
 ] as const;
 

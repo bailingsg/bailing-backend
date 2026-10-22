@@ -44,6 +44,13 @@ function makePrismaMock() {
       findFirst: jest.fn(),
       delete: jest.fn(),
     },
+    // Phase 5.6：产品图片上传时同步登记媒体资产（用途 = 产品）
+    mediaAsset: {
+      create: jest.fn(),
+      updateMany: jest.fn(),
+      findFirst: jest.fn(),
+      delete: jest.fn(),
+    },
     category: {
       findUnique: jest.fn(),
       findMany: jest.fn(),
@@ -336,6 +343,49 @@ describe('ProductsService（unit）', () => {
     expect(call.data.specifications).toBe(Prisma.JsonNull);
   });
 
+  it('create：description 入库前经 sanitizeRichText 净化（剥离 script 与无关属性）', async () => {
+    prisma.category.findUnique.mockResolvedValue(makeCategoryRow());
+    prisma.product.create.mockResolvedValue(makeProductRow({ status: ProductStatus.DRAFT }));
+
+    await service.create({
+      name: 'Oak Plywood',
+      slug: 'oak-plywood',
+      categoryId: 'cat-1',
+      description:
+        '<div class="module_attribute" data-module-name="module_attribute"><p>正文段落</p>' +
+        '<script>alert(1)</script><a href="javascript:alert(2)">bad</a>' +
+        '<a href="https://example.com">ok</a></div>',
+    } as CreateProductDto);
+
+    const call = prisma.product.create.mock.calls[0][0] as { data: Record<string, unknown> };
+    const stored = call.data.description as string;
+
+    // 标签保留，属性剥离
+    expect(stored).toContain('<div>');
+    expect(stored).not.toContain('module_attribute');
+    expect(stored).not.toContain('data-module-name');
+    // 危险内容被移除
+    expect(stored).not.toContain('<script');
+    expect(stored).not.toContain('javascript:');
+    // 安全链接保留
+    expect(stored).toContain('href="https://example.com"');
+    // 正文文字保留
+    expect(stored).toContain('正文段落');
+  });
+
+  it('update：description 同样经 sanitizeRichText 净化', async () => {
+    prisma.product.findUnique.mockResolvedValue({ id: 'prod-1' });
+    prisma.product.update.mockResolvedValue(makeProductRow());
+
+    await service.update('prod-1', {
+      description: '<p onclick="alert(1)">安全文本</p><iframe src="x"></iframe>',
+    } as UpdateProductDto);
+
+    const call = prisma.product.update.mock.calls[0][0] as { data: Record<string, unknown> };
+    const stored = call.data.description as string;
+    expect(stored).toBe('<p>安全文本</p>');
+  });
+
   it('create：slug 冲突（P2002）映射为 409', async () => {
     prisma.category.findUnique.mockResolvedValue(makeCategoryRow());
     prisma.product.create.mockRejectedValue(prismaKnownError('P2002'));
@@ -420,6 +470,11 @@ describe('ProductsService（unit）', () => {
       where: { productId: 'prod-1', isPrimary: true },
       data: { isPrimary: false },
     });
+    // Phase 5.6：上传即登记媒体资产，用途自动为「产品」
+    expect(prisma.mediaAsset.create).toHaveBeenCalledTimes(1);
+    const mediaCall = prisma.mediaAsset.create.mock.calls[0][0] as { data: Record<string, unknown> };
+    expect(mediaCall.data.usage).toBe('PRODUCT');
+    expect(mediaCall.data.url).toBe('http://localhost:4000/uploads/products/first.png');
   });
 
   it('addImage：产品不存在时删除已落盘文件并返回 404', async () => {

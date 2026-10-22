@@ -24,6 +24,12 @@ export interface RfqSourceMeta {
   userAgent?: string | null;
 }
 
+/** 直发收件人（访客指定销售员的"站内信箱"场景） */
+interface DirectRecipient {
+  adminUserId: string;
+  displayEmail: string;
+}
+
 /**
  * RFQ 询盘服务。
  *
@@ -59,8 +65,14 @@ export class RfqService {
    * 若 productId 无效（已被删除 / 未发布 / 伪造），则**丢弃该关联但不拒绝提交**
    * —— 询盘是核心销售线索，不应因产品引用失效而丢失。
    *
-   * 自动分配（Phase 4.6）：询盘落库后在同一事务内按「倾斜计划 / 正常轮询」分配承接人。
-   * 分配失败**不影响**询盘入库——销售线索优先，引擎故障只记错误日志。
+   * 直发模式（访客从 Sales Contacts 指定销售员）：询盘落库时直接归属该销售员，
+   * **跳过分配引擎**——不抢轮询指针、不计入倾斜计划进度，别人的轮询顺位不受影响；
+   * 邮件通知沿用同一链路（发给该销售员 + 抄送管理通知地址）。
+   * directEmail 无效（未公开 / 账号停用 / 乱填）时静默回落到正常轮询分配，
+   * 线索优先，绝不让一次指定失败丢掉询盘。
+   *
+   * 自动分配（Phase 4.6，仅非直发）：询盘落库后在同一事务内按「倾斜计划 / 正常轮询」
+   * 分配承接人。分配失败**不影响**询盘入库——销售线索优先，引擎故障只记错误日志。
    */
   async create(dto: CreateRfqDto, meta: RfqSourceMeta = {}): Promise<RfqReceiptDto> {
     let productId: string | null = null;
@@ -77,6 +89,8 @@ export class RfqService {
       }
     }
 
+    const directRecipient = await this.resolveDirectRecipient(dto.directEmail);
+
     const created = await this.prisma.$transaction(async (tx) => {
       const rfq = await tx.rfq.create({
         data: {
@@ -92,10 +106,19 @@ export class RfqService {
           attachmentUrl: dto.attachmentUrl ?? null,
           sourceIp: meta.sourceIp ?? null,
           userAgent: meta.userAgent ?? null,
+          // 直发模式：入库即归属，无需分配引擎介入
+          ...(directRecipient
+            ? { assigneeId: directRecipient.adminUserId, assignedAt: new Date() }
+            : {}),
         },
       });
 
-      if (this.leadDistribution) {
+      if (directRecipient) {
+        // 不计入轮转 / 倾斜计划：只记日志，供排障时确认直发链路生效
+        this.logger.log(
+          `询盘 ${rfq.id} 由访客直发给 ${directRecipient.displayEmail}（站内信箱，不参与轮询分配）`,
+        );
+      } else if (this.leadDistribution) {
         try {
           const outcome = await this.leadDistribution.assignToRfq(rfq.id, tx);
           if (outcome) {
@@ -118,9 +141,44 @@ export class RfqService {
     });
 
     // 邮件通知：异步发出，不阻塞访客回执；失败只记日志（询盘已入库，线索不丢）
+    // 直发模式下 assignee 已置为直发对象，收件人规则不变（该销售员 + 抄送管理通知地址）
     void this.dispatchInquiryEmail(created.id);
 
     return toRfqReceipt(created);
+  }
+
+  /**
+   * 解析直发收件人（站内信箱）。
+   *
+   * 只接受「已公开展示（showOnSite）且账号启用」的员工对外工作邮箱（displayEmail），
+   * 与前台 PublicContact 的口径一致：访客只能指定他在 Sales Contacts 里看得见的人。
+   * 任何不匹配都返回 null（回落到正常轮询），从根上堵住"借公开接口给任意地址发信"。
+   */
+  private async resolveDirectRecipient(
+    email: string | undefined,
+  ): Promise<DirectRecipient | null> {
+    if (!email) return null;
+
+    const contact = await this.prisma.employeeContact.findFirst({
+      where: {
+        displayEmail: { equals: email, mode: 'insensitive' },
+        showOnSite: true,
+        adminUser: { isActive: true },
+      },
+      select: {
+        adminUserId: true,
+        displayEmail: true,
+      },
+    });
+
+    if (!contact?.displayEmail) {
+      this.logger.warn(
+        `直发收件人 ${email} 不是已公开的销售联系人，本次询盘按正常轮询分配`,
+      );
+      return null;
+    }
+
+    return { adminUserId: contact.adminUserId, displayEmail: contact.displayEmail };
   }
 
   /**

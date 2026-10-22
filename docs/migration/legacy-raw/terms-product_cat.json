@@ -1,0 +1,122 @@
+{
+ "36": {
+  "id": 36,
+  "name": "Block Board",
+  "slug": "block-board",
+  "count": 5,
+  "parent": 0,
+  "description": "Block Boards are high-strength wood panels made with solid wood strips as the core, laminated with veneers under high pressure.<br data-start=\"569\" data-end=\"572\" />They are widely used in furniture manufacturing, interior decoration, doors, partitions, and wall cladding due to their stability and excellent screw-holding capacity.<br data-start=\"739\" data-end=\"742\" />Our block boards are crafted with eco-friendly adhesives and selected hardwood, ensuring flat surfaces, durability, and resistance to warping.<br data-start=\"884\" data-end=\"887\" />With strict quality inspection and sustainable production, Shouguang Bailing Wood Industry provides reliable and green decorative materials for global customers."
+ },
+ "35": {
+  "id": 35,
+  "name": "Cement Board",
+  "slug": "cement-board",
+  "count": 1,
+  "parent": 0,
+  "description": "Cement Boards are high-strength building panels made from cement and reinforced fibers, cured under high pressure and temperature.<br data-start=\"571\" data-end=\"574\" />They feature excellent fire resistance, moisture resistance, mold protection, and impact strength, ideal for interior and exterior walls, ceilings, floors, and partitions.<br data-start=\"745\" data-end=\"748\" />With a dense and stable structure, cement boards provide a reliable base for tiles, paints, or stone finishes.<br data-start=\"858\" data-end=\"861\" />Produced with advanced technology and strict quality control, Shouguang Bailing ensures every board meets international construction and environmental standards."
+ },
+ "39": {
+  "id": 39,
+  "name": "Door",
+  "slug": "door",
+  "count": 5,
+  "parent": 0,
+  "description": "Our craftsmen skillfully craft our Door Series from premium materials and apply eco-friendly finishes, elegantly combining durability with functionality.\r\nWe offer a diverse range including solid wood doors, composite doors, molded doors, and eco doors, making them ideal for homes, apartments, offices, and commercial spaces."
+ },
+ "38": {
+  "id": 38,
+  "name": "Door Skin",
+  "slug": "door-skin",
+  "count": 1,
+  "parent": 0,
+  "description": "Door Skins are decorative surface panels used for enhancing and protecting wooden doors.<br data-start=\"532\" data-end=\"535\" />Made from high-quality MDF or HDF with PVC, melamine, or wood grain finishes, our door skins feature realistic textures, rich colors, and superior durability.<br data-start=\"693\" data-end=\"696\" />They provide excellent moisture resistance, wear resistance, and anti-cracking performance, suitable for molded doors, composite doors, and interior door applications.<br data-start=\"863\" data-end=\"866\" />Shouguang Bailing offers a wide range of designs and customization options to meet diverse market and aesthetic demands."
+ },
+ "40": {
+  "id": 40,
+  "name": "Edge Banding",
+  "slug": "edge-banding",
+  "count": 1,
+  "parent": 0,
+  "description": "Edge Banding is used to seal and protect furniture panel edges for a clean, durable finish.<br data-start=\"415\" data-end=\"418\" />Made from PVC or ABS, it offers strong adhesion, moisture resistance, and various colors and textures."
+ },
+ "41": {
+  "id": 41,
+  "name": "Film Faced Plywood",
+  "slug": "film-faced-plywood",
+  "count": 3,
+  "parent": 0,
+  "description": "Film Faced Plywood is made from high-quality hardwood core with waterproof glue and a phenolic film coating.<br data-start=\"464\" data-end=\"467\" />It offers excellent strength, water resistance, and smooth surface, ideal for concrete formwork and construction projects."
+ },
+ "34": {
+  "id": 34,
+  "name": "Gypsum Board",
+  "slug": "gypsum-board",
+  "count": 1,
+  "parent": 0,
+  "description": "Gypsum Board is a lightweight building material made with a gypsum core and paper surfaces.<br data-start=\"399\" data-end=\"402\" />It offers fire resistance, sound insulation, and smooth finishing for walls, ceilings, and partitions."
+ },
+ "37": {
+  "id": 37,
+  "name": "Hard Board",
+  "slug": "hard-board",
+  "count": 1,
+  "parent": 0,
+  "description": "Hard Board is a high-density fiberboard made from refined wood fibers under heat and pressure.<br data-start=\"411\" data-end=\"414\" />It offers smooth surface, durability, and strength for furniture backing, doors, and decorative bases."
+ },
+ "23": {
+  "id": 23,
+  "name": "MDF",
+  "slug": "mdf",
+  "count": 6,
+  "parent": 0,
+  "description": "MDF (Medium Density Fiberboard) is made from high-quality wood fibers pressed under heat and pressure. It features a smooth surface, uniform density, and excellent machinability for furniture and decoration."
+ },
+ "32": {
+  "id": 32,
+  "name": "Particle Board",
+  "slug": "particle-board",
+  "count": 4,
+  "parent": 0,
+  "description": "Particle Board is made from wood particles bonded under heat and pressure, offering a smooth surface and strong screw-holding ability. Ideal for furniture, cabinets, doors, and interior decoration."
+ },
+ "33": {
+  "id": 33,
+  "name": "Plywood",
+  "slug": "plywood",
+  "count": 2,
+  "parent": 0,
+  "description": "Plywood is made of cross-laminated wood veneers bonded with strong adhesive, offering high strength and stability. It is widely used in furniture, doors, decoration, and construction projects."
+ },
+ "42": {
+  "id": 42,
+  "name": "SPC Flooring",
+  "slug": "spc-flooring",
+  "count": 1,
+  "parent": 0,
+  "description": "SPC Flooring is a rigid core vinyl floor made from stone powder and polymer resin. It is waterproof, wear-resistant, and easy to install, ideal for homes, offices, and commercial areas."
+ },
+ "15": {
+  "id": 15,
+  "name": "Uncategorized",
+  "slug": "uncategorized",
+  "count": 0,
+  "parent": 0,
+  "description": ""
+ },
+ "43": {
+  "id": 43,
+  "name": "Wall Panel",
+  "slug": "wall-panel",
+  "count": 2,
+  "parent": 0,
+  "description": "Wall Panels are decorative panels for interior walls, made from wood, PVC, or composite materials. They are durable, moisture-resistant, and visually appealing, ideal for homes, offices, and commercial spaces"
+ },
+ "44": {
+  "id": 44,
+  "name": "WPC Wall Panels",
+  "slug": "wpc-wall-panels",
+  "count": 1,
+  "parent": 0,
+  "description": "WPC Wall Panels are made from wood powder and PVC composite, offering waterproof, moisture-resistant, and durable properties. Ideal for interior walls, ceilings, and decorative projects, with easy installation and natural appearance."
+ }
+}

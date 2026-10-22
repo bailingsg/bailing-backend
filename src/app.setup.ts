@@ -1,4 +1,5 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { mkdirSync } from 'node:fs';
@@ -16,6 +17,19 @@ export function setupApp(app: INestApplication): void {
 
   // 统一 API 前缀，与 docs/API-CONVENTIONS.md 保持一致
   app.setGlobalPrefix('api/v1');
+
+  /*
+   * 访客统计：代理信任（访客统计实现规格 4.6）。
+   *
+   * 线上链路 客户端 → nginx → 后端容器：不信任代理时 req.ip 是 nginx 内网
+   * 地址，GeoIP 与限流全部失效。TRUST_PROXY=1 表示信任紧邻一层反代，
+   * 按 X-Forwarded-For 回推一跳；'true' 已在 configuration.ts 强制降级为 1
+   * （true 允许任意客户端伪造来源 IP，属安全红线）。未配置时不设置。
+   */
+  const trustProxy = config.get<number | undefined>('trustProxy');
+  if (trustProxy !== undefined) {
+    (app as unknown as NestExpressApplication).set('trust proxy', trustProxy);
+  }
 
   // 本地图片存储（Phase 4.2）：/uploads/products/** 静态可读。
   // 目录在启动时确保存在；文件写入由 multer 拦截器完成（服务端生成文件名）。
@@ -46,7 +60,7 @@ export function setupApp(app: INestApplication): void {
 
   // 统一异常处理与统一成功响应结构
   app.useGlobalFilters(new HttpExceptionFilter());
-  app.useGlobalInterceptors(new TransformInterceptor());
+  app.useGlobalInterceptors(new TransformInterceptor(new Reflector()));
 
   /*
    * HTTP 缓存策略（Phase 4.8）—— 全站唯一出口，避免各控制器各写一套。

@@ -6,6 +6,12 @@ export interface ContactDto {
   jobTitle: string | null;
   displayEmail: string | null;
   whatsapp: string | null;
+  /** 对外展示手机号（可直接拨打；与 whatsapp 相互独立） */
+  phone: string | null;
+  /** 头像访问地址（provider 生成；COS 场景为 CDN 域名）。无头像时 null，前台回退首字母 */
+  avatarUrl: string | null;
+  /** 头像存储对象键（仅后台可见，用于核对存储中的实际对象；公开接口绝不返回） */
+  avatarKey: string | null;
   showOnSite: boolean;
   isLeadContact: boolean;
   sortOrder: number;
@@ -32,11 +38,13 @@ export interface ContactListDto {
   employeesWithoutContact: { id: string; name: string | null; email: string; jobTitle: string | null }[];
 }
 
-/** 公开联系方式（绝不包含 internalNote / loginEmail） */
+/** 公开联系方式（绝不包含 internalNote / loginEmail / avatarKey） */
 export interface PublicContactDto {
   displayName: string;
   jobTitle: string | null;
   displayEmail: string | null;
   whatsapp: string | null;
+  phone: string | null;
+  avatarUrl: string | null;
   sortOrder: number;
 }

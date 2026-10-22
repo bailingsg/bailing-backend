@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -10,8 +11,12 @@ import {
   Put,
   Query,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { Transform } from 'class-transformer';
 import { IsBoolean } from 'class-validator';
 import type { Request } from 'express';
@@ -24,6 +29,7 @@ import type { AuthUser } from '../../auth/auth.types';
 import { ContactsService } from './contacts.service';
 import { ListContactsQueryDto, UpsertContactDto } from './dto/contact.dto';
 import type { ContactDto, ContactListDto } from './entities/contact.entity';
+import { MAX_MEDIA_FILE_SIZE } from '../../media/media-file.util';
 
 /** 切换公开展示的请求体 */
 class SetShowOnSiteDto {
@@ -45,8 +51,12 @@ class SetShowOnSiteDto {
  *   PUT    /api/v1/cms/contacts                          创建/更新（contacts.update）
  *   PATCH  /api/v1/cms/contacts/:id/visibility           切换公开展示（contacts.update）
  *   DELETE /api/v1/cms/contacts/:id                      删除（contacts.update）
+ *   PUT    /api/v1/cms/contacts/:id/avatar               上传/替换头像（multipart，字段 file；contacts.update）
+ *   DELETE /api/v1/cms/contacts/:id/avatar               移除头像（contacts.update）
  *
  * 防幽灵员工：adminUserId 只接受系统中真实存在的员工账号。
+ * 头像：内存接收 → StorageProvider 落地（Local / COS 透明）；替换时先传新对象、
+ * 落库后再删旧对象，保证存储中不留孤儿文件。
  */
 @Controller('cms/contacts')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -110,5 +120,36 @@ export class ContactsController {
     @Req() request: Request & { user: AuthUser },
   ): Promise<{ id: string }> {
     return this.actorOf(request).then((actor) => this.contactsService.remove(id, actor));
+  }
+
+  /**
+   * 上传 / 替换头像（multipart/form-data，字段名 file）。
+   * 已鉴权 + contacts.update；MIME/大小/魔数校验在 Service 层完成。
+   */
+  @Put(':id/avatar')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_MEDIA_FILE_SIZE, files: 1 },
+    }),
+  )
+  @RequirePermissions('contacts.update')
+  uploadAvatar(
+    @Param('id') id: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Req() request: Request & { user: AuthUser },
+  ): Promise<ContactDto> {
+    if (!file) throw new BadRequestException('请上传头像文件（字段名 file）');
+    return this.actorOf(request).then((actor) => this.contactsService.setAvatar(id, file, actor));
+  }
+
+  /** 移除头像（同时删除存储对象，不留孤儿文件） */
+  @Delete(':id/avatar')
+  @RequirePermissions('contacts.update')
+  removeAvatar(
+    @Param('id') id: string,
+    @Req() request: Request & { user: AuthUser },
+  ): Promise<ContactDto> {
+    return this.actorOf(request).then((actor) => this.contactsService.removeAvatar(id, actor));
   }
 }

@@ -455,7 +455,7 @@ export class SeoAuditService {
           'PRODUCT',
           p.id,
           p.name,
-          `/products/${p.slug}`,
+          `/products/${p.id}`,
           p.status === ProductStatus.PUBLISHED,
           p.description ?? '',
           p.images.length,

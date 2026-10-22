@@ -34,6 +34,28 @@ export interface AdminProfileDto {
 }
 
 /**
+ * 「我的联系方式」自助视图（GET/PATCH /auth/profile 的 contact 段）。
+ *
+ * 刻意**不含** internalNote / sortOrder / isLeadContact：
+ * 那些是管理侧语义（内部备注、展示排序、询盘分配），员工自改会破坏审计与分配公平。
+ */
+export interface MyContactDto {
+  displayName: string;
+  jobTitle: string | null;
+  displayEmail: string | null;
+  whatsapp: string | null;
+  phone: string | null;
+  showOnSite: boolean;
+}
+
+/** 我的资料（账号档案 + 自己的联系方式） */
+export interface MyProfileDto {
+  profile: AdminProfileDto;
+  /** 尚未创建联系方式时为 null（首次保存展示信息时自动创建） */
+  contact: MyContactDto | null;
+}
+
+/**
  * AdminUser → 对外档案。
  * 显式挑选字段：passwordHash 等敏感列永不出现在响应中。
  */
