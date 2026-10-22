@@ -12,6 +12,10 @@ const BLOG_PUBLIC_INCLUDE = {
   category: true,
   tags: { include: { tag: true } },
   coverMedia: true,
+  // Phase 5.6：关联产品只取 slug + status，用于前台「相关产品」区块跳转
+  relatedProducts: {
+    select: { sortOrder: true, product: { select: { slug: true, status: true } } },
+  },
 } satisfies Prisma.BlogPostInclude;
 
 const DEFAULT_PAGE_SIZE = 9;

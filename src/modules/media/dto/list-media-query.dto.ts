@@ -1,4 +1,4 @@
-import { MediaCategory } from '@prisma/client';
+import { MediaCategory, MediaUsage } from '@prisma/client';
 import { Transform } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
@@ -43,4 +43,9 @@ export class ListMediaQueryDto {
   @IsOptional()
   @IsEnum(MediaCategory)
   category?: MediaCategory;
+
+  /** 用途筛选（Phase 5.6）：BLOG / PRODUCT / CERTIFICATE / FACTORY / … */
+  @IsOptional()
+  @IsEnum(MediaUsage)
+  usage?: MediaUsage;
 }

@@ -95,12 +95,25 @@ export class CreateProductDto {
   @MaxLength(64)
   categoryId!: string;
 
+  /**
+   * 列表页短描述（卡片展示）。
+   *
+   * 上限 100 字：这是前台产品卡片与 SEO 摘要的唯一来源。历史迁移数据曾灌入
+   * 300+ 字段落正文（旧站整段 description 的前 300 字），导致卡片高度失控。
+   * 超过 100 字直接 400，迫使编辑在后台精简后再发布。
+   */
   @IsOptional()
   @Transform(trim)
   @IsString()
-  @MaxLength(500)
+  @MaxLength(100)
   shortDescription?: string;
 
+  /**
+   * 详情页完整描述（富文本 HTML）。
+   *
+   * XSS 过滤由 Service 调 sanitizeRichText 完成（与 blog / factory 同一白名单），
+   * 前端详情页据此用 dangerouslySetInnerHTML 渲染（product-prose 样式）。
+   */
   @Transform(trim)
   @IsString()
   @MinLength(10)
@@ -164,10 +177,14 @@ export class UpdateProductDto {
   @MaxLength(64)
   categoryId?: string;
 
+  /**
+   * 列表页短描述（卡片展示）；上限 100 字，与 CreateProductDto 一致。
+   * 历史数据 300 字符段编辑保存时会被拒绝——后台表单已有字数提示引导精简。
+   */
   @IsOptional()
   @Transform(trim)
   @IsString()
-  @MaxLength(500)
+  @MaxLength(100)
   shortDescription?: string;
 
   @IsOptional()

@@ -10,7 +10,9 @@ import { PublicApplicationsService } from './public-applications.service';
 import { PublicContactsController } from './public-contacts.controller';
 import { PublicBlogController } from './public-blog.controller';
 import { PublicBlogService } from './public-blog.service';
+import { PublicMediaController } from './public-media.controller';
 import { PublicSiteController } from './public-site.controller';
+import { PublicMediaService } from './public-media.service';
 import { PublicSiteService, PublicNavService } from './public-site.service';
 
 /**
@@ -29,6 +31,7 @@ import { PublicSiteService, PublicNavService } from './public-site.service';
     PublicApplicationsController,
     PublicContactsController,
     PublicBlogController,
+    PublicMediaController,
     PublicSiteController,
   ],
   providers: [
@@ -36,6 +39,7 @@ import { PublicSiteService, PublicNavService } from './public-site.service';
     PublicQualityService,
     PublicApplicationsService,
     PublicBlogService,
+    PublicMediaService,
     PublicSiteService,
     PublicNavService,
   ],

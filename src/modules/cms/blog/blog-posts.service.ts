@@ -9,7 +9,7 @@ import { PostStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RevalidationService } from '../../revalidation/revalidation.service';
 import { CmsTags } from '../../revalidation/cms-tags';
-import { CreateBlogPostDto, UpdateBlogPostDto } from './dto/blog-post.dto';
+import { CreateBlogPostDto, MAX_RELATED_PRODUCTS, UpdateBlogPostDto } from './dto/blog-post.dto';
 import { ListBlogPostsQueryDto } from './dto/list-blog-posts-query.dto';
 import { sanitizeRichText } from './rich-text.sanitizer';
 import {
@@ -41,6 +41,11 @@ const BLOG_POST_INCLUDE = {
   author: { select: { id: true, name: true } },
   coverMedia: { select: { id: true, url: true, altText: true, width: true, height: true } },
   tags: { include: { tag: { select: { id: true, name: true, slug: true } } } },
+  // Phase 5.6：关联产品（最多 4 个，sortOrder 即选择顺序）
+  relatedProducts: {
+    include: { product: { select: { id: true, name: true, slug: true, status: true } } },
+    orderBy: { sortOrder: 'asc' },
+  },
 } satisfies Prisma.BlogPostInclude;
 
 /**
@@ -126,6 +131,7 @@ export class BlogPostsService {
     if (dto.categoryId) await this.assertCategoryExists(dto.categoryId);
     const cover = await this.resolveCoverMedia(dto.coverMediaId);
     const tagIds = await this.resolveTagIds(dto.tagIds);
+    const relatedProductIds = await this.resolveRelatedProductIds(dto.relatedProductIds);
 
     try {
       const created = await this.prisma.blogPost.create({
@@ -152,6 +158,15 @@ export class BlogPostsService {
           twitterTitle: dto.twitterTitle ?? null,
           twitterDescription: dto.twitterDescription ?? null,
           tags: tagIds.length > 0 ? { create: tagIds.map((tagId) => ({ tagId })) } : undefined,
+          relatedProducts:
+            relatedProductIds.length > 0
+              ? {
+                  create: relatedProductIds.map((productId, index) => ({
+                    productId,
+                    sortOrder: index,
+                  })),
+                }
+              : undefined,
         },
         include: BLOG_POST_INCLUDE,
       });
@@ -164,12 +179,16 @@ export class BlogPostsService {
 
   /**
    * 从 Update DTO 构造 Prisma 更新数据（直接保存与「发布时应用编辑稿」共用）。
-   * 返回的 tagIds 为 undefined 时表示本次不改标签关联。
+   * 返回的 tagIds / relatedProductIds 为 undefined 时表示本次不改对应关联。
    */
   private async buildUpdateData(
     dto: UpdateBlogPostDto,
     db: PrismaService | Prisma.TransactionClient,
-  ): Promise<{ data: Prisma.BlogPostUpdateInput; tagIds: string[] | undefined }> {
+  ): Promise<{
+    data: Prisma.BlogPostUpdateInput;
+    tagIds: string[] | undefined;
+    relatedProductIds: string[] | undefined;
+  }> {
     if (dto.categoryId) {
       const category = await db.blogCategory.findUnique({
         where: { id: dto.categoryId },
@@ -180,6 +199,10 @@ export class BlogPostsService {
     const cover =
       dto.coverMediaId === undefined ? undefined : await this.resolveCoverMedia(dto.coverMediaId, db);
     const tagIds = dto.tagIds === undefined ? undefined : await this.resolveTagIds(dto.tagIds, db);
+    const relatedProductIds =
+      dto.relatedProductIds === undefined
+        ? undefined
+        : await this.resolveRelatedProductIds(dto.relatedProductIds, db);
 
     const data: Prisma.BlogPostUpdateInput = {};
     if (dto.title !== undefined) data.title = dto.title;
@@ -207,7 +230,7 @@ export class BlogPostsService {
 
     // 注意：status / publishedAt 已从 DTO 移除，此处不再处理，
     // 发布态只能由 publish / unpublish 变更。
-    return { data, tagIds };
+    return { data, tagIds, relatedProductIds };
   }
 
   /** 更新文章（PATCH：三态语义 —— undefined 保持 / null 置空 / 有值覆盖） */
@@ -219,7 +242,7 @@ export class BlogPostsService {
     const existing = await this.prisma.blogPost.findUnique({ where: { id }, select: { id: true } });
     if (!existing) throw new NotFoundException('文章不存在');
 
-    const { data, tagIds } = await this.buildUpdateData(dto, ctx.tx ?? this.prisma);
+    const { data, tagIds, relatedProductIds } = await this.buildUpdateData(dto, ctx.tx ?? this.prisma);
 
     try {
       const apply = async (tx: Prisma.TransactionClient) => {
@@ -228,6 +251,18 @@ export class BlogPostsService {
           if (tagIds.length > 0) {
             await tx.blogPostTag.createMany({
               data: tagIds.map((tagId) => ({ postId: id, tagId })),
+            });
+          }
+        }
+        if (relatedProductIds !== undefined) {
+          await tx.blogPostProduct.deleteMany({ where: { postId: id } });
+          if (relatedProductIds.length > 0) {
+            await tx.blogPostProduct.createMany({
+              data: relatedProductIds.map((productId, index) => ({
+                postId: id,
+                productId,
+                sortOrder: index,
+              })),
             });
           }
         }
@@ -285,11 +320,23 @@ export class BlogPostsService {
           return row as BlogPostWithRelations;
         }
         const dto = payload as UpdateBlogPostDto;
-        const { data, tagIds } = await this.buildUpdateData(dto, tx);
+        const { data, tagIds, relatedProductIds } = await this.buildUpdateData(dto, tx);
         if (tagIds !== undefined) {
           await tx.blogPostTag.deleteMany({ where: { postId: id } });
           if (tagIds.length > 0) {
             await tx.blogPostTag.createMany({ data: tagIds.map((tagId) => ({ postId: id, tagId })) });
+          }
+        }
+        if (relatedProductIds !== undefined) {
+          await tx.blogPostProduct.deleteMany({ where: { postId: id } });
+          if (relatedProductIds.length > 0) {
+            await tx.blogPostProduct.createMany({
+              data: relatedProductIds.map((productId, index) => ({
+                postId: id,
+                productId,
+                sortOrder: index,
+              })),
+            });
           }
         }
         return tx.blogPost.update({
@@ -419,6 +466,31 @@ export class BlogPostsService {
     return unique;
   }
 
+  /**
+   * 校验关联产品集合：去重、限 4 个、逐个存在性校验。
+   * 返回去重后的 id 列表（顺序保持首次出现顺序，落库为 sortOrder）。
+   */
+  private async resolveRelatedProductIds(
+    productIds: string[] | undefined,
+    db: PrismaService | Prisma.TransactionClient = this.prisma,
+  ): Promise<string[]> {
+    if (!productIds || productIds.length === 0) return [];
+    const unique = [...new Set(productIds)];
+    if (unique.length > MAX_RELATED_PRODUCTS) {
+      throw new BadRequestException(`一篇最多关联 ${MAX_RELATED_PRODUCTS} 个产品`);
+    }
+    const found = await db.product.findMany({
+      where: { id: { in: unique } },
+      select: { id: true },
+    });
+    if (found.length !== unique.length) {
+      const foundSet = new Set(found.map((p) => p.id));
+      const missing = unique.filter((p) => !foundSet.has(p));
+      throw new BadRequestException(`关联产品不存在: ${missing.join(', ')}`);
+    }
+    return unique;
+  }
+
   /** slug 唯一冲突 → 409；P2025 → 404；其余包装 500 */
   private mapWriteError(error: unknown, slug?: string): unknown {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -426,7 +498,7 @@ export class BlogPostsService {
         return new ConflictException(`文章 slug 已存在: ${slug}`);
       }
       if (error.code === 'P2003') {
-        return new BadRequestException('关联资源不存在（分类 / 标签 / 封面媒体）');
+        return new BadRequestException('关联资源不存在（分类 / 标签 / 封面媒体 / 关联产品）');
       }
       if (error.code === 'P2025') {
         return new NotFoundException('文章不存在');

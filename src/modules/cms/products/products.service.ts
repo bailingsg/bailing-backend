@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Prisma } from '@prisma/client';
+import { MediaCategory, MediaProvider, MediaUsage, Prisma } from '@prisma/client';
 import { unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -27,6 +27,7 @@ import {
 import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
 import { ListProductsQueryDto } from './dto/list-products-query.dto';
 import { AddProductImageDto } from './dto/product-image.dto';
+import { sanitizeRichText } from '../blog/rich-text.sanitizer';
 import {
   PRODUCT_UPLOAD_DIR,
   UPLOAD_URL_PREFIX,
@@ -71,12 +72,13 @@ export class ProductsService {
    *
    * 同时失效列表 tag 与实体 tag：产品改名/换图会影响列表卡片，
    * 单个产品页也需要重新渲染。路径覆盖列表页与详情页。
+   * 实体 tag 与详情路径均以产品 **id** 为键（前台详情路由 /products/[id]）。
    */
-  private notifyFrontend(slug?: string): void {
+  private notifyFrontend(ref?: { id: string; slug: string }): void {
     void this.revalidation.invalidate({
-      tags: [CmsTags.products, ...(slug ? [CmsTags.product(slug)] : [])],
+      tags: [CmsTags.products, ...(ref ? [CmsTags.product(ref.id)] : [])],
       // sitemap 含产品详情 URL，必须一并失效
-      paths: ['/products', '/sitemap.xml', ...(slug ? [`/products/${slug}`] : [])],
+      paths: ['/products', '/sitemap.xml', ...(ref ? [`/products/${ref.id}`] : [])],
     });
   }
 
@@ -143,7 +145,8 @@ export class ProductsService {
           slug: dto.slug,
           categoryId: dto.categoryId,
           shortDescription: dto.shortDescription ?? null,
-          description: dto.description,
+          // 富文本：白名单净化（防 XSS；同时剥离迁移数据里的 data-module-name 等无用属性）
+          description: sanitizeRichText(dto.description),
           material: dto.material ?? null,
           applications: dto.applications ? (dto.applications as Prisma.InputJsonValue) : Prisma.JsonNull,
           specifications: dto.specifications
@@ -157,7 +160,7 @@ export class ProductsService {
         },
         include: PRODUCT_INCLUDE,
       });
-      this.notifyFrontend(created.slug);
+      this.notifyFrontend(created);
       return toCmsProductDetail(created as ProductWithRelations);
     } catch (error) {
       throw this.mapWriteError(error, dto.slug);
@@ -171,7 +174,8 @@ export class ProductsService {
     if (dto.slug !== undefined) data.slug = dto.slug;
     if (dto.categoryId !== undefined) data.category = { connect: { id: dto.categoryId } };
     if (dto.shortDescription !== undefined) data.shortDescription = dto.shortDescription;
-    if (dto.description !== undefined) data.description = dto.description;
+    // 富文本：白名单净化（防 XSS；迁移数据里的 data-* 属性与未知 class 一并剥离）
+    if (dto.description !== undefined) data.description = sanitizeRichText(dto.description);
     if (dto.material !== undefined) data.material = dto.material;
     if (dto.applications !== undefined) {
       data.applications = dto.applications as Prisma.InputJsonValue;
@@ -205,7 +209,7 @@ export class ProductsService {
         data: this.buildUpdateData(dto),
         include: PRODUCT_INCLUDE,
       });
-      if (!ctx.skipNotify) this.notifyFrontend(updated.slug);
+      if (!ctx.skipNotify) this.notifyFrontend(updated);
       return toCmsProductDetail(updated as ProductWithRelations);
     } catch (error) {
       throw this.mapWriteError(error, dto.slug);
@@ -307,14 +311,14 @@ export class ProductsService {
   /** 发布：把编辑稿应用为线上版本（事务内完成，失败不影响旧版本） */
   async publish(id: string, actorId: string | null): Promise<CmsProductDetailDto> {
     const result = await publishEntity(this.prisma, this.publishingAdapter(), id, actorId);
-    this.notifyFrontend(result.row.slug);
+    this.notifyFrontend(result.row);
     return withPublishMeta(toCmsProductDetail(result.row), result);
   }
 
   /** 取消发布：保留内容与历史，公开侧立即不可见 */
   async unpublish(id: string): Promise<CmsProductDetailDto> {
     const result = await unpublishEntity(this.prisma, this.publishingAdapter(), id);
-    this.notifyFrontend(result.row.slug);
+    this.notifyFrontend(result.row);
     return withPublishMeta(toCmsProductDetail(result.row), result);
   }
 
@@ -353,7 +357,7 @@ export class ProductsService {
       this.prisma.product.delete({ where: { id } }),
     ]);
     // 删除后前台必须立即 404：同时失效列表 tag 与（已删除的）详情页路径。
-    this.notifyFrontend(product.slug);
+    this.notifyFrontend(product);
     return { id };
   }
 
@@ -361,12 +365,16 @@ export class ProductsService {
 
   /**
    * 上传产品图片（文件已由 multer 拦截器落盘到 uploads/products）。
-   * 流程：产品存在性 → 魔数校验（失败即删文件）→ 写库 → 返回。
+   * 流程：产品存在性 → 魔数校验（失败即删文件）→ 写库 → 登记媒体资产 → 返回。
+   *
+   * Phase 5.6：上传即自动把用途分类登记为「产品」——产品编辑器里上传的图片
+   * 不需要再去媒体库手动归类；在媒体库里手动改用途同样生效（此处不覆盖已有值）。
    */
   async addImage(
     productId: string,
-    file: { path: string; mimetype: string; size: number },
+    file: { path: string; mimetype: string; size: number; originalname?: string },
     dto: AddProductImageDto,
+    uploaderId?: string,
   ): Promise<CmsProductImageDto> {
     const product = await this.prisma.product.findUnique({
       where: { id: productId },
@@ -407,12 +415,22 @@ export class ProductsService {
         },
       });
 
+      // Phase 5.6：同步登记到媒体库，用途 = 产品（上传即归类，无需手动选择）
+      await this.registerProductMediaAsset({
+        fileName,
+        originalName: file.originalname ?? fileName,
+        url,
+        mimeType: file.mimetype,
+        size: file.size,
+        uploaderId,
+      });
+
       // 新增图片会影响产品详情页与列表卡片，通知前台失效
       const owner = await this.prisma.product.findUnique({
         where: { id: productId },
-        select: { slug: true },
+        select: { id: true, slug: true },
       });
-      this.notifyFrontend(owner?.slug);
+      this.notifyFrontend(owner ?? undefined);
 
       return {
         id: image.id,
@@ -439,6 +457,8 @@ export class ProductsService {
 
     await this.prisma.productImage.delete({ where: { id: image.id } });
     await this.deleteImageFile(image.url);
+    // Phase 5.6：同步释放媒体库登记（仍被其它业务引用的资产保留）
+    await this.releaseProductMediaAsset(image.url);
 
     // 若删除的是主图且仍有其他图片，把最早的一张提升为主图
     if (image.isPrimary) {
@@ -455,14 +475,120 @@ export class ProductsService {
     // 图片变更会影响产品详情页展示，通知前台失效（含该产品详情路径）
     const owner = await this.prisma.product.findUnique({
       where: { id: productId },
-      select: { slug: true },
+      select: { id: true, slug: true },
     });
-    this.notifyFrontend(owner?.slug);
+    this.notifyFrontend(owner ?? undefined);
 
     return { id: image.id };
   }
 
   /* ------------------------------ 内部 ------------------------------ */
+
+  /**
+   * 把产品图片登记为媒体资产（Phase 5.6 用途分类）。
+   *
+   * 产品图片历史上走自己的 uploads/products 目录、不进 Media Library；
+   * 为了让媒体库能按「用途 = 产品」筛到这些图，这里补登一条 MediaAsset。
+   * **文件不复制、不移动**——storageKey / url 与产品图片指向同一个对象。
+   *
+   * 幂等：同一 storageKey 重复登记时，只在用途为空（未分类）时补成产品，
+   * 绝不覆盖用户在媒体库里手动改过的用途。
+   */
+  private async registerProductMediaAsset(params: {
+    fileName: string;
+    originalName: string;
+    url: string;
+    mimeType: string;
+    size: number;
+    uploaderId?: string;
+  }): Promise<void> {
+    const storageKey = `uploads/products/${params.fileName}`;
+    try {
+      await this.prisma.mediaAsset.create({
+        data: {
+          filename: params.fileName,
+          originalName: sanitizeOriginalName(params.originalName),
+          storageKey,
+          url: params.url,
+          mimeType: params.mimeType,
+          size: params.size,
+          category: MediaCategory.IMAGE,
+          usage: MediaUsage.PRODUCT,
+          provider: MediaProvider.LOCAL,
+          createdBy: params.uploaderId ?? 'system',
+        },
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        // 已登记过（同一次上传重试 / 历史数据）：仅补用途，不动其它字段
+        await this.prisma.mediaAsset.updateMany({
+          where: { storageKey, usage: null },
+          data: { usage: MediaUsage.PRODUCT },
+        });
+        return;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * 产品图片被删除时，同步释放媒体库登记（Phase 5.6）。
+   *
+   * 仍被其它业务（文章封面 / 工厂 / 质量 / 应用 / 站点 / 其它产品图）引用的资产保留，
+   * 由媒体库自己的删除保护兜底；只有零引用时才删登记行。
+   */
+  private async releaseProductMediaAsset(url: string): Promise<void> {
+    const asset = await this.prisma.mediaAsset.findFirst({
+      where: { url },
+      select: { id: true, url: true, filename: true },
+    });
+    if (!asset) return;
+
+    const referenced = await this.countMediaReferences(asset);
+    if (referenced > 0) return;
+    await this.prisma.mediaAsset.delete({ where: { id: asset.id } });
+  }
+
+  /**
+   * 媒体资产的业务引用计数。
+   * 与 MediaService.countReferences 同口径（产品模块不依赖 Media 模块的私有实现，
+   * 这里保留一份等价副本，避免为一个小功能把 DI 关系倒过来）。
+   */
+  private async countMediaReferences(asset: {
+    id: string;
+    url: string;
+    filename: string;
+  }): Promise<number> {
+    const byFileName = `/${asset.filename}`;
+    const counts = await Promise.all([
+      this.prisma.productImage.count({
+        where: { OR: [{ url: asset.url }, { url: { endsWith: byFileName } }] },
+      }),
+      this.prisma.blogPost.count({ where: { coverMediaId: asset.id } }),
+      this.prisma.blogPost.count({
+        where: {
+          OR: [{ coverImageUrl: asset.url }, { coverImageUrl: { endsWith: byFileName } }],
+        },
+      }),
+      this.prisma.factorySection.count({ where: { coverMediaId: asset.id } }),
+      this.prisma.factorySection.count({
+        where: {
+          OR: [{ coverImageUrl: asset.url }, { coverImageUrl: { endsWith: byFileName } }],
+        },
+      }),
+      this.prisma.factoryImage.count({ where: { mediaId: asset.id } }),
+      this.prisma.qualityRecord.count({ where: { mediaId: asset.id } }),
+      this.prisma.application.count({ where: { coverMediaId: asset.id } }),
+      this.prisma.application.count({
+        where: {
+          OR: [{ coverImageUrl: asset.url }, { coverImageUrl: { endsWith: byFileName } }],
+        },
+      }),
+      this.prisma.siteSection.count({ where: { mediaId: asset.id } }),
+    ]);
+
+    return counts.reduce((sum, value) => sum + (value ?? 0), 0);
+  }
 
   private async assertCategoryExists(categoryId: string): Promise<void> {
     const category = await this.prisma.category.findUnique({
@@ -500,4 +626,19 @@ export class ProductsService {
     }
     return new InternalServerErrorException('写入失败，请稍后重试');
   }
+}
+
+/**
+ * 原始文件名清洗（与 MediaService.sanitizeOriginalName 同口径）：
+ * 去目录成分、控制字符，仅保留常见安全字符并限长。
+ * 该值只用于媒体库展示，绝不参与路径拼接。
+ */
+function sanitizeOriginalName(originalName: string): string {
+  const base = path
+    .basename(originalName.replace(/\\/g, '/'))
+    .split('')
+    .filter((ch) => ch.charCodeAt(0) >= 0x20)
+    .join('');
+  const safe = base.replace(/[^\p{L}\p{N}._-]/gu, '_');
+  return (safe || 'unnamed').slice(0, 200);
 }

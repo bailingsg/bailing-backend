@@ -1,4 +1,4 @@
-import { MediaCategory, MediaProvider } from '@prisma/client';
+import { MediaCategory, MediaProvider, MediaUsage } from '@prisma/client';
 import type { MediaAsset } from '@prisma/client';
 
 /**
@@ -26,6 +26,8 @@ export interface MediaAssetDto {
   description: string | null;
   provider: MediaProvider;
   category: MediaCategory;
+  /** Phase 5.6：业务用途分类（null = 未分类） */
+  usage: MediaUsage | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -56,6 +58,7 @@ export function toMediaAssetDto(asset: MediaAsset): MediaAssetDto {
     description: asset.description,
     provider: asset.provider,
     category: asset.category,
+    usage: asset.usage,
     createdBy: asset.createdBy,
     createdAt: asset.createdAt.toISOString(),
     updatedAt: asset.updatedAt.toISOString(),

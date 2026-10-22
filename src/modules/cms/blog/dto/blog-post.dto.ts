@@ -38,6 +38,23 @@ export class IsTagIdListConstraint implements ValidatorConstraintInterface {
   }
 }
 
+/** 关联产品上限：前台详情页「相关产品」区块按 4 列展示 */
+export const MAX_RELATED_PRODUCTS = 4;
+
+/** relatedProductIds 校验：字符串数组，最多 4 项，每项 ≤64 字符（cuid） */
+@ValidatorConstraint({ name: 'isRelatedProductIdList' })
+export class IsRelatedProductIdListConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown): boolean {
+    if (!Array.isArray(value)) return false;
+    if (value.length > MAX_RELATED_PRODUCTS) return false;
+    return value.every((v) => typeof v === 'string' && v.trim().length > 0 && v.length <= 64);
+  }
+
+  defaultMessage(): string {
+    return `relatedProductIds 必须是非空字符串数组（最多 ${MAX_RELATED_PRODUCTS} 项，每项 ≤64 字符）`;
+  }
+}
+
 /**
  * 创建博客文章（POST /api/v1/cms/blog/posts）。
  *
@@ -88,6 +105,14 @@ export class CreateBlogPostDto {
   @IsOptional()
   @Validate(IsTagIdListConstraint)
   tagIds?: string[];
+
+  /**
+   * 关联产品（Phase 5.6，最多 4 个）。前台详情页「相关产品」区块按此顺序展示；
+   * 存在性由 Service 校验（不存在 → 400）。
+   */
+  @IsOptional()
+  @Validate(IsRelatedProductIdListConstraint)
+  relatedProductIds?: string[];
 
   @IsOptional()
   @Transform(toBool)
@@ -207,6 +232,11 @@ export class UpdateBlogPostDto {
   @IsOptional()
   @Validate(IsTagIdListConstraint)
   tagIds?: string[];
+
+  /** 关联产品（最多 4 个）：缺省 = 不变；空数组 = 全部解除 */
+  @IsOptional()
+  @Validate(IsRelatedProductIdListConstraint)
+  relatedProductIds?: string[];
 
   @IsOptional()
   @Transform(toBool)

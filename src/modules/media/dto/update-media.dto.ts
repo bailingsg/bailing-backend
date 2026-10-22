@@ -1,8 +1,15 @@
+import { MediaUsage } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 
 /** 去首尾空白；空串 = 清空（可空字段） */
 function trim({ value }: { value: unknown }): unknown {
+  return typeof value === 'string' ? value.trim() : value;
+}
+
+/** 用途字段：空串 / null → 清空为「未分类」，其余原样交给 IsEnum 校验 */
+function toNullableUsage({ value }: { value: unknown }): unknown {
+  if (value === null || value === '') return null;
   return typeof value === 'string' ? value.trim() : value;
 }
 
@@ -35,4 +42,12 @@ export class UpdateMediaDto {
   @IsString()
   @MaxLength(2000)
   description?: string;
+
+  /**
+   * 用途分类（Phase 5.6）。三态：缺省 = 不变；空串 / null = 置为未分类；有值 = 覆盖。
+   */
+  @IsOptional()
+  @Transform(toNullableUsage)
+  @IsEnum(MediaUsage, { message: '用途分类不合法（MediaUsage）' })
+  usage?: MediaUsage | null;
 }

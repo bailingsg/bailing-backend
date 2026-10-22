@@ -33,6 +33,11 @@ export interface ProductListItemDto {
   category: ProductCategoryRefDto | null;
   material: string | null;
   application: string | null;
+  /**
+   * 应用标签（后台 CMS「应用标签」维护，最多 20 项）。
+   * 未配置 / 非法结构一律为 null（不伪造标签）。
+   */
+  applications: string[] | null;
   featured: boolean;
   images: ProductImageDto[];
 }
@@ -74,6 +79,21 @@ export function normalizeSpecifications(
   return entries.length > 0 ? Object.fromEntries(entries) : null;
 }
 
+/**
+ * jsonb 应用标签 → 稳定的 string[]；非数组 / 空数组 / 非法项一律降级为 null。
+ *
+ * 后台字段是自由输入的标签（TagInput），历史上可能出现非字符串项或空白项，
+ * 这里统一清洗，保证公开契约里只出现非空字符串。
+ */
+export function normalizeApplications(value: Prisma.JsonValue | null): string[] | null {
+  if (!value || !Array.isArray(value)) return null;
+  const tags = value
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  return tags.length > 0 ? tags : null;
+}
+
 function toImageDto(image: ProductWithRelations['images'][number]): ProductImageDto {
   return {
     id: image.id,
@@ -106,6 +126,7 @@ export function toProductListItem(product: ProductWithRelations): ProductListIte
       : null,
     material: product.material,
     application: product.application,
+    applications: normalizeApplications(product.applications),
     featured: product.isFeatured,
     images: sortImages(product.images),
   };

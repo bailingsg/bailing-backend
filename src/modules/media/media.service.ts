@@ -1,7 +1,13 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { MediaCategory, Prisma } from '@prisma/client';
+import { MediaCategory, MediaUsage, Prisma } from '@prisma/client';
 import path from 'node:path';
 import { PrismaService } from '../prisma/prisma.service';
+import { RevalidationService } from '../revalidation/revalidation.service';
+import {
+  ALL_SITE_PATHS,
+  CmsTags,
+  MEDIA_DEPENDENT_TAGS,
+} from '../revalidation/cms-tags';
 import { ListMediaQueryDto } from './dto/list-media-query.dto';
 import { UpdateMediaDto } from './dto/update-media.dto';
 import {
@@ -36,15 +42,37 @@ export class MediaService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
+    private readonly revalidation: RevalidationService,
   ) {}
+
+  /**
+   * 媒体变更后通知前台（Phase 5.6）。
+   *
+   * 媒体被产品 / 博客 / 工厂 / 质量 / 应用 / 站点分区共同引用，
+   * 且前台 /factory 等页面按**用途分类**自动聚合媒体库图片——
+   * 因此上传 / 改用途 / 删除都要按「全内容」范围失效。
+   * 通知失败只记警告，不影响已成功的写入。
+   */
+  private notifyFrontend(): void {
+    void this.revalidation.invalidate({
+      tags: [...MEDIA_DEPENDENT_TAGS],
+      paths: [...ALL_SITE_PATHS, '/sitemap.xml'],
+    });
+  }
 
   /* ------------------------------ 上传 ------------------------------ */
 
   /**
    * 上传媒体（控制器以内存存储接收文件，本服务完成校验并委托 StorageProvider 落盘）。
    * 流程：MIME/大小校验 → 魔数校验 → 尺寸解析 → Provider 上传 → 落库。
+   *
+   * usage 为业务用途分类（文章 / 产品 / 证书 / 工厂 …），缺省表示「未分类」。
    */
-  async upload(file: Express.Multer.File, userId: string): Promise<MediaAssetDto> {
+  async upload(
+    file: Express.Multer.File,
+    userId: string,
+    usage?: MediaUsage,
+  ): Promise<MediaAssetDto> {
     validateUpload(file);
 
     if (!verifyImageSignature(file.buffer, file.mimetype)) {
@@ -73,23 +101,27 @@ export class MediaService {
         height: dimensions?.height ?? null,
         // 文档（PDF）与图片分属不同 MediaCategory，供业务侧筛选与前台展示区分
         category: isDocumentMime(file.mimetype) ? MediaCategory.DOCUMENT : MediaCategory.IMAGE,
+        // 业务用途分类（Phase 5.6）：上传时选择，后续可在媒体库/SEO 编辑中修改
+        usage: usage ?? null,
         provider: this.storage.provider,
         createdBy: userId,
       },
     });
 
+    // Phase 5.6：新图可能被 /factory 等页面按用途自动聚合，通知前台刷新
+    this.notifyFrontend();
     return toMediaAssetDto(asset);
   }
 
   /* ------------------------------ 查询 ------------------------------ */
-
-  /** 媒体列表：分页 + keyword（originalName/filename）+ category 筛选 */
+  /** 媒体列表：分页 + keyword（originalName/filename）+ category / usage 筛选 */
   async list(query: ListMediaQueryDto): Promise<PaginatedMediaDto> {
     const page = Math.max(1, query.page ?? DEFAULT_PAGE);
     const limit = Math.min(100, Math.max(1, query.limit ?? DEFAULT_LIMIT));
 
     const where: Prisma.MediaAssetWhereInput = {};
     if (query.category) where.category = query.category;
+    if (query.usage) where.usage = query.usage;
     if (query.keyword) {
       where.OR = [
         { originalName: { contains: query.keyword, mode: 'insensitive' } },
@@ -130,7 +162,8 @@ export class MediaService {
    * 再删数据库记录，最后委托 StorageProvider 删除文件。
    */
   /**
-   * 更新媒体 SEO 元数据（Phase 5.0 图片 SEO：alt / title / caption / description）。
+   * 更新媒体元数据（Phase 5.0 图片 SEO：alt / title / caption / description；
+   * Phase 5.6 追加用途分类 usage）。
    * 仅更新显式传入的字段；空串 = 清除该字段。
    */
   async updateMetadata(id: string, dto: UpdateMediaDto): Promise<MediaAssetDto> {
@@ -144,8 +177,12 @@ export class MediaService {
     if (dto.title !== undefined) data.title = dto.title === '' ? null : dto.title;
     if (dto.caption !== undefined) data.caption = dto.caption === '' ? null : dto.caption;
     if (dto.description !== undefined) data.description = dto.description === '' ? null : dto.description;
+    // usage：null / 空串已由 DTO 归一化为 null（= 未分类），有值则直接覆盖
+    if (dto.usage !== undefined) data.usage = dto.usage;
 
     const updated = await this.prisma.mediaAsset.update({ where: { id }, data });
+    // 用途 / SEO 元数据变化会影响前台按用途聚合的图集
+    this.notifyFrontend();
     return toMediaAssetDto(updated);
   }
 
@@ -159,6 +196,8 @@ export class MediaService {
 
     await this.prisma.mediaAsset.delete({ where: { id } });
     await this.storage.delete(asset.storageKey);
+    // 删除会影响所有引用该图的页面
+    this.notifyFrontend();
     return { id };
   }
 

@@ -137,11 +137,12 @@ export class ProductsController {
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File | undefined,
     @Body() dto: AddProductImageDto,
+    @Req() request: Request & { user?: AuthUser },
   ): Promise<CmsProductImageDto> {
     if (!file) {
       throw new BadRequestException('请上传图片文件（字段名 file）');
     }
-    return this.productsService.addImage(id, file, dto);
+    return this.productsService.addImage(id, file, dto, request.user?.id);
   }
 
   /** 删除产品图片 */

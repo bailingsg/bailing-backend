@@ -21,6 +21,11 @@ export const MEDIA_UPLOAD_ROOT = path.resolve(
  *   · TENCENT_COS：预留——配置即启动失败并给出明确指引（避免半成品状态被误用）
  *
  * 业务代码只依赖 StorageProvider 接口；未来实现 COS 后在此工厂注册即可，零业务侵入。
+ *
+ * 导出说明：
+ *   · MediaService —— 业务模块上传媒体的统一入口
+ *   · STORAGE_PROVIDER —— 需要「直传对象 + 自己管 key」的业务（如员工头像）
+ *     直接注入该 token，仍只依赖接口，不绑定具体实现
  */
 @Module({
   controllers: [MediaController],
@@ -47,5 +52,6 @@ export const MEDIA_UPLOAD_ROOT = path.resolve(
       },
     },
   ],
+  exports: [MediaService, STORAGE_PROVIDER],
 })
 export class MediaModule {}

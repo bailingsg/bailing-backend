@@ -1,11 +1,13 @@
-import { PostStatus } from '@prisma/client';
+import { PostStatus, ProductStatus } from '@prisma/client';
 import type {
   AdminUser,
   BlogCategory,
   BlogPost,
+  BlogPostProduct,
   BlogPostTag,
   BlogTag,
   MediaAsset,
+  Product,
 } from '@prisma/client';
 
 /**
@@ -61,6 +63,14 @@ export interface BlogCoverMediaRefDto {
   height: number | null;
 }
 
+/** 文章关联产品（精简引用，供后台展示与前台跳转） */
+export interface BlogRelatedProductRefDto {
+  id: string;
+  name: string;
+  slug: string;
+  status: ProductStatus;
+}
+
 /** 文章列表项 */
 export interface BlogPostListItemDto {
   id: string;
@@ -92,6 +102,9 @@ export interface BlogPostDetailDto {
   category: { id: string; name: string; slug: string } | null;
   tagIds: string[];
   tags: BlogPostTagRefDto[];
+  /** Phase 5.6：关联产品（最多 4 个，按选择顺序） */
+  relatedProductIds: string[];
+  relatedProducts: BlogRelatedProductRefDto[];
   coverMediaId: string | null;
   coverImageUrl: string | null;
   coverMedia: BlogCoverMediaRefDto | null;
@@ -126,12 +139,30 @@ export type BlogPostWithRelations = BlogPost & {
   author: Pick<AdminUser, 'id' | 'name'> | null;
   coverMedia: Pick<MediaAsset, 'id' | 'url' | 'altText' | 'width' | 'height'> | null;
   tags: Array<BlogPostTag & { tag: Pick<BlogTag, 'id' | 'name' | 'slug'> }>;
+  /** Phase 5.6：关联产品（join 行 + 产品精简字段） */
+  relatedProducts: Array<
+    BlogPostProduct & { product: Pick<Product, 'id' | 'name' | 'slug' | 'status'> }
+  >;
 };
 
 function toTagRefs(tags: BlogPostWithRelations['tags']): BlogPostTagRefDto[] {
   return tags
     .map((link) => ({ id: link.tag.id, name: link.tag.name, slug: link.tag.slug }))
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** 关联产品按 sortOrder 升序（sortOrder 即用户选择顺序） */
+function toRelatedProductRefs(
+  links: BlogPostWithRelations['relatedProducts'],
+): BlogRelatedProductRefDto[] {
+  return [...links]
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.product.name.localeCompare(b.product.name))
+    .map((link) => ({
+      id: link.product.id,
+      name: link.product.name,
+      slug: link.product.slug,
+      status: link.product.status,
+    }));
 }
 
 function toCoverRef(media: BlogPostWithRelations['coverMedia']): BlogCoverMediaRefDto | null {
@@ -168,6 +199,7 @@ export function toBlogPostListItem(post: BlogPostWithRelations): BlogPostListIte
 
 export function toBlogPostDetail(post: BlogPostWithRelations): BlogPostDetailDto {
   const tags = toTagRefs(post.tags);
+  const relatedProducts = toRelatedProductRefs(post.relatedProducts ?? []);
   return {
     id: post.id,
     title: post.title,
@@ -182,6 +214,8 @@ export function toBlogPostDetail(post: BlogPostWithRelations): BlogPostDetailDto
       : null,
     tagIds: tags.map((t) => t.id),
     tags,
+    relatedProductIds: relatedProducts.map((p) => p.id),
+    relatedProducts,
     coverMediaId: post.coverMediaId,
     coverImageUrl: post.coverImageUrl,
     coverMedia: toCoverRef(post.coverMedia),

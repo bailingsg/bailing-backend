@@ -1,0 +1,11 @@
+import { createRequire } from 'node:module';
+const require = createRequire('C:/Users/Administrator/.workbuddy-ai/binaries/node/workspace/node_modules/');
+const { chromium } = require('playwright-core');
+const browser = await chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await page.goto('http://localhost:3000/products/melamine-mdf', { waitUntil: 'networkidle', timeout: 45000 });
+await page.waitForTimeout(2000);
+const imgs = await page.$$eval('img', els => els.map(e => ({ s: (e.currentSrc||e.src).slice(0,120), w: e.naturalWidth })));
+console.log('img count:', imgs.length);
+for (const i of imgs.slice(0,12)) console.log(i.w, '|', i.s);
+await browser.close();

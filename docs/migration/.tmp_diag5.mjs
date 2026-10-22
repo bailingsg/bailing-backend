@@ -1,0 +1,17 @@
+import { createRequire } from 'node:module';
+const require = createRequire('C:/Users/Administrator/.workbuddy-ai/binaries/node/workspace/node_modules/');
+const { chromium } = require('playwright-core');
+const browser = await chromium.launch({ executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
+const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+const page = await ctx.newPage();
+const errors = [];
+page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text().slice(0, 150)); });
+page.on('pageerror', (e) => errors.push('PAGEERROR: ' + String(e).slice(0, 150)));
+await page.goto('http://localhost:3000/products/melamine-mdf', { waitUntil: 'networkidle', timeout: 45000 });
+await page.waitForTimeout(2000);
+console.log('=== body innerText (first 300) ===');
+console.log((await page.evaluate(() => document.body.innerText)).slice(0, 300));
+console.log('=== console errors ===');
+errors.slice(0, 5).forEach((e) => console.log('-', e));
+console.log('=== body innerHTML length:', await page.evaluate(() => document.body.innerHTML.length));
+await browser.close();

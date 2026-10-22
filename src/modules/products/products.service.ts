@@ -76,4 +76,23 @@ export class ProductsService {
 
     return toProductDetail(product);
   }
+
+  /**
+   * 产品详情：按 id 查询（前台详情路由 /products/[id] 使用）。
+   *
+   * 可见性与 slug 版一致：仅 PUBLISHED；未发布或不存在统一 404。
+   * 非法 id（非 cuid 格式）由 Prisma 查询自然落空返回 404，无需额外校验。
+   */
+  async findById(id: string): Promise<ProductDetailDto> {
+    const product = await this.prisma.product.findFirst({
+      where: { id, status: ProductStatus.PUBLISHED },
+      include: productInclude,
+    });
+
+    if (!product) {
+      throw new NotFoundException(`Product not found`);
+    }
+
+    return toProductDetail(product);
+  }
 }

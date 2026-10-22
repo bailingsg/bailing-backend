@@ -1,3 +1,4 @@
+import { ProductStatus } from '@prisma/client';
 import type {
   FactoryExhibition,
   FactoryImage,
@@ -293,6 +294,11 @@ export interface PublicBlogPostDetail extends PublicBlogPostSummary {
    * 公开站可据此直接渲染（dangerouslySetInnerHTML）。
    */
   contentHtml: string;
+  /**
+   * 关联产品 slug 列表（Phase 5.6，最多 4 个，按后台选择顺序）。
+   * 只输出**已发布**产品——未发布 / 归档产品不下发，避免前台出现死链。
+   */
+  relatedProducts: string[];
 }
 
 export interface PublicBlogCategory {
@@ -307,6 +313,10 @@ type BlogPostPublicRow = BlogPost & {
   category: BlogCategory | null;
   tags: (BlogPostTag & { tag: BlogTag })[];
   coverMedia: MediaAsset | null;
+  relatedProducts?: Array<{
+    sortOrder: number;
+    product: { slug: string; status: ProductStatus };
+  }>;
 };
 
 /** 从 HTML 正文提取纯文本（去标签 + 实体解码），用于估算阅读时长 */
@@ -353,5 +363,9 @@ export function toPublicBlogPostDetail(row: BlogPostPublicRow): PublicBlogPostDe
   return {
     ...toPublicBlogPostSummary(row),
     contentHtml: row.content,
+    relatedProducts: [...(row.relatedProducts ?? [])]
+      .filter((link) => link.product.status === ProductStatus.PUBLISHED)
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((link) => link.product.slug),
   };
 }

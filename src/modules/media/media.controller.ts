@@ -23,6 +23,7 @@ import { RequirePermissions } from '../rbac/require-permissions.decorator';
 import { MediaService } from './media.service';
 import { ListMediaQueryDto } from './dto/list-media-query.dto';
 import { UpdateMediaDto } from './dto/update-media.dto';
+import { UploadMediaDto } from './dto/upload-media.dto';
 import { MAX_MEDIA_FILE_SIZE } from './media-file.util';
 import type { MediaAssetDto, PaginatedMediaDto } from './entities/media.entity';
 
@@ -37,8 +38,8 @@ interface AuthedRequest {
 /**
  * 媒体资源 CMS API（Phase 4.3，控制器级 JwtAuthGuard，全部要求登录）。
  *
- *   POST   /api/v1/cms/media/upload   上传（multipart，字段 file；支持 JPEG/PNG/WebP/AVIF/PDF）
- *   GET    /api/v1/cms/media          列表（page/limit/keyword/category）
+ *   POST   /api/v1/cms/media/upload   上传（multipart，字段 file，可选字段 usage）
+ *   GET    /api/v1/cms/media          列表（page/limit/keyword/category/usage）
  *   GET    /api/v1/cms/media/:id      详情
  *   DELETE /api/v1/cms/media/:id      删除（引用检查：被业务引用 → 400）
  *
@@ -50,7 +51,7 @@ interface AuthedRequest {
 export class MediaController {
   constructor(private readonly mediaService: MediaService) {}
 
-  /** 上传媒体（multipart/form-data：file） */
+  /** 上传媒体（multipart/form-data：file 必填，usage 可选 = 用途分类） */
   @Post('upload')
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
@@ -62,12 +63,13 @@ export class MediaController {
   @RequirePermissions('media.upload')
   upload(
     @UploadedFile() file: Express.Multer.File | undefined,
+    @Body() body: UploadMediaDto,
     @Req() request: AuthedRequest,
   ): Promise<MediaAssetDto> {
     if (!file) {
       throw new BadRequestException('请上传文件（字段名 file）');
     }
-    return this.mediaService.upload(file, request.user.id);
+    return this.mediaService.upload(file, request.user.id, body.usage);
   }
 
   /** 媒体列表（分页 + keyword / category 筛选） */

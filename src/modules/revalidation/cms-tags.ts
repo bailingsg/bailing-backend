@@ -8,7 +8,8 @@
 
 export const CmsTags = {
   products: 'products',
-  product: (slug: string) => `product:${slug}`,
+  /** 实体 tag 以产品 id 为键（前台详情路由 /products/[id]） */
+  product: (id: string) => `product:${id}`,
   categories: 'categories',
 
   blog: 'blog',
@@ -24,6 +25,13 @@ export const CmsTags = {
   site: 'site',
   navigation: 'navigation',
   contacts: 'contacts',
+
+  /**
+   * 媒体库（Phase 5.6）。
+   * 前台 /factory 等页面按**用途分类**自动聚合媒体库图片，
+   * 因此媒体的上传 / 改类 / 删除都必须失效该 tag。
+   */
+  media: 'media',
 
   // Phase 5.0：SEO 元数据 / 设置 / 重定向变更后，全站 metadata 需刷新
   seo: 'seo',
@@ -51,6 +59,7 @@ export const MEDIA_DEPENDENT_TAGS: string[] = [
   CmsTags.factory,
   CmsTags.quality,
   CmsTags.site,
+  CmsTags.media,
 ];
 
 /** 全站页面路径（媒体变更后整站失效，使用 layout 级失效） */
