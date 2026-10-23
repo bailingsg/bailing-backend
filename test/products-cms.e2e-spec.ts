@@ -9,7 +9,14 @@ import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/modules/prisma/prisma.service';
 import { setupApp } from '../src/app.setup';
-import { PRODUCT_UPLOAD_DIR } from '../src/modules/cms/products/upload.options';
+import { UPLOAD_ROOT } from '../src/modules/cms/products/upload.options';
+
+/**
+ * Phase 6.0：产品图片改走统一媒体存储链（StorageProvider）。
+ * 本地 Provider 的物理布局为 uploads/media/YYYY/MM/<uuid>.<ext>，
+ * URL 形如 <UPLOADS_BASE_URL>/uploads/media/YYYY/MM/<uuid>.<ext>。
+ */
+const MEDIA_UPLOAD_DIR = path.join(UPLOAD_ROOT, 'media');
 
 /**
  * Products CMS 端到端测试（Phase 4.2）。
@@ -95,17 +102,27 @@ describe('Products CMS（e2e）', () => {
     });
     for (const product of products) {
       for (const image of product.images) {
-        const name = image.url.split('/').pop();
-        if (name) await rm(path.join(PRODUCT_UPLOAD_DIR, name), { force: true });
+        // Phase 6.0：URL 形如 <base>/uploads/media/YYYY/MM/<file>，按上传根目录解析物理路径
+        const rel = image.url.split('/uploads/')[1];
+        if (rel) await rm(path.join(UPLOAD_ROOT, rel), { force: true });
       }
     }
     await prisma.product.deleteMany({ where: { slug: { startsWith: SLUG_PREFIX } } });
     await prisma.category.deleteMany({ where: { slug: { startsWith: SLUG_PREFIX } } });
   }
 
-  /** 上传目录快照（用于断言失败上传不残留文件） */
+  /** 上传目录快照（递归 media/YYYY/MM，用于断言失败上传不残留文件） */
   function uploadsSnapshot(): string[] {
-    return readdirSync(PRODUCT_UPLOAD_DIR).sort();
+    const out: string[] = [];
+    const walk = (dir: string, rel: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const childRel = rel ? `${rel}/${entry.name}` : entry.name;
+        if (entry.isDirectory()) walk(path.join(dir, entry.name), childRel);
+        else out.push(childRel);
+      }
+    };
+    if (existsSync(MEDIA_UPLOAD_DIR)) walk(MEDIA_UPLOAD_DIR, '');
+    return out.sort();
   }
 
   /* ------------------------- JWT 保护矩阵 ------------------------- */
@@ -466,6 +483,15 @@ describe('Products CMS（e2e）', () => {
     const kwItems = byKeyword.body.data.items as Array<{ id: string }>;
     expect(kwItems.map((i) => i.id)).toEqual([product2Id]);
 
+    // Phase 6.0：上架下限 4 张图（服务端强制），先补齐再发布
+    for (let i = 0; i < 4; i += 1) {
+      await request(app.getHttpServer())
+        .post(`/api/v1/cms/products/${product2Id}/images`)
+        .set(auth())
+        .attach('file', PNG_BYTES, { filename: `publish-${i}.png`, contentType: 'image/png' })
+        .expect(201);
+    }
+
     // 发布第二件 → status=PUBLISHED 只含它
     await request(app.getHttpServer())
       .post(`/api/v1/cms/products/${product2Id}/publish`)
@@ -551,13 +577,14 @@ describe('Products CMS（e2e）', () => {
 
     expect(res.body.data).toMatchObject({ isPrimary: true, altText: null, sortOrder: 0 });
     const url = res.body.data.url as string;
-    expect(url).toMatch(/\/uploads\/products\/[0-9a-f-]{36}\.png$/);
+    // Phase 6.0：统一媒体存储，URL 形如 <base>/uploads/media/YYYY/MM/<uuid>.png
+    expect(url).toMatch(/\/uploads\/media\/\d{4}\/\d{2}\/[0-9a-f-]{36}\.png$/);
     image1Id = res.body.data.id as string;
 
     // 文件真实落盘且经 /uploads 静态路由可读（app.setup.ts 挂载点）
-    const fileName = url.split('/').pop() as string;
-    expect(existsSync(path.join(PRODUCT_UPLOAD_DIR, fileName))).toBe(true);
-    await request(app.getHttpServer()).get(`/uploads/products/${fileName}`).expect(200);
+    const urlPath = new URL(url).pathname;
+    expect(existsSync(path.join(UPLOAD_ROOT, urlPath.replace('/uploads/', '')))).toBe(true);
+    await request(app.getHttpServer()).get(urlPath).expect(200);
   });
 
   it('Product image：第二张非主图；alt/sortOrder 生效；详情返回两张图', async () => {
@@ -656,7 +683,7 @@ describe('Products CMS（e2e）', () => {
       .set(auth())
       .expect(200);
     const files = (detail.body.data.images as Array<{ url: string }>).map((i) =>
-      i.url.split('/').pop() as string,
+      new URL(i.url).pathname.replace('/uploads/', ''),
     );
     expect(files.length).toBeGreaterThan(0);
 
@@ -670,8 +697,9 @@ describe('Products CMS（e2e）', () => {
       .set(auth())
       .expect(404);
 
-    for (const file of files) {
-      expect(existsSync(path.join(PRODUCT_UPLOAD_DIR, file))).toBe(false);
+    // Phase 6.0：文件位于 uploads/media/YYYY/MM/，删除产品后同步清理
+    for (const rel of files) {
+      expect(existsSync(path.join(UPLOAD_ROOT, rel))).toBe(false);
     }
   });
 

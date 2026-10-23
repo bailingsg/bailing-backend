@@ -51,6 +51,8 @@ describe('询盘分配引擎（e2e）', () => {
   let limitedToken: string;
   let employees: LeadEmployee[];
   let createdRfqIds: string[] = [];
+  /** 被临时停用的非 e2e 历史员工（afterAll 原样恢复，不删数据） */
+  let displacedLeadIds: string[] = [];
 
   const auth = (): { Authorization: string } => ({ Authorization: `Bearer ${token}` });
 
@@ -97,6 +99,26 @@ describe('询盘分配引擎（e2e）', () => {
     service = app.get(LeadDistributionService);
 
     await cleanup();
+
+    // 轮询队列是全局的（所有 isActive 且 isLeadContact 的员工）。开发库可能残留
+    // 历史员工（早期生产数据迁移带入，如 wangmin@bailingwooden.com），会使队列
+    // 长度/顺序/指针断言漂移。快照并**临时停用**非 e2e 员工，afterAll 原样恢复——
+    // 不删除任何数据（历史员工是否清理待业务决定）。
+    const foreignLeads = await prisma.adminUser.findMany({
+      where: {
+        isActive: true,
+        email: { not: { startsWith: 'e2e-ld-' } },
+        contact: { isLeadContact: true },
+      },
+      select: { id: true },
+    });
+    displacedLeadIds = foreignLeads.map((u) => u.id);
+    if (displacedLeadIds.length > 0) {
+      await prisma.adminUser.updateMany({
+        where: { id: { in: displacedLeadIds } },
+        data: { isActive: false },
+      });
+    }
 
     // 主账号：显式绑定 SUPER_ADMIN（走真实 RBAC，而非旧枚举回退）
     await prisma.adminUser.deleteMany({ where: { email: ADMIN_EMAIL } });
@@ -190,6 +212,13 @@ describe('询盘分配引擎（e2e）', () => {
 
   afterAll(async () => {
     await cleanup();
+    // 恢复被临时停用的历史员工（原样带回，不删除）
+    if (displacedLeadIds.length > 0) {
+      await prisma.adminUser.updateMany({
+        where: { id: { in: displacedLeadIds } },
+        data: { isActive: true },
+      });
+    }
     await app.close();
   });
 

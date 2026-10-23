@@ -1,8 +1,6 @@
-import { ConfigService } from '@nestjs/config';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ProductStatus, Prisma } from '@prisma/client';
-import { existsSync } from 'node:fs';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { ProductsService } from '../src/modules/cms/products/products.service';
@@ -10,7 +8,21 @@ import { ProductCategoriesService } from '../src/modules/cms/products/product-ca
 import { CreateProductDto, UpdateProductDto } from '../src/modules/cms/products/dto/product.dto';
 import { CreateCategoryDto, UpdateCategoryDto } from '../src/modules/cms/products/dto/category.dto';
 import { PrismaService } from '../src/modules/prisma/prisma.service';
+import type { StorageProvider } from '../src/modules/media/storage/storage.interface';
 import { makeRevalidationMock } from './helpers/revalidation-mock';
+
+/**
+ * Phase 6.0：图片压缩走 sharp（真实解码），单元测试用假 PNG 字节即可触发
+ * 魔数校验，不需要真实可解码图片——这里替换 optimizeImage 为恒等实现，
+ * 压缩策略本身由 image-optimize 的调用方（media.service）测试覆盖。
+ */
+jest.mock('../src/modules/media/image-optimize.util', () => ({
+  optimizeImage: jest.fn(async (buffer: Buffer, mimeType: string) => ({
+    buffer,
+    mimeType,
+    size: buffer.length,
+  })),
+}));
 
 /**
  * Products CMS 单元测试（Phase 4.2）。
@@ -66,8 +78,24 @@ function makePrismaMock() {
 
 type PrismaMock = ReturnType<typeof makePrismaMock>;
 
-function makeConfigMock(): ConfigService {
-  return { getOrThrow: jest.fn().mockReturnValue('http://localhost:4000') } as unknown as ConfigService;
+/**
+ * Phase 6.0：ProductsService 第三个构造参数是 StorageProvider（COS / 本地
+ * 统一存储）。单元测试注入内存替身：upload 返回固定 URL（与旧 uploadsBaseUrl
+ * 行为一致），keyFromUrl 恒返回 null（历史本地地址走旧清理路径）。
+ */
+function makeStorageMock() {
+  return {
+    provider: 'LOCAL' as const,
+    upload: jest.fn().mockResolvedValue({
+      storageKey: 'uploads/products/first.png',
+      filename: 'first.png',
+      url: 'http://localhost:4000/uploads/products/first.png',
+    }),
+    delete: jest.fn().mockResolvedValue(undefined),
+    getUrl: jest.fn((storageKey: string) => `http://localhost:4000/${storageKey}`),
+    keyFromUrl: jest.fn().mockReturnValue(null),
+    exists: jest.fn().mockResolvedValue(true),
+  } as unknown as StorageProvider;
 }
 
 /* ----------------------------- 数据工厂 ----------------------------- */
@@ -226,15 +254,17 @@ describe('ProductCategoriesService（unit）', () => {
 
 describe('ProductsService（unit）', () => {
   let prisma: PrismaMock;
+  let storage: ReturnType<typeof makeStorageMock>;
   let service: ProductsService;
 
   beforeEach(() => {
     prisma = makePrismaMock();
     prisma.$transaction.mockImplementation((ops: Promise<unknown>[]) => Promise.all(ops));
+    storage = makeStorageMock();
     service = new ProductsService(
       prisma as unknown as PrismaService,
-      makeConfigMock(),
       makeRevalidationMock(),
+      storage,
     );
   });
 
@@ -459,7 +489,7 @@ describe('ProductsService（unit）', () => {
 
     const image = await service.addImage(
       'prod-1',
-      { path: filePath, mimetype: 'image/png', size: 72 },
+      { buffer: readFileSync(filePath), mimetype: 'image/png', size: 72 },
       {} as never,
     );
 
@@ -477,7 +507,7 @@ describe('ProductsService（unit）', () => {
     expect(mediaCall.data.url).toBe('http://localhost:4000/uploads/products/first.png');
   });
 
-  it('addImage：产品不存在时删除已落盘文件并返回 404', async () => {
+  it('addImage：产品不存在时不上传任何对象并返回 404', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'cms-img-'));
     const filePath = path.join(dir, 'gone.png');
     writeFileSync(filePath, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
@@ -485,12 +515,12 @@ describe('ProductsService（unit）', () => {
     prisma.product.findUnique.mockResolvedValue(null);
 
     await expect(
-      service.addImage('missing', { path: filePath, mimetype: 'image/png', size: 8 }, {} as never),
+      service.addImage('missing', { buffer: readFileSync(filePath), mimetype: 'image/png', size: 8 }, {} as never),
     ).rejects.toThrow(NotFoundException);
-    expect(existsSync(filePath)).toBe(false); // 磁盘文件已清理
+    expect(storage.upload).not.toHaveBeenCalled(); // 产品不存在，绝不产生存储对象
   });
 
-  it('addImage：魔数校验失败（伪造 MIME）即删除文件并返回 400', async () => {
+  it('addImage：魔数校验失败（伪造 MIME）不上传、返回 400', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'cms-img-'));
     const filePath = path.join(dir, 'evil.png');
     writeFileSync(filePath, Buffer.from('<html><script>alert(1)</script></html>'));
@@ -498,23 +528,27 @@ describe('ProductsService（unit）', () => {
     prisma.product.findUnique.mockResolvedValue({ id: 'prod-1', _count: { images: 0 } });
 
     await expect(
-      service.addImage('prod-1', { path: filePath, mimetype: 'image/png', size: 42 }, {} as never),
+      service.addImage('prod-1', { buffer: readFileSync(filePath), mimetype: 'image/png', size: 42 }, {} as never),
     ).rejects.toThrow(BadRequestException);
-    expect(existsSync(filePath)).toBe(false);
+    expect(storage.upload).not.toHaveBeenCalled();
     expect(prisma.productImage.create).not.toHaveBeenCalled();
   });
 
   it('addImage：非首图且未指定 isPrimary 时不设主图、不清旧主图', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'cms-img-'));
     const filePath = path.join(dir, 'second.png');
-    writeFileSync(filePath, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    // 合法 PNG 签名 + 填充（media-file.util 的魔数校验要求 ≥12 字节）
+    writeFileSync(
+      filePath,
+      Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(16)]),
+    );
 
     prisma.product.findUnique.mockResolvedValue({ id: 'prod-1', _count: { images: 2 } });
     prisma.productImage.create.mockResolvedValue(makeImageRow({ id: 'img-2', isPrimary: false }));
 
     const image = await service.addImage(
       'prod-1',
-      { path: filePath, mimetype: 'image/png', size: 8 },
+      { buffer: readFileSync(filePath), mimetype: 'image/png', size: 8 },
       { sortOrder: 3 } as never,
     );
 

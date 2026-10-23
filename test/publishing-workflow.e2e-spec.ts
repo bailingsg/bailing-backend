@@ -2,10 +2,13 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { AdminRole, ContentStatus, ProductStatus, RoleStatus } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import { rm } from 'node:fs/promises';
+import path from 'node:path';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/modules/prisma/prisma.service';
 import { setupApp } from '../src/app.setup';
+import { UPLOAD_ROOT } from '../src/modules/cms/products/upload.options';
 
 /**
  * Phase 1 发布工作流端到端测试。
@@ -130,9 +133,16 @@ describe('Publishing workflow（e2e）', () => {
   async function cleanup(): Promise<void> {
     const products = await prisma.product.findMany({
       where: { slug: { startsWith: SLUG_PREFIX } },
-      select: { id: true },
+      select: { id: true, images: { select: { url: true } } },
     });
     const ids = products.map((p) => p.id);
+    // Phase 6.0：图片落在 uploads/media/YYYY/MM/，删行前先按 URL 解析物理路径清理
+    for (const product of products) {
+      for (const image of product.images) {
+        const rel = image.url.split('/uploads/')[1];
+        if (rel) await rm(path.join(UPLOAD_ROOT, rel), { force: true });
+      }
+    }
     if (ids.length > 0) {
       await prisma.contentDraft.deleteMany({ where: { entityType: 'PRODUCT', entityId: { in: ids } } });
       await prisma.contentRevision.deleteMany({
@@ -187,6 +197,20 @@ describe('Publishing workflow（e2e）', () => {
 
     expect(created.body.data.status).toBe(ProductStatus.DRAFT);
     productId = created.body.data.id as string;
+
+    // Phase 6.0：上架下限 4 张图（服务端强制 validate），发布前先补齐，
+    // 否则后续所有发布用例都会倒在 400（与产品图数量规则无关的流程无法验证）
+    const PNG = Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      Buffer.from('publishing-e2e-filler'),
+    ]);
+    for (let i = 0; i < 4; i += 1) {
+      await request(app.getHttpServer())
+        .post(`/api/v1/cms/products/${productId}/images`)
+        .set(auth())
+        .attach('file', PNG, { filename: `pub-${i}.png`, contentType: 'image/png' })
+        .expect(201);
+    }
   });
 
   it('更新产品：Update DTO 拒绝 status（直接请求 API 也失败）', async () => {
@@ -329,6 +353,19 @@ describe('Publishing workflow（e2e）', () => {
       })
       .expect(201);
     const id = created.body.data.id as string;
+
+    // Phase 6.0：上架下限 4 张图，先通过完整性校验才能走到版本冲突分支
+    const PNG = Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      Buffer.from('publishing-e2e-cc'),
+    ]);
+    for (let i = 0; i < 4; i += 1) {
+      await request(app.getHttpServer())
+        .post(`/api/v1/cms/products/${id}/images`)
+        .set(auth())
+        .attach('file', PNG, { filename: `cc-${i}.png`, contentType: 'image/png' })
+        .expect(201);
+    }
 
     // 模拟「他人抢先发布了 v1」：直接占用该版本号
     // （ContentRevision 的 @@unique([entityType, entityId, version]) 是并发兜底）

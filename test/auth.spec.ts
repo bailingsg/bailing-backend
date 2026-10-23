@@ -7,6 +7,9 @@ import { Test } from '@nestjs/testing';
 import { AuthService } from '../src/modules/auth/auth.service';
 import { PrismaService } from '../src/modules/prisma/prisma.service';
 import { RbacService } from '../src/modules/rbac/rbac.service';
+import { AuditLogService } from '../src/modules/rbac/audit-log.service';
+import { RevalidationService } from '../src/modules/revalidation/revalidation.service';
+import { makeRevalidationMock } from './helpers/revalidation-mock';
 
 /** 测试口令与低成本的测试哈希（避免测试被 bcrypt 成本拖慢） */
 const TEST_PASSWORD = 'Test-pass-2026';
@@ -64,6 +67,10 @@ describe('AuthService（单元）', () => {
         { provide: JwtService, useValue: jwt },
         { provide: ConfigService, useValue: { getOrThrow: jest.fn().mockReturnValue('15m') } },
         { provide: RbacService, useValue: rbac },
+        // 登录会写审计日志（login 成功/失败均记录）；单测只关心令牌与摘要，注入替身
+        { provide: AuditLogService, useValue: { record: jest.fn().mockResolvedValue(undefined) } },
+        // 资料变更（activate/deactivate/remove）会通知前台失效联系方式缓存
+        { provide: RevalidationService, useValue: makeRevalidationMock() },
       ],
     }).compile();
 
