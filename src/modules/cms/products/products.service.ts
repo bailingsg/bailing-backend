@@ -1,12 +1,12 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { MediaCategory, MediaProvider, MediaUsage, Prisma } from '@prisma/client';
+import { MediaCategory, MediaUsage, Prisma } from '@prisma/client';
 import { unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -28,12 +28,14 @@ import { CreateProductDto, UpdateProductDto } from './dto/product.dto';
 import { ListProductsQueryDto } from './dto/list-products-query.dto';
 import { AddProductImageDto } from './dto/product-image.dto';
 import { sanitizeRichText } from '../blog/rich-text.sanitizer';
+import { PRODUCT_UPLOAD_DIR, safeFileNameFromUrl } from './upload.options';
+import { verifyImageSignature } from '../../media/media-file.util';
+import { optimizeImage } from '../../media/image-optimize.util';
 import {
-  PRODUCT_UPLOAD_DIR,
-  UPLOAD_URL_PREFIX,
-  safeFileNameFromUrl,
-  verifyImageSignature,
-} from './upload.options';
+  STORAGE_PROVIDER,
+  type StorageProvider,
+  type StoredObject,
+} from '../../media/storage/storage.interface';
 import {
   toCmsProductDetail,
   toCmsProductListItem,
@@ -45,6 +47,15 @@ import {
 
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 20;
+
+/**
+ * 商品图片数量硬性约束（业务规则，服务端强制）：
+ *   · 上架（publish）必须 **≥ 4 张** —— 少于 4 张买家无法判断产品，禁止上架
+ *   · 单个产品最多 **10 张** —— 超出后拒绝上传，避免详情页臃肿与存储浪费
+ * 前端校验只用于改善交互，最终以这里为准。
+ */
+const MIN_PRODUCT_IMAGES = 4;
+const MAX_PRODUCT_IMAGES = 10;
 
 /** 产品列表/详情的关联加载 */
 const PRODUCT_INCLUDE = {
@@ -63,8 +74,8 @@ const PRODUCT_INCLUDE = {
 export class ProductsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
     private readonly revalidation: RevalidationService,
+    @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
   ) {}
 
   /**
@@ -85,11 +96,6 @@ export class ProductsService {
       // sitemap 含产品详情 URL，必须一并失效
       paths: ['/products', '/sitemap.xml', ...(ref ? [`/products/${ref.id}`] : [])],
     });
-  }
-
-  /** 上传图片的对外 URL 基地址（生产可指向 CDN 域名） */
-  private get uploadsBaseUrl(): string {
-    return this.config.getOrThrow<string>('uploadsBaseUrl').replace(/\/$/, '');
   }
 
   /* ------------------------------ 查询 ------------------------------ */
@@ -286,6 +292,18 @@ export class ProductsService {
         if (!row.category) {
           throw new BadRequestException('发布失败：产品必须归属一个分类');
         }
+        // 图片数量：上架下限 4 张（上限 10 张在上传时已拦截）
+        const imageCount = row.images?.length ?? 0;
+        if (imageCount < MIN_PRODUCT_IMAGES) {
+          throw new BadRequestException(
+            `发布失败：产品至少需要 ${MIN_PRODUCT_IMAGES} 张图片，当前只有 ${imageCount} 张`,
+          );
+        }
+        if (imageCount > MAX_PRODUCT_IMAGES) {
+          throw new BadRequestException(
+            `发布失败：产品最多 ${MAX_PRODUCT_IMAGES} 张图片，当前有 ${imageCount} 张`,
+          );
+        }
       },
       toSnapshot: (row) => toCmsProductDetail(row),
     };
@@ -369,15 +387,19 @@ export class ProductsService {
   /* ------------------------------ 图片 ------------------------------ */
 
   /**
-   * 上传产品图片（文件已由 multer 拦截器落盘到 uploads/products）。
-   * 流程：产品存在性 → 魔数校验（失败即删文件）→ 写库 → 登记媒体资产 → 返回。
+   * 上传产品图片（文件以内存接收，由 StorageProvider 统一写入 COS / 本地磁盘）。
    *
-   * Phase 5.6：上传即自动把用途分类登记为「产品」——产品编辑器里上传的图片
-   * 不需要再去媒体库手动归类；在媒体库里手动改用途同样生效（此处不覆盖已有值）。
+   * 顺序严格遵守业务规则「先有业务记录，再传文件」：
+   *   1. 产品必须已存在（未保存的记录无法上传）
+   *   2. 图片数量上限 10 张（上架下限 4 张由发布校验负责）
+   *   3. 魔数校验 → 压缩 → 写入存储 → 写库
+   *   4. 写库失败时**删除已上传对象**，避免产生孤儿文件
+   *
+   * Phase 5.6：上传即自动把用途分类登记为「产品」。
    */
   async addImage(
     productId: string,
-    file: { path: string; mimetype: string; size: number; originalname?: string },
+    file: { buffer: Buffer; mimetype: string; size: number; originalname?: string },
     dto: AddProductImageDto,
     uploaderId?: string,
   ): Promise<CmsProductImageDto> {
@@ -386,18 +408,27 @@ export class ProductsService {
       select: { id: true, _count: { select: { images: true } } },
     });
     if (!product) {
-      await this.safeUnlink(file.path);
       throw new NotFoundException('产品不存在');
+    }
+    if (product._count.images >= MAX_PRODUCT_IMAGES) {
+      throw new BadRequestException(`每个产品最多 ${MAX_PRODUCT_IMAGES} 张图片，请先删除后再上传`);
     }
 
     // 魔数校验：扩展名/MIME 可伪造，内容特征不可轻易伪造
-    if (!(await verifyImageSignature(file.path, file.mimetype))) {
-      await this.safeUnlink(file.path);
+    if (!verifyImageSignature(file.buffer, file.mimetype)) {
       throw new BadRequestException('文件内容不是受支持的图片格式（jpeg / png / webp / avif）');
     }
 
-    const fileName = path.basename(file.path);
-    const url = `${this.uploadsBaseUrl}${UPLOAD_URL_PREFIX}/${fileName}`;
+    // 压缩（摆正方向 + 限长边 + 剥离 EXIF），与媒体库共用同一套策略
+    const optimized = await optimizeImage(file.buffer, file.mimetype);
+
+    const stored = await this.storage.upload({
+      buffer: optimized.buffer,
+      originalName: file.originalname ?? 'product-image',
+      mimeType: optimized.mimeType,
+    });
+    // 落库地址一律由 Provider 生成：COS → CDN 域名；LOCAL → /uploads/media
+    const url = stored.url;
     // 首图默认设为主图（保证公开站列表卡片始终有图）
     const isPrimary = dto.isPrimary ?? product._count.images === 0;
 
@@ -422,11 +453,10 @@ export class ProductsService {
 
       // Phase 5.6：同步登记到媒体库，用途 = 产品（上传即归类，无需手动选择）
       await this.registerProductMediaAsset({
-        fileName,
-        originalName: file.originalname ?? fileName,
-        url,
-        mimeType: file.mimetype,
-        size: file.size,
+        stored,
+        originalName: file.originalname ?? stored.filename,
+        mimeType: optimized.mimeType,
+        size: optimized.size,
         uploaderId,
       });
 
@@ -446,8 +476,8 @@ export class ProductsService {
         createdAt: image.createdAt.toISOString(),
       };
     } catch (error) {
-      // 写库失败时清理已落盘文件，避免磁盘垃圾
-      await this.safeUnlink(file.path);
+      // 写库失败 → 回收已上传对象，避免 COS 里留下无引用的孤儿文件
+      await this.storage.delete(stored.storageKey);
       throw error;
     }
   }
@@ -500,26 +530,25 @@ export class ProductsService {
    * 绝不覆盖用户在媒体库里手动改过的用途。
    */
   private async registerProductMediaAsset(params: {
-    fileName: string;
+    stored: StoredObject;
     originalName: string;
-    url: string;
     mimeType: string;
     size: number;
     uploaderId?: string;
   }): Promise<void> {
-    const storageKey = `uploads/products/${params.fileName}`;
+    const storageKey = params.stored.storageKey;
     try {
       await this.prisma.mediaAsset.create({
         data: {
-          filename: params.fileName,
+          filename: params.stored.filename,
           originalName: sanitizeOriginalName(params.originalName),
           storageKey,
-          url: params.url,
+          url: params.stored.url,
           mimeType: params.mimeType,
           size: params.size,
           category: MediaCategory.IMAGE,
           usage: MediaUsage.PRODUCT,
-          provider: MediaProvider.LOCAL,
+          provider: this.storage.provider,
           createdBy: params.uploaderId ?? 'system',
         },
       });
@@ -603,8 +632,22 @@ export class ProductsService {
     if (!category) throw new BadRequestException('分类不存在，请先创建或选择有效分类');
   }
 
-  /** 按存储 URL 删除文件（文件名白名单校验 + 目录约束，防路径穿越） */
+  /**
+   * 按存储 URL 删除文件。
+   *
+   * 两条链路都要覆盖（Phase 6.0）：
+   *   · 新链路：URL 由当前 StorageProvider 生成，可用 keyFromUrl 反解对象键，
+   *     交给 Provider 删除（COS 删对象 / 本地删文件）
+   *   · 旧链路：Phase 4.2 的历史图仍在 /uploads/products/<uuid>.<ext>，
+   *     文件名经白名单校验后按本地路径删除（防路径穿越）
+   */
   private async deleteImageFile(url: string): Promise<void> {
+    const storageKey = this.storage.keyFromUrl(url);
+    if (storageKey) {
+      await this.storage.delete(storageKey);
+      return;
+    }
+
     const fileName = safeFileNameFromUrl(url);
     if (!fileName) return;
     await this.safeUnlink(path.join(PRODUCT_UPLOAD_DIR, fileName));

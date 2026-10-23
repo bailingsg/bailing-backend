@@ -90,6 +90,14 @@ export class LocalStorageProvider implements StorageProvider {
     return `${base}/uploads/${storageKey}`;
   }
 
+  keyFromUrl(url: string): string | null {
+    const base = this.options.uploadsBaseUrl.replace(/\/$/, '');
+    const prefix = `${base}/uploads/`;
+    if (!url.startsWith(prefix)) return null;
+    const key = url.slice(prefix.length);
+    return STORAGE_KEY_PATTERN.test(key) ? key : null;
+  }
+
   async exists(storageKey: string): Promise<boolean> {
     try {
       await readFile(this.resolvePath(storageKey));

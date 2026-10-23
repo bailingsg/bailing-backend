@@ -56,6 +56,25 @@ export default () => {
     storageProvider: process.env.STORAGE_PROVIDER ?? 'LOCAL',
 
     /**
+     * 腾讯云 COS + CDN（Phase 6.0）。
+     *
+     * 仅在 STORAGE_PROVIDER=TENCENT_COS 时启用；密钥必须是 CAM 子用户
+     * （最小权限，仅目标桶对象级读写），禁止使用主账号密钥。
+     * 缺失时启动失败并给出明确指引（见 env.validation.ts），绝不静默退化为本地存储。
+     *
+     *   · cdnDomain     —— 对外访问域名，落库 URL 基地址（换 CDN 只改这一处）
+     *   · serviceDomain —— COS 源站域名，仅服务端排障使用，不落库
+     */
+    cos: {
+      secretId: process.env.TENCENT_COS_SECRET_ID ?? '',
+      secretKey: process.env.TENCENT_COS_SECRET_KEY ?? '',
+      bucket: process.env.TENCENT_COS_BUCKET ?? '',
+      region: process.env.TENCENT_COS_REGION ?? '',
+      cdnDomain: process.env.COS_CDN_DOMAIN ?? '',
+      serviceDomain: process.env.COS_SERVICE_DOMAIN ?? '',
+    },
+
+    /**
      * 前台内容缓存失效（Phase 4.8）。
      *
      * CMS 内容发布 / 下架 / 删除后，后端调用前台的安全失效端点

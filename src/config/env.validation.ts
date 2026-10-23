@@ -46,6 +46,42 @@ export function validateEnv(config: Record<string, unknown>): Record<string, unk
     logger.warn('ADMIN_EMAIL / ADMIN_PASSWORD 未配置：prisma seed 将跳过默认管理员创建。');
   }
 
+  // Phase 6.0：存储适配器。TENCENT_COS 时配置不完整必须**启动失败**——
+  // 绝不静默退化为本地磁盘，否则会出现「上传看似成功、对象却在本地」的误判。
+  const storageProvider = String(config.STORAGE_PROVIDER ?? 'LOCAL').trim().toUpperCase();
+  if (storageProvider !== 'LOCAL' && storageProvider !== 'TENCENT_COS') {
+    throw new Error(
+      `STORAGE_PROVIDER 取值无效：${storageProvider}（仅支持 LOCAL / TENCENT_COS）`,
+    );
+  }
+  if (storageProvider === 'TENCENT_COS') {
+    const cosKeys = [
+      'TENCENT_COS_SECRET_ID',
+      'TENCENT_COS_SECRET_KEY',
+      'TENCENT_COS_BUCKET',
+      'TENCENT_COS_REGION',
+      'COS_CDN_DOMAIN',
+    ] as const;
+    const missingCos = cosKeys.filter((key) => String(config[key] ?? '').trim() === '');
+    if (missingCos.length > 0) {
+      throw new Error(
+        `STORAGE_PROVIDER=TENCENT_COS 但缺少环境变量: ${missingCos.join(', ')}` +
+          '（缺失项不会回显具体值；请核对部署环境注入）',
+      );
+    }
+    const cdnDomain = String(config.COS_CDN_DOMAIN ?? '').trim();
+    if (!/^https:\/\/[a-z0-9.-]+$/i.test(cdnDomain)) {
+      throw new Error('COS_CDN_DOMAIN 必须是不含路径的 https 域名，例如 https://cdn.example.com');
+    }
+    logger.log(
+      `存储适配器: TENCENT_COS（bucket=${String(config.TENCENT_COS_BUCKET)}, region=${String(
+        config.TENCENT_COS_REGION,
+      )}, cdn=${cdnDomain}）`,
+    );
+  } else {
+    logger.log('存储适配器: LOCAL（本地磁盘）');
+  }
+
   // Phase 4.8：前台内容缓存失效。两者必须同时配置才启用；缺失时仅告警（不阻断启动）。
   const revalidateUrl = String(config.FRONTEND_REVALIDATE_URL ?? '').trim();
   const revalidateSecret = String(config.REVALIDATE_SECRET ?? '').trim();

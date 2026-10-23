@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
-import { diskStorage } from 'multer';
+import { diskStorage, memoryStorage } from 'multer';
 import { BadRequestException } from '@nestjs/common';
 import type { MulterOptions } from '@nestjs/platform-express/multer/interfaces/multer-options.interface';
 import type { Request } from 'express';
@@ -105,8 +105,48 @@ export function ensureUploadDirs(): void {
   mkdirSync(PRODUCT_UPLOAD_DIR, { recursive: true });
 }
 
-/** multer 配置：磁盘存储 + 类型/大小/文件名安全 */
+/**
+ * 共用的图片 fileFilter：MIME 与扩展名必须同属白名单。
+ * 磁盘存储与内存存储两套配置共用，避免两处校验漂移。
+ */
+function imageFileFilter(
+  _req: Request,
+  file: Express.Multer.File,
+  cb: ImageFileFilterCallback,
+): void {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const allowedExt = ALLOWED_IMAGE_TYPES[file.mimetype];
+  if (!allowedExt) {
+    cb(new BadRequestException(`不支持的图片格式: ${file.mimetype || 'unknown'}`), false);
+    return;
+  }
+  // MIME 与扩展名必须同属白名单（扩展名不作为唯一依据）
+  if (ext !== allowedExt && !(allowedExt === '.jpg' && (ext === '.jpg' || ext === '.jpeg'))) {
+    cb(new BadRequestException('图片扩展名与内容类型不匹配'), false);
+    return;
+  }
+  cb(null, true);
+}
+
+/**
+ * Phase 6.0：产品图片改为**内存接收**，再由 StorageProvider 统一写入
+ * （COS 或本地磁盘）。控制器与服务层都不再直接接触文件系统路径，
+ * 与媒体库上传保持同一条链路。
+ */
 export function productImageUploadOptions(): MulterOptions {
+  return {
+    storage: memoryStorage(),
+    limits: { fileSize: MAX_FILE_SIZE, files: 1 },
+    fileFilter: imageFileFilter,
+  };
+}
+
+/**
+ * 历史遗留的磁盘存储配置（Phase 4.2 形态）。
+ * 仅用于兼容：旧产品图仍以 /uploads/products/<file> 形式存在，
+ * 删除这些文件时需要知道落盘目录。新上传不再使用本配置。
+ */
+export function legacyProductImageDiskOptions(): MulterOptions {
   ensureUploadDirs();
 
   return {
@@ -121,19 +161,6 @@ export function productImageUploadOptions(): MulterOptions {
       },
     }),
     limits: { fileSize: MAX_FILE_SIZE, files: 1 },
-    fileFilter: (_req: Request, file: Express.Multer.File, cb: ImageFileFilterCallback) => {
-      const ext = path.extname(file.originalname).toLowerCase();
-      const allowedExt = ALLOWED_IMAGE_TYPES[file.mimetype];
-      if (!allowedExt) {
-        cb(new BadRequestException(`不支持的图片格式: ${file.mimetype || 'unknown'}`), false);
-        return;
-      }
-      // MIME 与扩展名必须同属白名单（扩展名不作为唯一依据）
-      if (ext !== allowedExt && !(allowedExt === '.jpg' && (ext === '.jpg' || ext === '.jpeg'))) {
-        cb(new BadRequestException('图片扩展名与内容类型不匹配'), false);
-        return;
-      }
-      cb(null, true);
-    },
+    fileFilter: imageFileFilter,
   };
 }

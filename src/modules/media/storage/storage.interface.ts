@@ -21,8 +21,15 @@ export interface StorageProvider {
   /** 删除对象（不存在时静默成功——调用方已做存在性校验） */
   delete(storageKey: string): Promise<void>;
 
-  /** 由对象键生成访问地址（本地为 /uploads 前缀，未来为 CDN 域名） */
+  /** 由对象键生成访问地址（本地为 /uploads 前缀，COS 为 CDN 域名） */
   getUrl(storageKey: string): string;
+
+  /**
+   * 由访问地址反解对象键（删除/校验用）。
+   * 地址不属于本 Provider 或无法解析时返回 null——调用方据此判断
+   * 「这是历史遗留地址，走旧清理逻辑」而不是盲目删除。
+   */
+  keyFromUrl(url: string): string | null;
 
   /** 对象是否存在 */
   exists(storageKey: string): Promise<boolean>;
