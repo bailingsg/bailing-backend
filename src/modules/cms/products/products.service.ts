@@ -73,10 +73,15 @@ export class ProductsService {
    * 同时失效列表 tag 与实体 tag：产品改名/换图会影响列表卡片，
    * 单个产品页也需要重新渲染。路径覆盖列表页与详情页。
    * 实体 tag 与详情路径均以产品 **id** 为键（前台详情路由 /products/[id]）。
+   *
+   * 必须同时失效 `categories`：分类接口带各分类 productCount，前台产品页
+   * 筛选器只列 productCount > 0 的分类。产品上架/下架/换分类/删除都会改变
+   * 计数，若只失效 products，前台 /categories（3600s ISR）最长一小时
+   * 不刷新——表现为「产品已发布，但分类筛选器里看不到该分类」。
    */
   private notifyFrontend(ref?: { id: string; slug: string }): void {
     void this.revalidation.invalidate({
-      tags: [CmsTags.products, ...(ref ? [CmsTags.product(ref.id)] : [])],
+      tags: [CmsTags.products, CmsTags.categories, ...(ref ? [CmsTags.product(ref.id)] : [])],
       // sitemap 含产品详情 URL，必须一并失效
       paths: ['/products', '/sitemap.xml', ...(ref ? [`/products/${ref.id}`] : [])],
     });
