@@ -108,7 +108,7 @@ export class AccountsService {
         skip: (page - 1) * limit,
         take: limit,
         select: {
-          id: true, name: true, email: true, jobTitle: true, role: true,
+          id: true, name: true, email: true, jobTitle: true, okkiAccount: true, alibabaAccount: true, role: true,
           isActive: true, createdAt: true, lastLoginAt: true,
           userRoles: { select: { role: { select: { id: true, key: true, name: true, status: true } } } },
           contact: { select: { id: true } },
@@ -129,7 +129,7 @@ export class AccountsService {
     const admin = await this.prisma.adminUser.findUnique({
       where: { id },
       select: {
-        id: true, name: true, email: true, jobTitle: true, role: true,
+        id: true, name: true, email: true, jobTitle: true, okkiAccount: true, alibabaAccount: true, role: true,
         isActive: true, createdAt: true, updatedAt: true, lastLoginAt: true,
         userRoles: { select: { role: { select: { id: true, key: true, name: true, status: true } } } },
         contact: {
@@ -202,6 +202,8 @@ export class AccountsService {
           email,
           name: dto.name.trim(),
           jobTitle: dto.jobTitle?.trim() || null,
+          okkiAccount: dto.okkiAccount?.trim() || null,
+          alibabaAccount: dto.alibabaAccount?.trim() || null,
           passwordHash,
           isActive: dto.isActive ?? true,
           // 兼容旧枚举：有超管角色则写 ADMIN，否则 EDITOR
@@ -223,7 +225,16 @@ export class AccountsService {
       targetId: created.id,
       summary: `创建账号「${dto.name.trim()}」(${email})，角色 ${dto.roleIds.length} 个`,
       // 注意：绝不记录口令（含明文与哈希）
-      diff: { after: { email, name: dto.name.trim(), jobTitle: dto.jobTitle ?? null, roleIds: dto.roleIds } },
+      diff: {
+        after: {
+          email,
+          name: dto.name.trim(),
+          jobTitle: dto.jobTitle ?? null,
+          okkiAccount: dto.okkiAccount ?? null,
+          alibabaAccount: dto.alibabaAccount ?? null,
+          roleIds: dto.roleIds,
+        },
+      },
     });
 
     this.logger.log(`账号已创建: ${email} by ${actor.email}`);
@@ -240,7 +251,7 @@ export class AccountsService {
     const admin = await this.prisma.adminUser.findUnique({
       where: { id },
       select: {
-        id: true, email: true, name: true,
+        id: true, email: true, name: true, jobTitle: true, okkiAccount: true, alibabaAccount: true,
         userRoles: { select: { roleId: true, role: { select: { key: true } } } },
       },
     });
@@ -288,6 +299,8 @@ export class AccountsService {
           ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
           ...(email !== undefined ? { email } : {}),
           ...(dto.jobTitle !== undefined ? { jobTitle: dto.jobTitle?.trim() || null } : {}),
+          ...(dto.okkiAccount !== undefined ? { okkiAccount: dto.okkiAccount?.trim() || null } : {}),
+          ...(dto.alibabaAccount !== undefined ? { alibabaAccount: dto.alibabaAccount?.trim() || null } : {}),
           ...(dto.roleIds !== undefined
             ? { role: await this.deriveLegacyRole(tx, dto.roleIds) }
             : {}),
@@ -309,10 +322,21 @@ export class AccountsService {
       targetId: id,
       summary: `更新账号「${admin.name ?? admin.email}」${dto.roleIds ? '（含角色调整）' : ''}`,
       diff: {
-        before: { email: admin.email, name: admin.name, roleIds: beforeRoleIds },
+        before: {
+          email: admin.email,
+          name: admin.name,
+          jobTitle: admin.jobTitle,
+          okkiAccount: admin.okkiAccount,
+          alibabaAccount: admin.alibabaAccount,
+          roleIds: beforeRoleIds,
+        },
         after: {
           email: email ?? admin.email,
           name: dto.name?.trim() ?? admin.name,
+          jobTitle: dto.jobTitle !== undefined ? dto.jobTitle?.trim() || null : admin.jobTitle,
+          okkiAccount: dto.okkiAccount !== undefined ? dto.okkiAccount?.trim() || null : admin.okkiAccount,
+          alibabaAccount:
+            dto.alibabaAccount !== undefined ? dto.alibabaAccount?.trim() || null : admin.alibabaAccount,
           roleIds: dto.roleIds ?? beforeRoleIds,
         },
       },
@@ -452,6 +476,7 @@ export class AccountsService {
 
   private toListItem(admin: {
     id: string; name: string | null; email: string; jobTitle: string | null;
+    okkiAccount: string | null; alibabaAccount: string | null;
     role: AdminRole; isActive: boolean; createdAt: Date; lastLoginAt: Date | null;
     userRoles: { role: { id: string; key: string; name: string; status: RoleStatus } }[];
     contact: { id: string } | null;
@@ -467,6 +492,8 @@ export class AccountsService {
       name: admin.name,
       email: admin.email,
       jobTitle: admin.jobTitle,
+      okkiAccount: admin.okkiAccount ?? null,
+      alibabaAccount: admin.alibabaAccount ?? null,
       role: admin.role,
       roles,
       isActive: admin.isActive,

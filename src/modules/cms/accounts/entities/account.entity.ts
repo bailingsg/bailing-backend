@@ -6,6 +6,10 @@ export interface AccountListItemDto {
   name: string | null;
   email: string;
   jobTitle: string | null;
+  /** 小满（OKKI）CRM 账号——内部备注用，非必填 */
+  okkiAccount: string | null;
+  /** 阿里巴巴账号——内部备注用，非必填 */
+  alibabaAccount: string | null;
   /** 兼容旧前端 */
   role: AdminRole;
   /** 新 RBAC 角色（key + name） */

@@ -55,6 +55,20 @@ export class CreateAccountDto {
   @MaxLength(80)
   jobTitle?: string;
 
+  /** 小满（OKKI）CRM 账号——内部备注用，非必填 */
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  @MaxLength(80)
+  okkiAccount?: string;
+
+  /** 阿里巴巴账号——内部备注用，非必填 */
+  @IsOptional()
+  @Transform(emptyToUndefined)
+  @IsString()
+  @MaxLength(80)
+  alibabaAccount?: string;
+
   @IsArray()
   @ArrayUnique()
   @ArrayMaxSize(20)
@@ -94,6 +108,20 @@ export class UpdateAccountDto {
   @IsString()
   @MaxLength(80)
   jobTitle?: string | null;
+
+  /** 小满（OKKI）CRM 账号——内部备注用，非必填；传 null 清空 */
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(80)
+  okkiAccount?: string | null;
+
+  /** 阿里巴巴账号——内部备注用，非必填；传 null 清空 */
+  @IsOptional()
+  @Transform(trim)
+  @IsString()
+  @MaxLength(80)
+  alibabaAccount?: string | null;
 
   @IsOptional()
   @IsArray()

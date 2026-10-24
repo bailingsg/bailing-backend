@@ -57,6 +57,8 @@ model AdminUser {
   passwordHash String // bcrypt 等哈希，禁止明文
   name         String
   jobTitle     String? // 岗位名称（Phase 4.6）
+  okkiAccount  String? // 小满（OKKI）CRM 账号——内部备注用，非必填
+  alibabaAccount String? // 阿里巴巴账号——内部备注用，非必填
   role         AdminRole @default(EDITOR) // 兼容旧枚举；新逻辑以 AdminUserRole 为准
   isActive     Boolean   @default(true)
   lastLoginAt  DateTime?
