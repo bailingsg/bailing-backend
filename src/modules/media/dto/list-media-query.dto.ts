@@ -1,11 +1,19 @@
 import { MediaCategory, MediaUsage } from '@prisma/client';
 import { Transform } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 /** 数值宽松解析：空串视为未提供 */
 function toInt({ value }: { value: unknown }): unknown {
   if (value === undefined || value === '' || value === null) return undefined;
   return Number(value);
+}
+
+/** 布尔宽松解析：'true'/'1' → true，'false'/'0' → false，空串视为未提供 */
+function toBoolean({ value }: { value: unknown }): unknown {
+  if (value === undefined || value === '' || value === null) return undefined;
+  if (value === true || value === 'true' || value === '1') return true;
+  if (value === false || value === 'false' || value === '0') return false;
+  return value; // 原样返回，交给 @IsBoolean 拒绝
 }
 
 /** 去首尾空白 */
@@ -48,4 +56,13 @@ export class ListMediaQueryDto {
   @IsOptional()
   @IsEnum(MediaUsage)
   usage?: MediaUsage;
+
+  /**
+   * 引用状态筛选：true = 仅被业务引用的媒体；false = 仅未被引用的媒体。
+   * 用于媒体库「未被引用」清理视图（未被引用 = 可安全删除）。
+   */
+  @IsOptional()
+  @Transform(toBoolean)
+  @IsBoolean()
+  referenced?: boolean;
 }

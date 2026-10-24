@@ -27,6 +27,7 @@ import { makeRevalidationMock } from './helpers/revalidation-mock';
  *   · Storage Adapter（LocalProvider：storageKey 生成、防路径穿越、删除静默）
  *   · Media CRUD（list 分页/筛选、findById 404、remove 引用检查）
  *   · Reference Check（被 ProductImage 引用 → 400 "Media asset is in use."）
+ *   · 引用计数与 referenced 筛选（未被引用清理视图；url 后缀 / 外键双匹配去重）
  *
  * 数据库不参与：PrismaClient 以 jest mock 替换；LocalProvider 用真实临时目录。
  */
@@ -240,25 +241,32 @@ function makePrismaMock() {
     },
     productImage: {
       count: jest.fn(),
+      findMany: jest.fn(),
     },
     blogPost: {
       count: jest.fn(),
+      findMany: jest.fn(),
     },
     // Phase 4.5：countReferences 扩展到 Factory / Quality / Applications
     factorySection: {
       count: jest.fn(),
+      findMany: jest.fn(),
     },
     factoryImage: {
       count: jest.fn(),
+      findMany: jest.fn(),
     },
     qualityRecord: {
       count: jest.fn(),
+      findMany: jest.fn(),
     },
     application: {
       count: jest.fn(),
+      findMany: jest.fn(),
     },
     siteSection: {
       count: jest.fn(),
+      findMany: jest.fn(),
     },
     $transaction: jest.fn(),
   };
@@ -320,6 +328,8 @@ describe('MediaService（unit）', () => {
       prisma.siteSection,
     ]) {
       model.count.mockResolvedValue(0);
+      // buildReferenceCounts（列表）默认没有任何引用行
+      model.findMany.mockResolvedValue([]);
     }
     storage = makeStorageMock();
     service = new MediaService(
@@ -444,13 +454,102 @@ describe('MediaService（unit）', () => {
     );
   });
 
+  it('list：referenced=false 仅返回未被引用的媒体（引用资产进 notIn）', async () => {
+    const other = makeAssetRow({
+      id: 'media-2',
+      url: 'http://127.0.0.1:4000/uploads/media/2026/10/other.png',
+      filename: 'other.png',
+    });
+    // 地址→资产映射查询（带 select）返回全量；分页查询（无 select）只返回未被引用行
+    prisma.mediaAsset.findMany.mockImplementation((args: { select?: unknown }) =>
+      args?.select ? [makeAssetRow(), other] : [other],
+    );
+    prisma.productImage.findMany.mockResolvedValue([{ id: 'pi-1', url: STORED_URL }]);
+    prisma.mediaAsset.count.mockResolvedValue(1);
+
+    const result = await service.list({ referenced: false } as ListMediaQueryDto);
+
+    expect(prisma.mediaAsset.count).toHaveBeenCalledWith({
+      where: { id: { notIn: ['media-1'] } },
+    });
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({ id: 'media-2', referenceCount: 0 });
+  });
+
+  it('list：referenced=true 仅返回被引用的媒体并带上引用计数', async () => {
+    prisma.productImage.findMany.mockResolvedValue([{ id: 'pi-1', url: STORED_URL }]);
+    prisma.mediaAsset.count.mockResolvedValue(1);
+    prisma.mediaAsset.findMany.mockResolvedValue([makeAssetRow()]);
+
+    const result = await service.list({ referenced: true } as ListMediaQueryDto);
+
+    expect(prisma.mediaAsset.count).toHaveBeenCalledWith({
+      where: { id: { in: ['media-1'] } },
+    });
+    expect(result.items[0]).toMatchObject({ id: 'media-1', referenceCount: 1 });
+  });
+
+  it('list：referenced=true 但全网无被引用媒体时直接返回空页（不发 id in []）', async () => {
+    prisma.mediaAsset.findMany.mockResolvedValue([]);
+
+    const result = await service.list({ referenced: true } as ListMediaQueryDto);
+
+    expect(result).toMatchObject({ items: [], total: 0, page: 1, limit: 20, totalPages: 1 });
+    expect(prisma.mediaAsset.count).not.toHaveBeenCalled();
+  });
+
+  it('list：引用匹配兼容基地址变化（url 换域名后按文件名后缀仍判被引用）', async () => {
+    prisma.productImage.findMany.mockResolvedValue([
+      { id: 'pi-1', url: `https://cdn.bailingwooden.com/media/2026/10/${STORED_UUID}.png` },
+    ]);
+    prisma.mediaAsset.count.mockResolvedValue(1);
+    prisma.mediaAsset.findMany.mockResolvedValue([makeAssetRow()]);
+
+    const result = await service.list({} as ListMediaQueryDto);
+
+    expect(result.items[0]).toMatchObject({ id: 'media-1', referenceCount: 1 });
+  });
+
+  it('list：同一行经外键 + 地址快照双命中只计一次引用', async () => {
+    // BlogPost 同时有 coverMediaId 与 coverImageUrl 指向同一资产（两次查询同一行）
+    prisma.blogPost.findMany
+      .mockResolvedValueOnce([{ id: 'post-1', coverMediaId: 'media-1' }])
+      .mockResolvedValueOnce([{ id: 'post-1', coverImageUrl: STORED_URL }]);
+    prisma.mediaAsset.count.mockResolvedValue(1);
+    prisma.mediaAsset.findMany.mockResolvedValue([makeAssetRow()]);
+
+    const result = await service.list({} as ListMediaQueryDto);
+
+    expect(result.items[0]).toMatchObject({ id: 'media-1', referenceCount: 1 });
+  });
+
+  it('list：多来源引用累计计数（产品图 + 站点分区各 1 → referenceCount=2）', async () => {
+    prisma.productImage.findMany.mockResolvedValue([{ id: 'pi-1', url: STORED_URL }]);
+    prisma.siteSection.findMany.mockResolvedValue([{ id: 'sec-1', mediaId: 'media-1' }]);
+    prisma.mediaAsset.count.mockResolvedValue(1);
+    prisma.mediaAsset.findMany.mockResolvedValue([makeAssetRow()]);
+
+    const result = await service.list({} as ListMediaQueryDto);
+
+    expect(result.items[0]).toMatchObject({ id: 'media-1', referenceCount: 2 });
+  });
+
   it('findById：不存在返回 404；存在返回 DTO', async () => {
     prisma.mediaAsset.findUnique.mockResolvedValue(null);
     await expect(service.findById('missing')).rejects.toThrow('媒体资源不存在');
 
     prisma.mediaAsset.findUnique.mockResolvedValue(makeAssetRow());
     const dto = await service.findById('media-1');
-    expect(dto).toMatchObject({ id: 'media-1', width: 640, height: 480 });
+    expect(dto).toMatchObject({ id: 'media-1', width: 640, height: 480, referenceCount: 0 });
+  });
+
+  it('findById：返回 DTO 附带真实引用计数（删除保护同源规则）', async () => {
+    prisma.mediaAsset.findUnique.mockResolvedValue(makeAssetRow());
+    prisma.productImage.count.mockResolvedValue(2);
+
+    const dto = await service.findById('media-1');
+
+    expect(dto).toMatchObject({ id: 'media-1', referenceCount: 2 });
   });
 
   /* ------------------------- 删除与引用检查 ------------------------- */

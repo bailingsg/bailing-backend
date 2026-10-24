@@ -39,7 +39,7 @@ interface AuthedRequest {
  * 媒体资源 CMS API（Phase 4.3，控制器级 JwtAuthGuard，全部要求登录）。
  *
  *   POST   /api/v1/cms/media/upload   上传（multipart，字段 file，可选字段 usage）
- *   GET    /api/v1/cms/media          列表（page/limit/keyword/category/usage）
+ *   GET    /api/v1/cms/media          列表（page/limit/keyword/category/usage/referenced）
  *   GET    /api/v1/cms/media/:id      详情
  *   DELETE /api/v1/cms/media/:id      删除（引用检查：被业务引用 → 400）
  *
@@ -72,7 +72,7 @@ export class MediaController {
     return this.mediaService.upload(file, request.user.id, body.usage);
   }
 
-  /** 媒体列表（分页 + keyword / category 筛选） */
+  /** 媒体列表（分页 + keyword / category / usage / referenced 筛选；每项带引用计数） */
   @Get()
   @RequirePermissions('media.read')
   list(@Query() query: ListMediaQueryDto): Promise<PaginatedMediaDto> {

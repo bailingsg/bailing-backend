@@ -279,6 +279,87 @@ describe('Media CMS（e2e）', () => {
       .expect(200);
   });
 
+  it('List：referenced 筛选（未被引用仅 referenced=false 可见；被 ProductImage 引用后反转）', async () => {
+    // 第三个资产：初始未被任何业务记录引用
+    const third = await request(app.getHttpServer())
+      .post('/api/v1/cms/media/upload')
+      .set(auth())
+      .attach('file', PNG_BYTES, {
+        filename: 'e2e-media-third-unref.png',
+        contentType: 'image/png',
+      })
+      .expect(201);
+    const thirdId = third.body.data.id as string;
+    const thirdUrl = third.body.data.url as string;
+    // 上传响应即带引用计数（新资产 = 0）
+    expect(third.body.data.referenceCount).toBe(0);
+
+    const unreferencedBefore = await request(app.getHttpServer())
+      .get('/api/v1/cms/media')
+      .query({ referenced: 'false', keyword: 'third-unref' })
+      .set(auth())
+      .expect(200);
+    const itemsBefore = unreferencedBefore.body.data.items as Array<{
+      id: string;
+      referenceCount: number;
+    }>;
+    expect(itemsBefore).toHaveLength(1);
+    expect(itemsBefore[0]).toMatchObject({ id: thirdId, referenceCount: 0 });
+
+    // 尚未被引用：referenced=true 视图为空
+    const referencedBefore = await request(app.getHttpServer())
+      .get('/api/v1/cms/media')
+      .query({ referenced: 'true', keyword: 'third-unref' })
+      .set(auth())
+      .expect(200);
+    expect(referencedBefore.body.data.items).toHaveLength(0);
+
+    // 建立引用（产品图片 url 快照），筛选结果反转
+    const category = await prisma.category.create({
+      data: { name: 'E2E Media Ref Cat', slug: `${SLUG_PREFIX}${RUN_ID}-ref-cat` },
+    });
+    const product = await prisma.product.create({
+      data: {
+        name: 'E2E Media Ref Holder',
+        slug: `${SLUG_PREFIX}${RUN_ID}-ref-holder`,
+        categoryId: category.id,
+        description: 'holder product for media referenced filter',
+        status: 'DRAFT',
+        isFeatured: false,
+      },
+    });
+    await prisma.productImage.create({
+      data: { productId: product.id, url: thirdUrl },
+    });
+
+    const referencedAfter = await request(app.getHttpServer())
+      .get('/api/v1/cms/media')
+      .query({ referenced: 'true', keyword: 'third-unref' })
+      .set(auth())
+      .expect(200);
+    const itemsAfter = referencedAfter.body.data.items as Array<{
+      id: string;
+      referenceCount: number;
+    }>;
+    expect(itemsAfter).toHaveLength(1);
+    expect(itemsAfter[0]).toMatchObject({ id: thirdId, referenceCount: 1 });
+
+    const unreferencedAfter = await request(app.getHttpServer())
+      .get('/api/v1/cms/media')
+      .query({ referenced: 'false', keyword: 'third-unref' })
+      .set(auth())
+      .expect(200);
+    expect(unreferencedAfter.body.data.items).toHaveLength(0);
+
+    // 清理：产品级联删图片行 → 资产不再被引用 → 可直接删除
+    await prisma.product.delete({ where: { id: product.id } });
+    await prisma.category.delete({ where: { id: category.id } });
+    await request(app.getHttpServer())
+      .delete(`/api/v1/cms/media/${thirdId}`)
+      .set(auth())
+      .expect(200);
+  });
+
   it('Detail：存在返回 200；不存在返回 404', async () => {
     const res = await request(app.getHttpServer())
       .get(`/api/v1/cms/media/${assetId}`)
