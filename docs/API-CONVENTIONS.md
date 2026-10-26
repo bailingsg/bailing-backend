@@ -111,9 +111,9 @@
   失败（口令错误 / 邮箱不存在 / 账号停用）**统一 401 `Invalid email or password`**，
   不区分原因，防止账号枚举。
 - **调用**：受保护接口携带 `Authorization: Bearer <accessToken>`。
-- **有效期**：`JWT_EXPIRES_IN`（默认 `15m`）。**只实现 access token，
-  不实现 refresh token**——15 分钟窗口 + HttpOnly Cookie 会话可满足后台场景；
-  刷新机制待后续阶段按需引入（届时必须同时设计吊销策略）。
+- **有效期**：`JWT_EXPIRES_IN`（默认 `12h`）。**只实现 access token，
+  不实现 refresh token**——12 小时窗口 + HttpOnly Cookie 会话可满足后台场景
+  （员工一天只需登录一次）；刷新机制待后续阶段按需引入（届时必须同时设计吊销策略）。
 - **密钥**：`JWT_SECRET` 仅来自环境变量；代码无默认值，生产缺失或不足 32 字符直接启动失败
   （见 `src/config/env.validation.ts`）。
 - **多重校验**：`GET /auth/me` 以数据库实时状态为准——账号被停用/删除后既有令牌立即失效，

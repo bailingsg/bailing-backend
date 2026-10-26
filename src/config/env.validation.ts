@@ -35,10 +35,10 @@ export function validateEnv(config: Record<string, unknown>): Record<string, unk
     logger.warn('JWT_SECRET 长度不足 32 字符：生产环境必须使用足够长的强随机密钥。');
   }
 
-  // JWT 有效期格式校验（15m / 7d / 3600s 等）
-  const jwtExpiresIn = String(config.JWT_EXPIRES_IN ?? '15m').trim();
+  // JWT 有效期格式校验（12h / 7d / 3600s 等）
+  const jwtExpiresIn = String(config.JWT_EXPIRES_IN ?? '12h').trim();
   if (!/^\d+\s*(ms|s|m|h|d|w|y)$/.test(jwtExpiresIn)) {
-    throw new Error('JWT_EXPIRES_IN 格式无效：应形如 15m / 7d / 3600s');
+    throw new Error('JWT_EXPIRES_IN 格式无效：应形如 12h / 7d / 3600s');
   }
 
   // 管理员种子提示（不阻断启动：seed 时仍可补配后重跑）

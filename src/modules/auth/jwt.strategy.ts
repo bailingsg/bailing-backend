@@ -11,7 +11,7 @@ import type { AuthUser, JwtPayload } from './auth.types';
  * 通过后把 payload 映射为 AuthUser 挂到 request.user。
  *
  * 令牌只含 id / email / role（登录时签发），本策略不查库；
- * 停用账号的既有令牌最长存活到自然过期（默认 15m），
+ * 停用账号的既有令牌最长存活到自然过期（默认 12h），
  * /auth/me 与后续 CMS 接口会以数据库实时状态为准做二次校验。
  */
 @Injectable()

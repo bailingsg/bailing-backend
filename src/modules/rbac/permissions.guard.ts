@@ -25,7 +25,7 @@ import type { AuthUser } from '../auth/auth.types';
  * 三重校验（缺一不可）：
  *   1. request.user 存在（未过 JwtAuthGuard 时直接 401）
  *   2. 账号在数据库中**仍然启用**（账号被停用后既有令牌立即失效，
- *      不再等待 15m 自然过期——这是 Phase 4.6 相对 4.1 的强化点）
+ *      不再等待 12h 自然过期——这是 Phase 4.6 相对 4.1 的强化点）
  *   3. 账号权限满足 @RequirePermissions 声明
  *
  * 未声明权限的接口：只做「登录 + 账号启用」校验后放行。

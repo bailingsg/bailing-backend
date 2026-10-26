@@ -37,7 +37,7 @@ import { MAX_MEDIA_FILE_SIZE } from '../media/media-file.util';
  *   DELETE /api/v1/auth/profile/avatar   自助移除头像（同时删除存储对象）
  *   POST   /api/v1/auth/change-password  自助修改登录口令（校验当前口令）
  *
- * 阶段约定：只实现 access token（默认 15m），不引入 refresh token。
+ * 阶段约定：只实现 access token（默认 12h），不引入 refresh token。
  * 前端通过 HttpOnly Cookie 持有令牌（见 bailing-admin 登录路由）。
  *
  * /auth/profile 与 /auth/change-password 刻意**不挂 PermissionsGuard**：

@@ -358,8 +358,8 @@ export class AuthService {
    *   · 新旧口令相同直接拒绝（无意义，且易让人误以为已改成功）
    *   · 只写 passwordHash；审计只记「发生了修改」，绝不记录口令本身
    *
-   * 关于旧会话：JWT 无状态（默认 15 分钟），改口令不会立即吊销已签发的令牌，
-   * 该窗口由 JWT_EXPIRES_IN 兜底；界面会提示其他设备最迟 15 分钟后需重新登录。
+   * 关于旧会话：JWT 无状态（默认 12 小时），改口令不会立即吊销已签发的令牌，
+   * 该窗口由 JWT_EXPIRES_IN 兜底；界面会提示其他设备最迟在令牌过期后需重新登录。
    */
   async changePassword(auth: AuthUser, dto: ChangePasswordDto): Promise<{ changed: true }> {
     const admin = await this.requireActiveAdmin(auth.id);

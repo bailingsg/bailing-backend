@@ -22,13 +22,13 @@ export default () => {
     /**
      * 管理员认证（Phase 4.1）：
      *   · JWT_SECRET       —— 签名密钥，仅来自环境变量；生产环境缺失直接启动失败
-     *   · JWT_EXPIRES_IN   —— access token 有效期，默认 15m
+     *   · JWT_EXPIRES_IN   —— access token 有效期，默认 12h
      *
      * 开发环境未配置 JWT_SECRET 时，生成**进程级随机密钥**（重启后旧令牌全部失效），
      * 仅为方便本地启动，绝不作为生产兜底；生产环境必须显式注入。
      */
     jwtSecret: process.env.JWT_SECRET ?? (isProduction ? '' : randomBytes(48).toString('hex')),
-    jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '15m',
+    jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '12h',
 
     /**
      * 默认管理员种子（prisma seed 使用）。
