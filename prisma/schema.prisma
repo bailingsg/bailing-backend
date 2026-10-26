@@ -409,11 +409,13 @@ enum MediaCategory {
 // 取值对齐站点上实际有图的页面，避免造出没有落点的空分类：
 //   · BLOG        文章封面 / 正文配图
 //   · PRODUCT     产品图（产品详情图库）
-//   · CERTIFICATE 证书 / 检测报告（质量 CMS）
-//   · FACTORY     工厂厂房 / 设施（FactorySection OVERVIEW / FACILITY）
-//   · PRODUCTION  生产流程 / 生产设备（FactorySection PRODUCTION / EQUIPMENT）
-//   · LOADING     装柜 / 装车（FactorySection LOADING）
-//   · EXHIBITION  展会照片（FactoryExhibition）
+//   · CERTIFICATE 证书 / 检测报告（质量页「认证与报告」区）
+//   · FACTORY     工厂厂房 / 设施（工厂页「工厂与车间」）
+//   · PRODUCTION  生产流程 / 生产设备（工厂页「生产设备」）
+//   · LOADING     装柜 / 装车（工厂页「装柜发货」）
+//   · EXHIBITION  展会照片（工厂页「参展记录」）
+//   · INSPECTION  检验过程照片（质量页「检验流程」，2026-10-26 新增）
+//   · PACKAGING   包装品质照片（质量页「包装品质」，2026-10-26 新增）
 //   · APPLICATION 应用场景（Application 封面）
 //   · SITE        站点结构化分区配图（SiteSection）
 //   · OTHER       其他 / 暂未归类
@@ -425,6 +427,8 @@ enum MediaUsage {
   PRODUCTION
   LOADING
   EXHIBITION
+  INSPECTION
+  PACKAGING
   APPLICATION
   SITE
   OTHER
