@@ -29,6 +29,13 @@ export interface AdminProfileDto {
   isSuperAdmin: boolean;
   /** 职位（Phase 4.6） */
   jobTitle: string | null;
+  /**
+   * 我的头像地址（自助上传；未上传为 null）。
+   *
+   * 放在档案里而不是只放 /auth/profile 的 contact 段：顶栏要显示头像，
+   * 而顶栏每页都会渲染，多调一次 /auth/profile 不划算。
+   */
+  avatarUrl: string | null;
   isActive: boolean;
   lastLoginAt: Date | null;
 }
@@ -45,6 +52,13 @@ export interface MyContactDto {
   displayEmail: string | null;
   whatsapp: string | null;
   phone: string | null;
+  /**
+   * 头像地址（自助上传，Phase 5.4 追加）。
+   *
+   * 由 avatarKey 经当前 StorageProvider 动态生成（取不到才回退快照），
+   * 因此换存储后端/换 CDN 域名后地址仍然有效——与 contacts 列表同一口径。
+   */
+  avatarUrl: string | null;
   showOnSite: boolean;
 }
 
@@ -69,6 +83,7 @@ export function toAdminProfile(admin: AdminUser): AdminProfileDto {
     permissions: [],
     isSuperAdmin: false,
     jobTitle: admin.jobTitle,
+    avatarUrl: null,
     isActive: admin.isActive,
     lastLoginAt: admin.lastLoginAt,
   };

@@ -384,6 +384,7 @@ export class ContactsService {
         displayEmail: true,
         whatsapp: true,
         phone: true,
+        avatarKey: true,
         avatarUrl: true,
         sortOrder: true,
       },
@@ -396,12 +397,37 @@ export class ContactsService {
       displayEmail: r.displayEmail,
       whatsapp: r.whatsapp,
       phone: r.phone,
-      avatarUrl: r.avatarUrl,
+      avatarUrl: this.resolveAvatarUrl(r.avatarKey, r.avatarUrl),
       sortOrder: r.sortOrder,
     }));
   }
 
   // ── 内部 ────────────────────────────────────────────────────
+
+  /**
+   * 头像访问地址：**优先由 avatarKey 经当前 StorageProvider 动态生成**，
+   * 取不到才回退到 avatarUrl 快照。
+   *
+   * 为什么不能只信快照：avatarUrl 是上传那一刻写下的地址快照，
+   * 存储后端一换（COS → 本地）、或域名一改，它就指向不存在的地址。
+   * avatarKey 是稳定的 storageKey（media/YYYY/MM/<uuid>.<ext>），与介质无关。
+   *
+   * 2026-10-26 实际踩过：`repair-uploads-media-urls.cjs --prune` 把文件已丢的
+   * 头像引用置为 NULL，而 listPublic 只读 avatarUrl，导致联系页 14 位员工
+   * 头像全部消失——文件其实好好躺在磁盘上，只是没人去生成地址。
+   *
+   * key 非法（历史脏数据）时退回快照，不让单条记录打断整个列表。
+   */
+  private resolveAvatarUrl(avatarKey: string | null, snapshot: string | null): string | null {
+    if (avatarKey) {
+      try {
+        return this.storage.getUrl(avatarKey);
+      } catch {
+        this.logger.warn(`头像 storageKey 非法，回退快照地址：${avatarKey}`);
+      }
+    }
+    return snapshot;
+  }
 
   private toDto(contact: {
     id: string;
@@ -430,7 +456,7 @@ export class ContactsService {
       whatsapp: contact.whatsapp,
       phone: contact.phone,
       avatarKey: contact.avatarKey,
-      avatarUrl: contact.avatarUrl,
+      avatarUrl: this.resolveAvatarUrl(contact.avatarKey, contact.avatarUrl),
       showOnSite: contact.showOnSite,
       isLeadContact: contact.isLeadContact,
       sortOrder: contact.sortOrder,

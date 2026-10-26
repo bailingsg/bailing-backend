@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   Logger,
   UnauthorizedException,
@@ -14,9 +15,19 @@ import { RbacService } from '../rbac/rbac.service';
 import { AuditLogService } from '../rbac/audit-log.service';
 import { RevalidationService } from '../revalidation/revalidation.service';
 import { CmsTags } from '../revalidation/cms-tags';
+import {
+  STORAGE_PROVIDER,
+  type StorageProvider,
+} from '../media/storage/storage.interface';
+import {
+  ALLOWED_IMAGE_MIME,
+  validateUpload,
+  verifyImageSignature,
+} from '../media/media-file.util';
 import type { AuthUser, JwtExpiresIn, JwtPayload } from './auth.types';
 import { LoginDto } from './dto/login.dto';
 import { UpdateMyProfileDto } from './dto/update-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import type { AdminProfileDto, LoginResponseDto, MyContactDto, MyProfileDto } from './auth.dto';
 
 /**
@@ -61,6 +72,7 @@ export class AuthService {
     private readonly rbac: RbacService,
     private readonly audit: AuditLogService,
     private readonly revalidation: RevalidationService,
+    @Inject(STORAGE_PROVIDER) private readonly storage: StorageProvider,
   ) {}
 
   /** 登录：校验口令 → 更新 lastLoginAt → 签发 JWT */
@@ -91,24 +103,11 @@ export class AuthService {
 
     this.logger.log(`管理员登录成功: ${admin.email} (${admin.role})`);
 
-    // Phase 4.6：登录响应即带出生效角色与权限，前端首屏即可正确渲染菜单
-    const access = await this.rbac.resolveAccess(admin.id);
+    // Phase 4.6：登录响应即带出生效角色、权限与头像地址，前端首屏即可正确渲染菜单与顶栏。
+    // lastLoginAt 用本次登录时间（数据库里刚写入的值），不要回显更新前的旧值。
+    const user = await this.buildProfile({ ...admin, lastLoginAt });
 
-    return {
-      accessToken,
-      user: {
-        id: admin.id,
-        email: admin.email,
-        name: admin.name,
-        role: admin.role,
-        roles: access.roleKeys,
-        permissions: [...access.permissions].sort(),
-        isSuperAdmin: access.isSuperAdmin,
-        jobTitle: admin.jobTitle,
-        isActive: admin.isActive,
-        lastLoginAt,
-      },
-    };
+    return { accessToken, user };
   }
 
   /**
@@ -130,11 +129,12 @@ export class AuthService {
    */
   async myProfile(auth: AuthUser): Promise<MyProfileDto> {
     const admin = await this.requireActiveAdmin(auth.id);
-    const [profile, contact] = await Promise.all([
-      this.buildProfile(admin),
-      this.prisma.employeeContact.findUnique({ where: { adminUserId: admin.id } }),
-    ]);
-    return { profile, contact: contact ? toMyContact(contact) : null };
+    const contact = await this.prisma.employeeContact.findUnique({
+      where: { adminUserId: admin.id },
+    });
+    // 传入已查到的 contact，buildProfile 不再重复查同一行
+    const profile = await this.buildProfile(admin, contact);
+    return { profile, contact: contact ? this.toMyContact(contact) : null };
   }
 
   /**
@@ -231,7 +231,210 @@ export class AuthService {
     return this.myProfile({ ...auth, email: accountData.email ?? admin.email });
   }
 
+  /**
+   * 自助上传 / 替换我的头像（PUT /auth/profile/avatar）。
+   *
+   * 与 CMS 侧 ContactsService.setAvatar 同一套语义：
+   *   1. 先校验格式（MIME 白名单 + 大小 + 魔数，防伪造扩展名）
+   *   2. 先把新对象传到 StorageProvider
+   *   3. 再落库新 key/url
+   *   4. **最后删除服务器上的旧对象**（替换头像必须清掉原文件，不留孤儿）
+   *
+   * 顺序不能反：若先删旧再传新，一旦上传失败员工连旧头像都没有；
+   * 「先传后删」既保证失败无损，又保证成功后旧文件一定被清掉。
+   *
+   * 尚未绑定联系方式时自动创建一条（displayName 取账号姓名/邮箱前缀），
+   * 否则员工会被「先去员工联系方式页建记录」这种不合理前置挡住。
+   */
+  async setMyAvatar(auth: AuthUser, file: Express.Multer.File): Promise<MyProfileDto> {
+    const admin = await this.requireActiveAdmin(auth.id);
+
+    const mime = file.mimetype ?? '';
+    if (!Object.hasOwn(ALLOWED_IMAGE_MIME, mime)) {
+      throw new BadRequestException(
+        `不支持的头像格式: ${mime || 'unknown'}（仅支持 JPEG / PNG / WebP / AVIF）`,
+      );
+    }
+    validateUpload(file);
+    if (!verifyImageSignature(file.buffer, file.mimetype)) {
+      throw new BadRequestException(
+        '文件内容与声明格式不符（头像仅支持 jpeg / png / webp / avif，须通过魔数校验）',
+      );
+    }
+
+    const existing = await this.prisma.employeeContact.findUnique({
+      where: { adminUserId: admin.id },
+      select: { id: true, avatarKey: true },
+    });
+
+    const stored = await this.storage.upload({
+      buffer: file.buffer,
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+    });
+
+    const staleKey = existing?.avatarKey ?? null;
+    // 极端情况下新旧 key 相同（同一次上传返回同一对象）时不能删，否则刚传的就被删了
+    const shouldDeleteStale = Boolean(staleKey) && staleKey !== stored.storageKey;
+
+    if (existing) {
+      await this.prisma.employeeContact.update({
+        where: { id: existing.id },
+        data: { avatarKey: stored.storageKey, avatarUrl: stored.url },
+      });
+    } else {
+      await this.prisma.employeeContact.create({
+        data: {
+          adminUserId: admin.id,
+          displayName: this.fallbackDisplayName(admin),
+          avatarKey: stored.storageKey,
+          avatarUrl: stored.url,
+        },
+      });
+    }
+
+    if (shouldDeleteStale) {
+      await this.storage.delete(staleKey as string);
+    }
+
+    await this.audit.record({
+      actor: { id: admin.id, email: admin.email },
+      action: 'auth.avatar.update',
+      targetType: 'AdminUser',
+      targetId: admin.id,
+      summary: `自助${shouldDeleteStale ? '替换' : '上传'}头像（删除旧对象：${shouldDeleteStale ? '是' : '否'}）`,
+      diff: { before: { avatarKey: staleKey }, after: { avatarKey: stored.storageKey } },
+    });
+
+    this.logger.log(`自助头像已${shouldDeleteStale ? '替换' : '上传'}: ${admin.email}`);
+    void this.revalidation.invalidate({ tags: [CmsTags.contacts], paths: ['/contact'] });
+
+    return this.myProfile({ ...auth, email: admin.email });
+  }
+
+  /**
+   * 移除我的头像（DELETE /auth/profile/avatar）。
+   * 清空字段 + **删除存储对象**，不留孤儿文件；本就没有头像时幂等返回。
+   */
+  async removeMyAvatar(auth: AuthUser): Promise<MyProfileDto> {
+    const admin = await this.requireActiveAdmin(auth.id);
+    const existing = await this.prisma.employeeContact.findUnique({
+      where: { adminUserId: admin.id },
+      select: { id: true, avatarKey: true },
+    });
+
+    if (!existing?.avatarKey) {
+      return this.myProfile({ ...auth, email: admin.email });
+    }
+
+    await this.prisma.employeeContact.update({
+      where: { id: existing.id },
+      data: { avatarKey: null, avatarUrl: null },
+    });
+    await this.storage.delete(existing.avatarKey);
+
+    await this.audit.record({
+      actor: { id: admin.id, email: admin.email },
+      action: 'auth.avatar.remove',
+      targetType: 'AdminUser',
+      targetId: admin.id,
+      summary: '自助移除头像（存储对象已删除）',
+      diff: { before: { avatarKey: existing.avatarKey }, after: { avatarKey: null } },
+    });
+
+    this.logger.log(`自助头像已移除: ${admin.email}`);
+    void this.revalidation.invalidate({ tags: [CmsTags.contacts], paths: ['/contact'] });
+
+    return this.myProfile({ ...auth, email: admin.email });
+  }
+
+  /**
+   * 自助修改口令（POST /auth/change-password）。
+   *
+   * 安全约定：
+   *   · 必须校验当前口令——防止别人借用未锁屏的会话直接改密码
+   *   · 当前口令错误返回 **400 而非 401**：401 会被前端当成「登录失效」跳登录页，
+   *     而这里只是输错口令，用户应留在原页重试
+   *   · 新旧口令相同直接拒绝（无意义，且易让人误以为已改成功）
+   *   · 只写 passwordHash；审计只记「发生了修改」，绝不记录口令本身
+   *
+   * 关于旧会话：JWT 无状态（默认 15 分钟），改口令不会立即吊销已签发的令牌，
+   * 该窗口由 JWT_EXPIRES_IN 兜底；界面会提示其他设备最迟 15 分钟后需重新登录。
+   */
+  async changePassword(auth: AuthUser, dto: ChangePasswordDto): Promise<{ changed: true }> {
+    const admin = await this.requireActiveAdmin(auth.id);
+
+    const currentOk = await verifyPassword(dto.currentPassword, admin.passwordHash);
+    if (!currentOk) {
+      throw new BadRequestException('当前口令不正确');
+    }
+    if (dto.newPassword === dto.currentPassword) {
+      throw new BadRequestException('新口令不能与当前口令相同');
+    }
+
+    const passwordHash = await hashPassword(dto.newPassword);
+    await this.prisma.adminUser.update({ where: { id: admin.id }, data: { passwordHash } });
+
+    await this.audit.record({
+      actor: { id: admin.id, email: admin.email },
+      action: 'auth.password.change',
+      targetType: 'AdminUser',
+      targetId: admin.id,
+      summary: '自助修改登录口令',
+      diff: { changed: 'passwordHash' },
+    });
+
+    this.logger.log(`口令自助修改: ${admin.email}`);
+    return { changed: true };
+  }
+
   // ── 内部 ────────────────────────────────────────────────────
+
+  /** 头像上传时若还没有联系方式，用账号姓名/邮箱前缀兜底展示名（不足 2 字符则要求先填姓名） */
+  private fallbackDisplayName(admin: AdminUser): string {
+    const candidate = (admin.name ?? '').trim() || (admin.email.split('@')[0] ?? '').trim();
+    if (candidate.length < 2) {
+      throw new BadRequestException('请先在「账号信息」填写姓名（至少 2 个字符），再上传头像');
+    }
+    return candidate.slice(0, 50);
+  }
+
+  /**
+   * 头像地址：**优先由 avatarKey 经当前 StorageProvider 动态生成**，取不到才回退快照。
+   * 与 ContactsService 同一口径——快照地址在换存储/换 CDN 域名后会失效。
+   */
+  private resolveAvatarUrl(avatarKey: string | null, snapshot: string | null): string | null {
+    if (avatarKey) {
+      try {
+        return this.storage.getUrl(avatarKey);
+      } catch {
+        this.logger.warn(`头像 storageKey 非法，回退快照地址：${avatarKey}`);
+      }
+    }
+    return snapshot;
+  }
+
+  /** EmployeeContact → 自助视图（不含内部备注 / 分配相关字段） */
+  private toMyContact(contact: {
+    displayName: string;
+    jobTitle: string | null;
+    displayEmail: string | null;
+    whatsapp: string | null;
+    phone: string | null;
+    avatarKey: string | null;
+    avatarUrl: string | null;
+    showOnSite: boolean;
+  }): MyContactDto {
+    return {
+      displayName: contact.displayName,
+      jobTitle: contact.jobTitle,
+      displayEmail: contact.displayEmail,
+      whatsapp: contact.whatsapp,
+      phone: contact.phone,
+      avatarUrl: this.resolveAvatarUrl(contact.avatarKey, contact.avatarUrl),
+      showOnSite: contact.showOnSite,
+    };
+  }
 
   /** 取当前账号（数据库实时状态）；停用/删除即 401 */
   private async requireActiveAdmin(id: string): Promise<AdminUser> {
@@ -242,9 +445,21 @@ export class AuthService {
     return admin;
   }
 
-  /** AdminUser → 对外档案（含生效角色与权限） */
-  private async buildProfile(admin: AdminUser): Promise<AdminProfileDto> {
-    const access = await this.rbac.resolveAccess(admin.id);
+  /** AdminUser → 对外档案（含生效角色与权限、头像地址） */
+  private async buildProfile(
+    admin: AdminUser,
+    /** 调用方已查过联系方式时传入，避免同一行查两遍；undefined 表示由本方法自己查 */
+    contact?: { avatarKey: string | null; avatarUrl: string | null } | null,
+  ): Promise<AdminProfileDto> {
+    const [access, avatar] = await Promise.all([
+      this.rbac.resolveAccess(admin.id),
+      contact !== undefined
+        ? Promise.resolve(contact)
+        : this.prisma.employeeContact.findUnique({
+            where: { adminUserId: admin.id },
+            select: { avatarKey: true, avatarUrl: true },
+          }),
+    ]);
     return {
       id: admin.id,
       email: admin.email,
@@ -254,6 +469,7 @@ export class AuthService {
       permissions: [...access.permissions].sort(),
       isSuperAdmin: access.isSuperAdmin,
       jobTitle: admin.jobTitle,
+      avatarUrl: this.resolveAvatarUrl(avatar?.avatarKey ?? null, avatar?.avatarUrl ?? null),
       isActive: admin.isActive,
       lastLoginAt: admin.lastLoginAt,
     };
@@ -311,23 +527,4 @@ export class AuthService {
       showOnSite: dto.showOnSite ?? existing?.showOnSite ?? false,
     };
   }
-}
-
-/** EmployeeContact → 自助视图（不含内部备注 / 分配相关字段） */
-function toMyContact(contact: {
-  displayName: string;
-  jobTitle: string | null;
-  displayEmail: string | null;
-  whatsapp: string | null;
-  phone: string | null;
-  showOnSite: boolean;
-}): MyContactDto {
-  return {
-    displayName: contact.displayName,
-    jobTitle: contact.jobTitle,
-    displayEmail: contact.displayEmail,
-    whatsapp: contact.whatsapp,
-    phone: contact.phone,
-    showOnSite: contact.showOnSite,
-  };
 }
