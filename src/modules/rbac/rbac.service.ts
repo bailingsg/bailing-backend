@@ -17,6 +17,15 @@ export interface AccessContext {
   isActive: boolean;
   /** 角色 key 列表（仅启用中的角色） */
   roleKeys: string[];
+  /**
+   * 角色中文名列表（与 roleKeys **同序同长**）。
+   *
+   * 为什么单独带一份 name：角色 key 是稳定的英文标识（SUPER_ADMIN / SALES），
+   * 而展示名是可被管理员改写的（roles.name）。前端要显示「销售」而不是
+   * 「SALES」，又不能在前端硬编码 key→名 映射表（会与库里的真实名称漂移，
+   * 且自建角色根本没有对应条目）——所以名称必须由后端从库里取。
+   */
+  roleNames: string[];
   /** 生效权限 key 集合（仅启用中的角色所带权限） */
   permissions: Set<string>;
   /** 是否超级管理员（拥有全部权限） */
@@ -66,6 +75,7 @@ export class RbacService {
             role: {
               select: {
                 key: true,
+                name: true,
                 status: true,
                 rolePermissions: { select: { permission: { select: { key: true } } } },
               },
@@ -82,6 +92,7 @@ export class RbacService {
         name: null,
         isActive: false,
         roleKeys: [],
+        roleNames: [],
         permissions: new Set<string>(),
         isSuperAdmin: false,
         isLegacyFallback: false,
@@ -89,6 +100,7 @@ export class RbacService {
     }
 
     const roleKeys: string[] = [];
+    const roleNames: string[] = [];
     const permissions = new Set<string>();
     let isSuperAdmin = false;
 
@@ -97,6 +109,7 @@ export class RbacService {
       // 停用角色立即失效：不参与权限计算，也不计入角色列表
       if (role.status !== 'ACTIVE') continue;
       roleKeys.push(role.key);
+      roleNames.push(role.name);
       if (role.key === SUPER_ADMIN_ROLE_KEY) {
         isSuperAdmin = true;
         continue;
@@ -127,17 +140,25 @@ export class RbacService {
         roleKeys.push(legacyKey);
         isSuperAdmin = true;
         for (const def of PERMISSIONS) permissions.add(def.key);
+        // 回退路径也要取到中文名（超级管理员是受保护角色，名称固定）
+        const mapped = await this.prisma.role.findUnique({
+          where: { key: legacyKey },
+          select: { name: true },
+        });
+        roleNames.push(mapped?.name ?? '超级管理员');
       } else if (legacyKey) {
         // 与「显式分配该角色」完全等价：直接读库，不复制一份权限清单，避免与种子漂移
         const mapped = await this.prisma.role.findUnique({
           where: { key: legacyKey },
           select: {
+            name: true,
             rolePermissions: { select: { permission: { select: { key: true } } } },
           },
         });
         if (mapped) {
           isLegacyFallback = true;
           roleKeys.push(legacyKey);
+          roleNames.push(mapped.name);
           for (const rp of mapped.rolePermissions) permissions.add(rp.permission.key);
         }
       }
@@ -155,6 +176,7 @@ export class RbacService {
       name: admin.name,
       isActive: admin.isActive,
       roleKeys,
+      roleNames,
       permissions,
       isSuperAdmin,
       isLegacyFallback,

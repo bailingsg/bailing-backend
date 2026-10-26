@@ -466,6 +466,7 @@ export class AuthService {
       name: admin.name,
       role: admin.role,
       roles: access.roleKeys,
+      roleNames: access.roleNames,
       permissions: [...access.permissions].sort(),
       isSuperAdmin: access.isSuperAdmin,
       jobTitle: admin.jobTitle,

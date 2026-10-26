@@ -42,6 +42,7 @@ function makeRbac(overrides: AccessOverrides = {}): RbacService {
     name: null,
     isActive: overrides.isActive ?? true,
     roleKeys: [],
+    roleNames: [],
     permissions,
     isSuperAdmin,
     isLegacyFallback: false,

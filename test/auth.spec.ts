@@ -67,6 +67,7 @@ describe('AuthService（单元）', () => {
       name: 'Administrator',
       isActive: true,
       roleKeys: ['SUPER_ADMIN'],
+      roleNames: ['超级管理员'],
       permissions: new Set<string>(['dashboard.read']),
       isSuperAdmin: true,
       isLegacyFallback: true,
@@ -199,6 +200,18 @@ describe('AuthService（单元）', () => {
       const profile = await service.me({ id: admin.id, email: admin.email, role: admin.role });
       // 优先用 storageKey 现算，不用可能失效的快照
       expect(profile.avatarUrl).toBe('https://cdn.bailingwooden.com/media/2026/10/avatar.png');
+    });
+
+    it('档案带出角色 key 与对应中文名（供前端显示「销售」而不是「SALES」）', async () => {
+      const admin = makeAdmin();
+      prisma.adminUser.findUnique.mockResolvedValue(admin);
+      rbac.resolveAccess.mockResolvedValue(
+        makeAccess({ roleKeys: ['SALES'], roleNames: ['销售'], isSuperAdmin: false }),
+      );
+
+      const profile = await service.me({ id: admin.id, email: admin.email, role: admin.role });
+      expect(profile.roles).toEqual(['SALES']);
+      expect(profile.roleNames).toEqual(['销售']);
     });
 
     it('账号被停用后既有令牌立即失效（401）', async () => {

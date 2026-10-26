@@ -23,6 +23,14 @@ export interface AdminProfileDto {
   role: AdminRole;
   /** 新 RBAC 生效角色 key（可能为空） */
   roles: string[];
+  /**
+   * 生效角色的中文名（与 roles **同序同长**）。
+   *
+   * 角色 key 是英文标识（SALES），展示名在 roles.name（可被管理员改写）。
+   * 前端要显示「销售」而不是「SALES」，又不能在前端硬编码 key→名 映射
+   * （自建角色无对应条目、且改名后会漂移）——所以名称由后端随 key 一起下发。
+   */
+  roleNames: string[];
   /** 生效权限 key（超管为全集） */
   permissions: string[];
   /** 是否超级管理员 */
@@ -80,6 +88,7 @@ export function toAdminProfile(admin: AdminUser): AdminProfileDto {
     name: admin.name,
     role: admin.role,
     roles: [],
+    roleNames: [],
     permissions: [],
     isSuperAdmin: false,
     jobTitle: admin.jobTitle,
