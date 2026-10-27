@@ -184,12 +184,12 @@ export class RfqService {
   /**
    * 询盘入库后发送邮件通知给业务员（异步 / 失败降级）。
    *
-   * 收件人规则：
-   *   1. 有承接人 → 发给承接人：优先「员工对外工作邮箱」EmployeeContact.displayEmail，
+   * 收件人规则（**业务要求：禁止抄送，任何情况下 cc 恒为空**）：
+   *   1. 有承接人 → 只发给承接人：优先「员工对外工作邮箱」EmployeeContact.displayEmail，
    *      未配置时回落其登录邮箱 AdminUser.email（两者在系统中是分开维护的）；
    *   2. 无承接人（未启用分配 / 暂无员工）→ 发给 INQUIRY_NOTIFY_EMAIL，
-   *      仍未配置则退化为发件邮箱自身，保证线索至少有一封可追溯的邮件；
-   *   3. 有承接人且配置了 INQUIRY_NOTIFY_EMAIL → 同时抄送，便于管理层同步掌握线索。
+   *      仍未配置则退化为发件邮箱自身，保证线索至少有一封可追溯的邮件。
+   *   3. 绝不抄送 INQUIRY_NOTIFY_EMAIL，避免多人重复接收、越权查看同一线索。
    */
   private async dispatchInquiryEmail(rfqId: string): Promise<void> {
     if (!this.mailService) return;
@@ -226,9 +226,10 @@ export class RfqService {
       const assigneeEmail =
         rfq.assignee?.contact?.displayEmail?.trim() || rfq.assignee?.email?.trim() || null;
 
+      // 禁止抄送：只发单一收件人（承接人；未分配时走兜底邮箱），cc 恒为空。
       const recipients = assigneeEmail
-        ? { to: [assigneeEmail], cc: this.mailService.notifyRecipients() }
-        : { to: this.mailService.fallbackRecipients(), cc: [] };
+        ? { to: [assigneeEmail] }
+        : { to: this.mailService.fallbackRecipients() };
 
       const result = await this.mailService.sendInquiryNotification(recipients, {
         rfqId: rfq.id,
