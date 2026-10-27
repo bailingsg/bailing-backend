@@ -155,32 +155,74 @@ export class MailService {
       (payload.productName ? ` - ${payload.productName}` : '') +
       `（${payload.country}）`;
 
-    try {
-      const info = await this.getTransporter().sendMail({
-        from: `"${fromName}" <${fromAddress}>`,
-        to: to.join(', '),
-        cc: cc.length > 0 ? cc.join(', ') : undefined,
-        replyTo: payload.email,
-        subject,
-        text: buildTextBody(payload),
-        html: buildHtmlBody(payload),
-      });
+    // 163 免费邮对机房/云服务器 IP 存在间歇性风控：同一账号同一口令，偶尔直接返回
+    // 535 authentication failed，稍后重试即成功。单次发送失败就放弃会导致询盘通知
+    // 静默丢失（询盘本身已入库，但业务员收不到邮件）。故对可重试错误做有限次退避重试。
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= MAX_SEND_ATTEMPTS; attempt += 1) {
+      try {
+        const info = await this.getTransporter().sendMail({
+          from: `"${fromName}" <${fromAddress}>`,
+          to: to.join(', '),
+          cc: cc.length > 0 ? cc.join(', ') : undefined,
+          replyTo: payload.email,
+          subject,
+          text: buildTextBody(payload),
+          html: buildHtmlBody(payload),
+        });
 
-      this.logger.log(`询盘 ${payload.rfqId} 邮件通知已发送至 ${to.join(', ')}（cc: ${cc.length}）`);
-      return { sent: true, messageId: info.messageId };
-    } catch (error) {
-      // 仅记录错误消息：nodemailer 的 message 不含 auth.pass，但为稳妥起见不打印整个配置对象
-      this.logger.error(
-        `询盘 ${payload.rfqId} 邮件通知发送失败（询盘已入库，可在后台查看）：` +
-          (error instanceof Error ? error.message : String(error)),
-      );
-      return {
-        sent: false,
-        reason: 'error',
-        error: error instanceof Error ? error.message : String(error),
-      };
+        this.logger.log(
+          `询盘 ${payload.rfqId} 邮件通知已发送至 ${to.join(', ')}（cc: ${cc.length}）` +
+            (attempt > 1 ? `（第 ${attempt} 次尝试成功）` : ''),
+        );
+        return { sent: true, messageId: info.messageId };
+      } catch (error) {
+        lastError = error;
+        // 仅记录错误消息：nodemailer 的 message 不含 auth.pass，不打印整个配置对象
+        const message = error instanceof Error ? error.message : String(error);
+        if (attempt < MAX_SEND_ATTEMPTS && isRetryableSmtpError(message)) {
+          const delay = RETRY_BASE_DELAY_MS * attempt;
+          this.logger.warn(
+            `询盘 ${payload.rfqId} 邮件发送第 ${attempt}/${MAX_SEND_ATTEMPTS} 次失败（${message}），${delay}ms 后重试`,
+          );
+          await sleep(delay);
+          continue;
+        }
+        break;
+      }
     }
+
+    const finalMessage =
+      lastError instanceof Error ? lastError.message : String(lastError ?? 'unknown error');
+    this.logger.error(
+      `询盘 ${payload.rfqId} 邮件通知发送失败（已重试，询盘已入库，可在后台查看）：${finalMessage}`,
+    );
+    return { sent: false, reason: 'error', error: finalMessage };
   }
+}
+
+/* ------------------------------- 发送重试策略 ------------------------------- */
+
+/** 单封通知最多尝试次数（含首次） */
+const MAX_SEND_ATTEMPTS = 3;
+/** 退避基数：第 n 次重试前等待 n * RETRY_BASE_DELAY_MS */
+const RETRY_BASE_DELAY_MS = 1500;
+
+/**
+ * 判断错误是否值得重试。
+ *
+ * 覆盖 163 / QQ 等免费邮对机房 IP 的间歇性风控（535 authentication failed），
+ * 以及常见的连接层抖动（连接重置 / 超时 / socket 错误）。真正的口令错误同样会命中
+ * 535，但重试代价很低（异步发送、不阻塞访客响应），换来的是偶发风控下不丢线索。
+ */
+function isRetryableSmtpError(message: string): boolean {
+  return /535|Invalid login|authentication failed|ECONNRESET|ETIMEDOUT|ECONNECTION|ESOCKET|greeting|socket|timeout/i.test(
+    message,
+  );
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /* --------------------------------- 工具 --------------------------------- */
