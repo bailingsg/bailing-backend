@@ -165,7 +165,12 @@ export class MailService {
           from: `"${fromName}" <${fromAddress}>`,
           to: to.join(', '),
           cc: cc.length > 0 ? cc.join(', ') : undefined,
-          replyTo: payload.email,
+          // ⚠️ 严禁设置 replyTo 为客户邮箱（2026-10-27 实测结论）。
+          // 收信方（bailingwoods.com 走 chinaemail.cn / Coremail）的反钓鱼策略会把
+          // 「From 为自家域名、Reply-To 却是完全无关的外域邮箱」判为伪造邮件并静默丢弃：
+          // SMTP 侧返回 250 Ok，但收件人永远收不到、也不产生退信，极难排查。
+          // 回复通道改用正文里的 mailto「回复该客户」按钮（见 buildReplyMailto），
+          // 由客户端原生打开写信窗口并预填收件人，比 Reply-To 更可靠。
           subject,
           text: buildTextBody(payload),
           html: buildHtmlBody(payload),
@@ -269,9 +274,9 @@ function formatTime(date: Date): string {
 /**
  * 生成「回复该客户」按钮的 mailto 链接。
  *
- * 背景：部分邮件客户端（如 QQ 邮箱网页版）的回复按钮不按 Reply-To 预填客户地址，
- * 业务员点回复会回到系统发件箱。mailto 链接由客户端原生处理，点击即打开写信窗口
- * 并预填收件人与主题，是最可靠的回复通道（Reply-To 仍然保留，作为双保险）。
+ * 这是**唯一**的回复通道：邮件头不再设置 Reply-To（会被收信方反钓鱼策略拦截，
+ * 详见 sendMail 内的注释），只能靠正文里的 mailto 按钮。mailto 由客户端原生处理，
+ * 点击即打开写信窗口并预填收件人与主题。
  */
 function buildReplyMailto(payload: InquiryMailPayload): string {
   const subject = `Re: 您来自百灵木业官网的询盘${payload.productName ? `（${payload.productName}）` : ''}`;
@@ -285,7 +290,7 @@ function buildReplyMailto(payload: InquiryMailPayload): string {
 
 function buildTextBody(payload: InquiryMailPayload): string {
   const lines = [
-    `★ 客户邮箱：${payload.email} —— 点「回复」即可直接回信给该客户（若回复地址显示异常，请复制上面的地址）`,
+    `★ 客户邮箱：${payload.email} —— 回信请复制该地址手动发送；直接点「回复」会回到系统发件箱（不是客户）`,
     '',
     `收到一条新的询盘（编号 ${payload.rfqId}）`,
     '',
@@ -374,7 +379,8 @@ function buildHtmlBody(payload: InquiryMailPayload): string {
         ${attachment}
         ${source}
         <p style="margin:20px 0 0;font-size:13px;color:#5b6b7c;">
-          本邮件由官网询盘系统自动发送，<strong>直接回复本邮件即可联系客户</strong>。
+          本邮件由官网询盘系统自动发送。回信请点击上方「✉ 回复该客户」按钮，或手动填写上面的客户邮箱；
+          <strong>直接点「回复」会回到系统发件箱，不是客户</strong>。
         </p>
       </div>
     </div>

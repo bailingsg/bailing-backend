@@ -75,6 +75,25 @@ describe('MailService', () => {
       expect(result).toMatchObject({ sent: true, messageId: '<test@163.com>' });
     });
 
+    /**
+     * 回归保护：**绝不允许**设置 replyTo 为客户邮箱。
+     *
+     * 2026-10-27 实测：From 为 bailingwooden.com、Reply-To 为外域客户邮箱时，
+     * 收信方 chinaemail.cn 反钓鱼策略直接静默丢弃——SMTP 返回 250 Ok、无退信，
+     * 但收件人永远收不到。回复通道改用正文的 mailto 按钮。
+     */
+    it('不设置 replyTo（会被收信方反钓鱼策略静默丢弃）', async () => {
+      const service = makeService();
+      const sendMail = jest.fn().mockResolvedValue({ messageId: '<t@x>' });
+      (service as unknown as { transporter: unknown }).transporter = { sendMail };
+
+      await service.sendInquiryNotification({ to: ['sales@qq.com'] }, dummyPayload());
+
+      const options = sendMail.mock.calls[0][0] as Record<string, unknown>;
+      expect(options.replyTo).toBeUndefined();
+      expect(options.html).toContain('mailto:'); // 回复通道仍在正文里
+    });
+
     it('SMTP 报错时返回 error 且不抛出（询盘不因邮件失败而失败）', async () => {
       const service = makeService();
       (service as unknown as { transporter: unknown }).transporter = {
