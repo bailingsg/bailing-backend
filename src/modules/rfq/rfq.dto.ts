@@ -1,4 +1,4 @@
-import { Rfq, RfqStatus } from '@prisma/client';
+import { Rfq, RfqNotifyStatus, RfqStatus } from '@prisma/client';
 
 /**
  * RFQ API 的对外契约（DTO）。
@@ -46,6 +46,14 @@ export interface RfqListItemDto {
   assigneeName: string | null;
   assigneeEmail: string | null;
   assignedAt: string | null;
+  /** 通知邮件投递状态（后台「通知」列 + 详情页补发用） */
+  notifyStatus: RfqNotifyStatus;
+  /** 最近一次成功发送时间 */
+  notifiedAt: string | null;
+  /** 最近一次失败的错误摘要（成功时为 null） */
+  notifyError: string | null;
+  /** 已尝试发送次数（含自动首发与人工补发） */
+  notifyAttempts: number;
 }
 
 /** 详情：列表项 + 需求正文与附件 */
@@ -94,6 +102,10 @@ export function toRfqListItem(rfq: RfqRow): RfqListItemDto {
     assigneeName: assignee?.name ?? null,
     assigneeEmail: assignee?.email ?? null,
     assignedAt: rfq.assignedAt ? rfq.assignedAt.toISOString() : null,
+    notifyStatus: rfq.notifyStatus,
+    notifiedAt: rfq.notifiedAt ? rfq.notifiedAt.toISOString() : null,
+    notifyError: rfq.notifyError,
+    notifyAttempts: rfq.notifyAttempts,
   };
 }
 

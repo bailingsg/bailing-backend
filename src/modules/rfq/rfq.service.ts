@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
-import { Prisma, ProductStatus, RfqStatus } from '@prisma/client';
+import { Prisma, ProductStatus, RfqNotifyStatus, RfqStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateRfqDto } from './dto/create-rfq.dto';
 import { ListRfqQueryDto } from './dto/list-rfq-query.dto';
@@ -13,7 +13,7 @@ import {
   toRfqReceipt,
 } from './rfq.dto';
 import { LeadDistributionService } from '../cms/lead-distribution/lead-distribution.service';
-import { MailService } from '../mail/mail.service';
+import { MailService, type SendResult } from '../mail/mail.service';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -191,8 +191,8 @@ export class RfqService {
    *      仍未配置则退化为发件邮箱自身，保证线索至少有一封可追溯的邮件。
    *   3. 绝不抄送 INQUIRY_NOTIFY_EMAIL，避免多人重复接收、越权查看同一线索。
    */
-  private async dispatchInquiryEmail(rfqId: string): Promise<void> {
-    if (!this.mailService) return;
+  private async dispatchInquiryEmail(rfqId: string): Promise<SendResult | null> {
+    if (!this.mailService) return null;
 
     try {
       const rfq = await this.prisma.rfq.findUnique({
@@ -221,7 +221,7 @@ export class RfqService {
           },
         },
       });
-      if (!rfq) return;
+      if (!rfq) return null;
 
       const assigneeEmail =
         rfq.assignee?.contact?.displayEmail?.trim() || rfq.assignee?.email?.trim() || null;
@@ -249,18 +249,67 @@ export class RfqService {
         userAgent: rfq.userAgent,
       });
 
+      // 落库通知状态：后台列表/详情据此展示「已发送 / 发送失败」并支持补发。
+      // 状态落库失败绝不影响询盘本身，只记日志。
+      await this.prisma.rfq
+        .update({
+          where: { id: rfqId },
+          data: result.sent
+            ? {
+                notifyStatus: RfqNotifyStatus.SENT,
+                notifiedAt: new Date(),
+                notifyError: null,
+                notifyAttempts: { increment: 1 },
+              }
+            : {
+                notifyStatus: RfqNotifyStatus.FAILED,
+                notifyError: (result.error ?? result.reason ?? 'unknown').slice(0, 1000),
+                notifyAttempts: { increment: 1 },
+              },
+        })
+        .catch((e: unknown) => {
+          this.logger.error(
+            `询盘 ${rfqId} 通知状态落库失败：${e instanceof Error ? e.message : String(e)}`,
+          );
+        });
+
       if (!result.sent) {
         this.logger.warn(
-          `询盘 ${rfq.id} 未发出邮件通知（原因：${result.reason ?? 'unknown'}），请在后台查看该询盘。`,
+          `询盘 ${rfq.id} 未发出邮件通知（原因：${result.reason ?? 'unknown'}），可在后台一键补发。`,
         );
       }
+      return result;
     } catch (error) {
       // 邮件链路异常绝不影响询盘本身
       this.logger.error(
         `询盘 ${rfqId} 邮件通知处理异常（询盘已入库）：` +
           (error instanceof Error ? error.message : String(error)),
       );
+      return null;
     }
+  }
+
+  /**
+   * 人工补发询盘通知（后台「重新发送通知」按钮）。
+   *
+   * 复用与自动首发完全相同的链路（收件人规则、邮件模板、失败重试），
+   * 只是由后台显式触发并同步返回结果；补发后 notifyStatus 随之更新。
+   */
+  async resendNotification(
+    id: string,
+  ): Promise<{ sent: boolean; reason?: string; error?: string }> {
+    const exists = await this.prisma.rfq.findUnique({ where: { id }, select: { id: true } });
+    if (!exists) throw new NotFoundException('RFQ not found');
+
+    if (!this.mailService) {
+      return { sent: false, reason: 'disabled', error: '邮件服务未配置' };
+    }
+
+    const result = await this.dispatchInquiryEmail(id);
+    if (!result) {
+      return { sent: false, reason: 'error', error: '邮件发送异常，请查看后端日志' };
+    }
+    return result;
   }
 
   /** 后台列表：分页 + 状态/承接人筛选，最新提交在前 */

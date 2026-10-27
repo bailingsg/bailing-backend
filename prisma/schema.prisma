@@ -43,6 +43,13 @@ enum RfqStatus {
   CLOSED // 已关闭
 }
 
+// 询盘通知邮件的投递状态（后台可见 + 一键补发）
+enum RfqNotifyStatus {
+  PENDING // 待发送 / 尚未尝试
+  SENT // 发送成功
+  FAILED // 重试后仍失败（可人工补发）
+}
+
 enum MediaProvider {
   LOCAL // 本地/服务器磁盘（开发期）
   TENCENT_COS // 预留：腾讯云对象存储（Phase 2+ 接入，本阶段不调用）
@@ -192,6 +199,12 @@ model Rfq {
   attachmentUrl String? // 附件地址（可选，本阶段仅登记）
   status        RfqStatus @default(NEW)
 
+  // 通知邮件投递状态（后台可见 + 一键补发）
+  notifyStatus   RfqNotifyStatus @default(PENDING)
+  notifiedAt     DateTime?
+  notifyError    String?
+  notifyAttempts Int              @default(0)
+
   // Phase 4.6：询盘负责人（自动轮询分配）
   assigneeId String?
   assignedAt DateTime?
@@ -210,6 +223,7 @@ model Rfq {
   @@index([status])
   @@index([createdAt])
   @@index([assigneeId])
+  @@index([notifyStatus])
   @@map("rfqs")
 }
 

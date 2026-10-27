@@ -29,6 +29,7 @@ import { RfqService } from './rfq.service';
  *   GET   /api/v1/rfq                列表   → rfq.read
  *   GET   /api/v1/rfq/:id            详情   → rfq.read
  *   PATCH /api/v1/rfq/:id/status     状态流转 → rfq.update
+ *   POST  /api/v1/rfq/:id/notify     补发通知邮件 → rfq.update
  */
 @Controller('rfq')
 export class RfqController {
@@ -66,6 +67,14 @@ export class RfqController {
   @RequirePermissions('rfq.update')
   updateStatus(@Param('id') id: string, @Body() dto: UpdateRfqStatusDto) {
     return this.rfqService.updateStatus(id, dto.status);
+  }
+
+  /** 后台：人工补发询盘通知邮件（走与自动首发相同的链路与重试） */
+  @Post(':id/notify')
+  @UseGuards(RfqAuthGuard)
+  @RequirePermissions('rfq.update')
+  resendNotification(@Param('id') id: string) {
+    return this.rfqService.resendNotification(id);
   }
 }
 
