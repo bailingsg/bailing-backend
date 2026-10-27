@@ -371,12 +371,19 @@ export class ContactsService {
    *   · **绝不返回** internalNote、adminUserId、登录邮箱
    *   · 停用员工即使 showOnSite 尚为 true 也不会出现（账号停用时已同步关闭，
    *     此处仍按实时 isActive 再过滤一次，双保险）
+   *
+   * leadOnly（2026-10-27 追加）：为「关于页 · 订单背后的人」提供**可接单人员**。
+   * 可接单的判定与询盘轮转完全一致（isActive && isLeadContact），
+   * 再叠加 showOnSite —— 员工可接单但主动关掉公开展示时，前台不得露出。
+   * 之所以用同一接口加参数而不是另开接口：头像/姓名/职位本来就同一份数据，
+   * 另开接口会让「改头像不联动」这类问题在两条链路上各修一遍。
    */
-  async listPublic(): Promise<PublicContactDto[]> {
+  async listPublic(options: { leadOnly?: boolean } = {}): Promise<PublicContactDto[]> {
     const rows = await this.prisma.employeeContact.findMany({
       where: {
         showOnSite: true,
         adminUser: { isActive: true },
+        ...(options.leadOnly ? { isLeadContact: true } : {}),
       },
       select: {
         displayName: true,
