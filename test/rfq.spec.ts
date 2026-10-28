@@ -269,4 +269,88 @@ describe('RfqService', () => {
       );
     });
   });
+
+  /**
+   * 数据隔离（2026-10-28）：业务 / 销售账号只能看到「分配给本人」的询盘。
+   * 超管与服务身份（actor 为空）保持全局可见。
+   */
+  describe('数据隔离', () => {
+    const salesActor = {
+      id: 'user_sales_1',
+      email: 'sales1@bailingwoods.com',
+      name: 'Sales One',
+      permissions: new Set(['rfq.read', 'rfq.update']),
+      isSuperAdmin: false,
+    };
+    const superActor = { ...salesActor, id: 'user_admin', isSuperAdmin: true };
+
+    it('业务账号的列表查询应强制按本人承接过滤', async () => {
+      prisma.rfq.count.mockResolvedValue(0);
+      prisma.rfq.findMany.mockResolvedValue([]);
+
+      await service.list({ status: RfqStatus.NEW }, salesActor);
+
+      expect(prisma.rfq.count).toHaveBeenCalledWith({
+        where: { assigneeId: 'user_sales_1', status: RfqStatus.NEW },
+      });
+    });
+
+    it('业务账号传入他人 assigneeId 时应被忽略（仍只看自己）', async () => {
+      prisma.rfq.count.mockResolvedValue(0);
+      prisma.rfq.findMany.mockResolvedValue([]);
+
+      await service.list({ assigneeId: 'user_other' }, salesActor);
+
+      expect(prisma.rfq.count).toHaveBeenCalledWith({ where: { assigneeId: 'user_sales_1' } });
+    });
+
+    it('超级管理员可按承接人筛选全部询盘', async () => {
+      prisma.rfq.count.mockResolvedValue(0);
+      prisma.rfq.findMany.mockResolvedValue([]);
+
+      await service.list({ assigneeId: 'user_sales_1' }, superActor);
+
+      expect(prisma.rfq.count).toHaveBeenCalledWith({ where: { assigneeId: 'user_sales_1' } });
+    });
+
+    it('服务身份（无 actor）保持全局可见', async () => {
+      prisma.rfq.count.mockResolvedValue(0);
+      prisma.rfq.findMany.mockResolvedValue([]);
+
+      await service.list({});
+
+      expect(prisma.rfq.count).toHaveBeenCalledWith({ where: {} });
+    });
+
+    it('业务账号访问他人询盘详情应返回 404（不泄漏存在性）', async () => {
+      prisma.rfq.findUnique.mockResolvedValue(makeRfq({ assigneeId: 'user_other' }));
+
+      await expect(service.findById('rfq_1', salesActor)).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('业务账号可访问分配给自己的询盘详情', async () => {
+      prisma.rfq.findUnique.mockResolvedValue(makeRfq({ assigneeId: 'user_sales_1' }));
+
+      const detail = await service.findById('rfq_1', salesActor);
+
+      expect(detail.id).toBe('rfq_1');
+    });
+
+    it('业务账号不能流转他人询盘的状态', async () => {
+      prisma.rfq.findUnique.mockResolvedValue({ id: 'rfq_1', assigneeId: 'user_other' });
+
+      await expect(
+        service.updateStatus('rfq_1', RfqStatus.CONTACTED, salesActor),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.rfq.update).not.toHaveBeenCalled();
+    });
+
+    it('业务账号不能补发他人询盘的通知邮件', async () => {
+      prisma.rfq.findUnique.mockResolvedValue({ id: 'rfq_1', assigneeId: 'user_other' });
+
+      await expect(service.resendNotification('rfq_1', salesActor)).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+    });
+  });
 });

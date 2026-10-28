@@ -14,6 +14,7 @@ import {
 } from './rfq.dto';
 import { LeadDistributionService } from '../cms/lead-distribution/lead-distribution.service';
 import { MailService, type SendResult } from '../mail/mail.service';
+import type { ActorContext } from '../rbac/actor-context';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -297,9 +298,14 @@ export class RfqService {
    */
   async resendNotification(
     id: string,
+    actor?: ActorContext,
   ): Promise<{ sent: boolean; reason?: string; error?: string }> {
-    const exists = await this.prisma.rfq.findUnique({ where: { id }, select: { id: true } });
+    const exists = await this.prisma.rfq.findUnique({
+      where: { id },
+      select: { id: true, assigneeId: true },
+    });
     if (!exists) throw new NotFoundException('RFQ not found');
+    if (!this.canSee(actor, exists.assigneeId)) throw new NotFoundException('RFQ not found');
 
     if (!this.mailService) {
       return { sent: false, reason: 'disabled', error: '邮件服务未配置' };
@@ -312,16 +318,41 @@ export class RfqService {
     return result;
   }
 
-  /** 后台列表：分页 + 状态/承接人筛选，最新提交在前 */
-  async list(query: ListRfqQueryDto): Promise<PaginatedRfqDto> {
+  /**
+   * 询盘可见范围（数据隔离，2026-10-28）。
+   *
+   *   · 超管 → 全部询盘
+   *   · 业务 / 销售（非超管）→ 仅 assigneeId = 本人的询盘
+   *   · actor 为空（X-Admin-Token 服务身份 / 内部调用）→ 全部（与改造前一致）
+   *
+   * 归属一律取自**会话**，不信任前端传入的 assigneeId 查询参数：
+   * 业务账号即使手工拼 `?assigneeId=<他人ID>` 也只会看到自己的数据。
+   */
+  private assigneeScope(actor?: ActorContext): Prisma.RfqWhereInput {
+    if (!actor || actor.isSuperAdmin) return {};
+    return { assigneeId: actor.id };
+  }
+
+  /** 该询盘对当前操作人是否可见（非超管只能看自己的） */
+  private canSee(actor: ActorContext | undefined, assigneeId: string | null): boolean {
+    if (!actor || actor.isSuperAdmin) return true;
+    return assigneeId === actor.id;
+  }
+
+  /** 后台列表：分页 + 状态/承接人筛选，最新提交在前（业务账号强制只看本人） */
+  async list(query: ListRfqQueryDto, actor?: ActorContext): Promise<PaginatedRfqDto> {
     const page = Math.max(1, query.page ?? 1);
     const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, query.pageSize ?? DEFAULT_PAGE_SIZE));
 
-    const where: Prisma.RfqWhereInput = {};
+    const where: Prisma.RfqWhereInput = this.assigneeScope(actor);
     if (query.status) where.status = query.status;
-    if (query.assigneeId) where.assigneeId = query.assigneeId;
-    if (query.assigned === true) where.assigneeId = { not: null };
-    if (query.assigned === false) where.assigneeId = null;
+    // 业务账号的承接人条件已由 assigneeScope 锁定为本人，这里不再叠加前端筛选
+    const scopedToSelf = Boolean(actor && !actor.isSuperAdmin);
+    if (!scopedToSelf) {
+      if (query.assigneeId) where.assigneeId = query.assigneeId;
+      if (query.assigned === true) where.assigneeId = { not: null };
+      if (query.assigned === false) where.assigneeId = null;
+    }
 
     const [total, rows] = await this.prisma.$transaction([
       this.prisma.rfq.count({ where }),
@@ -343,20 +374,25 @@ export class RfqService {
     };
   }
 
-  /** 后台详情 */
-  async findById(id: string): Promise<RfqDetailDto> {
+  /** 后台详情（业务账号访问他人询盘 → 404，不泄漏存在性） */
+  async findById(id: string, actor?: ActorContext): Promise<RfqDetailDto> {
     const rfq = await this.prisma.rfq.findUnique({
       where: { id },
       include: RFQ_ASSIGNEE_SELECT,
     });
     if (!rfq) throw new NotFoundException('RFQ not found');
+    if (!this.canSee(actor, rfq.assigneeId)) throw new NotFoundException('RFQ not found');
     return toRfqDetail(rfq);
   }
 
-  /** 状态流转：NEW → CONTACTED → QUOTED → CLOSED */
-  async updateStatus(id: string, status: RfqStatus): Promise<RfqDetailDto> {
-    const exists = await this.prisma.rfq.findUnique({ where: { id }, select: { id: true } });
+  /** 状态流转：NEW → CONTACTED → QUOTED → CLOSED（业务账号仅限本人询盘） */
+  async updateStatus(id: string, status: RfqStatus, actor?: ActorContext): Promise<RfqDetailDto> {
+    const exists = await this.prisma.rfq.findUnique({
+      where: { id },
+      select: { id: true, assigneeId: true },
+    });
     if (!exists) throw new NotFoundException('RFQ not found');
+    if (!this.canSee(actor, exists.assigneeId)) throw new NotFoundException('RFQ not found');
 
     const updated = await this.prisma.rfq.update({
       where: { id },
