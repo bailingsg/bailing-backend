@@ -15,6 +15,7 @@ import {
   ALL_PERMISSION_KEYS,
   PERMISSION_MODULES,
   PERMISSIONS,
+  expandPermissionDependencies,
   isValidPermissionKey,
   isProtectedRole,
 } from '../../rbac/permission.registry';
@@ -257,7 +258,10 @@ export class RolesService {
   /**
    * 分配角色权限（全量替换）。
    *
-   * 三道后端强制校验：
+   * 四道后端强制校验：
+   *   0. **补齐读写依赖**：勾了操作类权限（如 rfq.update）就自动带上同模块的
+   *      查看权限（rfq.read）。侧栏入口与路由守卫只认 read，缺了它会出现
+   *      「分配了权限但账号里没有这个页面」——这不是前端 bug，是权限集不完整。
    *   1. 受保护角色不可改权限
    *   2. 权限 key 必须已在注册表登记（拒绝幽灵权限）
    *   3. 操作人不得授予自己不具备的权限（提权防护）
@@ -270,15 +274,22 @@ export class RolesService {
     const role = await this.rbac.findRoleOrFail(id);
     this.rbac.assertRoleModifiable(role.key, '修改权限');
 
-    // 去重 + 校验合法性
-    const requested = [...new Set(dto.permissionKeys.map((k) => k.trim()).filter(Boolean))];
+    // 去重 → 补齐依赖 → 校验合法性
+    const deduped = [...new Set(dto.permissionKeys.map((k) => k.trim()).filter(Boolean))];
+    const { keys: requested, implied } = expandPermissionDependencies(deduped);
     const unknown = requested.filter((k) => !isValidPermissionKey(k));
     if (unknown.length > 0) {
       throw new BadRequestException(`存在未注册的权限标识：${unknown.join('、')}`);
     }
 
-    // 提权防护（后端强制，前端禁用勾选只是体验优化）
-    const escalated = this.rbac.findEscalatedPermissions(actor, requested);
+    // 提权防护（后端强制，前端禁用勾选只是体验优化）。
+    // 操作人自身权限也按同一规则补齐：否则「他有 update 却没有 read」的历史数据
+    // 会因自动补上的 read 被误判为提权，报错信息还会指向一个他自己都有的能力。
+    const operatorKeys = expandPermissionDependencies([...actor.permissions]).keys;
+    const escalated = this.rbac.findEscalatedPermissions(
+      { permissions: new Set(operatorKeys), isSuperAdmin: actor.isSuperAdmin },
+      requested,
+    );
     if (escalated.length > 0) {
       throw new ForbiddenException(
         `不能授予超出自身权限范围的权限：${escalated.join('、')}`,
@@ -316,8 +327,10 @@ export class RolesService {
       action: 'role.permissions.update',
       targetType: 'Role',
       targetId: id,
-      summary: `调整角色「${role.name}」权限：+${added.length} / -${removedKeys.length}（共 ${afterKeys.length} 项）`,
-      diff: { before: beforeKeys, after: afterKeys, added, removed: removedKeys },
+      summary:
+        `调整角色「${role.name}」权限：+${added.length} / -${removedKeys.length}（共 ${afterKeys.length} 项）` +
+        (implied.length > 0 ? `，自动补齐依赖权限 ${implied.join('、')}` : ''),
+      diff: { before: beforeKeys, after: afterKeys, added, removed: removedKeys, implied },
     });
 
     this.logger.log(

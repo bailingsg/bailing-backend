@@ -9,8 +9,10 @@ import {
   ALL_PERMISSION_KEYS,
   LEGACY_ROLE_MIGRATION,
   PERMISSIONS,
+  PERMISSION_DEPENDENCIES,
   PERMISSION_MODULES,
   SUPER_ADMIN_ROLE_KEY,
+  expandPermissionDependencies,
   isValidPermissionKey,
   isProtectedRole,
 } from '../src/modules/rbac/permission.registry';
@@ -176,6 +178,81 @@ describe('RBAC 安全边界（Phase 4.7 补漏）', () => {
           SUPER_ACTOR,
         ),
       ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  /* ---------------------- 1.5 读写依赖补齐 ---------------------- */
+
+  describe('读写依赖（操作权限隐含同模块 read）', () => {
+    it('只勾操作权限时自动补齐同模块 read，并写进审计', async () => {
+      const rbac = makeRbacMock();
+      rbac.findRoleOrFail.mockResolvedValue(NORMAL_ROLE_ROW);
+      const createMany = jest.fn();
+      const prisma = {
+        rolePermission: {
+          findMany: jest.fn().mockResolvedValue([]),
+          deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+          createMany,
+        },
+        permission: {
+          findMany: jest.fn().mockResolvedValue([
+            { id: 'p-rfq-read', key: 'rfq.read' },
+            { id: 'p-rfq-update', key: 'rfq.update' },
+          ]),
+        },
+        role: {
+          findUnique: jest.fn().mockResolvedValue({ ...NORMAL_ROLE_ROW, rolePermissions: [], userRoles: [] }),
+          findMany: jest.fn().mockResolvedValue([]),
+        },
+        $transaction: jest.fn().mockImplementation((arg: unknown) =>
+          typeof arg === 'function'
+            ? (arg as (tx: unknown) => Promise<unknown>)(prisma)
+            : Promise.all(arg as Promise<unknown>[]),
+        ),
+      };
+      const audit = makeAuditMock();
+      const service = new RolesService(
+        prisma as unknown as PrismaService,
+        rbac as unknown as RbacService,
+        audit as unknown as AuditLogService,
+      );
+
+      await service.assignPermissions(
+        'role-editor',
+        { permissionKeys: ['rfq.update'] } as never,
+        SUPER_ACTOR,
+      );
+
+      // 落库的权限集必须包含 read —— 否则侧栏入口与列表接口都进不去
+      const queried = prisma.permission.findMany.mock.calls[0]?.[0] as {
+        where: { key: { in: string[] } };
+      };
+      expect(queried.where.key.in.sort()).toEqual(['rfq.read', 'rfq.update']);
+      expect(createMany).toHaveBeenCalledTimes(1);
+
+      const summary = (audit.record.mock.calls[0]?.[0] as { summary: string }).summary;
+      expect(summary).toContain('自动补齐依赖权限');
+      expect(summary).toContain('rfq.read');
+    });
+
+    it('expandPermissionDependencies 只补 read，不反向补操作权限', () => {
+      expect(expandPermissionDependencies(['rfq.update']).keys.sort()).toEqual([
+        'rfq.read',
+        'rfq.update',
+      ]);
+      // 勾 read 不会连带授予 update / delete
+      expect(expandPermissionDependencies(['rfq.read']).keys).toEqual(['rfq.read']);
+      // 幂等 + 不重复
+      expect(expandPermissionDependencies(['rfq.read', 'rfq.update']).implied).toEqual([]);
+    });
+
+    it('注册表内每个非 read 权限都登记了同模块 read 依赖', () => {
+      for (const def of PERMISSIONS) {
+        if (def.action === 'read') continue;
+        const readKey = `${def.module}.read`;
+        if (!isValidPermissionKey(readKey)) continue; // 该模块本身没有 read 权限
+        expect(PERMISSION_DEPENDENCIES[def.key]).toContain(readKey);
+      }
     });
   });
 

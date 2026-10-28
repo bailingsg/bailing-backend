@@ -915,6 +915,62 @@ export const PERMISSION_BY_KEY: ReadonlyMap<string, PermissionDefinition> = new 
 );
 
 /**
+ * 权限依赖：**操作类权限隐含同模块的「查看」权限**。
+ *
+ * 为什么必须固化（2026-10-28 实战问题）：
+ *   后台侧栏入口与路由守卫只认 `xxx.read`（见 admin 的 route-permissions.ts），
+ *   列表/详情接口也要求 `xxx.read`。因此只勾「跟进询盘状态」（rfq.update）
+ *   而不勾「查看询盘」（rfq.read）时，账号**既看不到菜单、直接输 URL 也被拦**，
+ *   表现就是「管理员分配了权限，销售员账号里却没有这个页面」。
+ *
+ * 结论：read 是其它动作的前置条件，分配时自动补齐（见 roles.service.ts），
+ * 前端勾选时同步联动（见 admin 的 permission-editor.tsx）。
+ * 反向不成立——勾 read 不会连带授予 update/delete。
+ */
+const DEPENDENCY_MAP: Record<string, readonly string[]> = (() => {
+  const map: Record<string, readonly string[]> = {};
+  for (const def of PERMISSIONS) {
+    if (def.action === 'read') continue;
+    const readKey = `${def.module}.read`;
+    if (!PERMISSION_KEY_SET.has(readKey)) continue;
+    map[def.key] = [readKey];
+  }
+  return map;
+})();
+
+/** 只读视图：`权限 key → 必须同时具备的权限 key` */
+export const PERMISSION_DEPENDENCIES: Readonly<Record<string, readonly string[]>> =
+  Object.freeze(DEPENDENCY_MAP);
+
+/**
+ * 补齐权限依赖（幂等）。
+ *
+ * @returns keys 补齐后的完整集合；implied 本次**自动补上**的权限（供审计与提示）
+ */
+export function expandPermissionDependencies(keys: readonly string[]): {
+  keys: string[];
+  implied: string[];
+} {
+  const result = new Set<string>();
+  const implied: string[] = [];
+
+  // 依赖只有一层（read 无依赖），但仍按队列处理，将来加多级依赖时无需重写
+  const queue = [...keys];
+  while (queue.length > 0) {
+    const key = queue.shift() as string;
+    if (result.has(key)) continue;
+    result.add(key);
+    for (const dep of PERMISSION_DEPENDENCIES[key] ?? []) {
+      if (result.has(dep)) continue;
+      implied.push(dep);
+      queue.push(dep);
+    }
+  }
+
+  return { keys: [...result], implied };
+}
+
+/**
  * 受保护的系统角色 key。
  *   · SUPER_ADMIN：超级管理员，拥有全部权限，且**不可停用、不可改权限、不可删除**
  *   · 仅允许修改其展示名称与描述
