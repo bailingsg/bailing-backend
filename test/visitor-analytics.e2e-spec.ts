@@ -4,7 +4,7 @@ import { Test } from '@nestjs/testing';
 import { PrismaService } from '../src/modules/prisma/prisma.service';
 import { VisitorModule } from '../src/modules/visitor/visitor.module';
 import { VisitorService } from '../src/modules/visitor/visitor.service';
-import { NoopGeoIpResolver } from '../src/modules/visitor/geoip/geoip.resolver';
+import { GeoIpResolver } from '../src/modules/visitor/geoip/geoip.resolver';
 import { utcDayStart, utcNextDayStart } from '../src/modules/visitor/session-window';
 import configuration from '../src/config/configuration';
 import { setupApp } from '../src/app.setup';
@@ -246,7 +246,7 @@ describe('访客统计 M1（口径 12.1 + track 契约）', () => {
     const moduleRef = await Test.createTestingModule({
       imports: [ConfigModule.forRoot({ isGlobal: true, load: [configuration] }), VisitorModule],
     })
-      .overrideProvider(NoopGeoIpResolver)
+      .overrideProvider(GeoIpResolver)
       .useValue({
         // 第一次 CN，第二次 US —— 第二次不应覆盖
         resolve: () => {

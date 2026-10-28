@@ -882,18 +882,18 @@ export const PERMISSIONS: readonly PermissionDefinition[] = [
     module: 'visitor_stats',
     action: 'read',
     name: '查看访客统计',
-    description: 'Dashboard 访客概览卡片与 UV/PV 趋势图（聚合数字，不包含会话明细）',
+    description: '访客概览卡片与 UV/PV 趋势图（聚合数字，不包含 IP 与会话明细）',
     isNav: false,
     sortOrder: 10,
   },
   {
-    // 会话级明细属经营分析数据：seed 只授超级管理员（等价「仅 ADMIN」），
+    // 明细属经营分析数据：seed 只授超级管理员（等价「仅 ADMIN」），
     // 与聚合数字的 visitor_stats.read 刻意分离。
     key: 'visitor_records.read',
     module: 'visitor_records',
     action: 'read',
     name: '查看访客记录',
-    description: '访客会话级明细列表（脱敏 IP 网段 + 国家 + 城市 + 时间；仅管理员）',
+    description: '近期访客 IP 明细（完整 IP + 国家 + 访问时间，保留 30 天；仅管理员）',
     isNav: true,
     sortOrder: 10,
   },

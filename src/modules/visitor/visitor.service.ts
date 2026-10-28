@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { NoopGeoIpResolver } from './geoip/geoip.resolver';
+import { GeoIpResolver } from './geoip/geoip.resolver';
 import { anonymizeIp } from './ip-anonymize';
+import { normalizeIp } from './ip-normalize';
 import { isSessionContinued } from './session-window';
 import { VisitRateLimiter } from './visit-rate-limiter';
 
@@ -19,6 +20,9 @@ import { VisitRateLimiter } from './visit-rate-limiter';
  *
  * 隐私红线（规格 10.4）：本类日志只允许「访客上报处理失败」这类无参消息，
  * 禁止出现完整 IP / maskedIp / visitorId / 限流 key / UA。
+ *
+ * 完整 IP 的唯一落点是 `visitor_ip_log`（见 `recordIpLog()`）：30 天保留、
+ * 由 VisitorIpCleanupWorker 物理删除；`visitor_session` 仍只存脱敏网段。
  */
 @Injectable()
 export class VisitorService {
@@ -26,7 +30,7 @@ export class VisitorService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly geoip: NoopGeoIpResolver,
+    private readonly geoip: GeoIpResolver,
     private readonly rateLimiter: VisitRateLimiter,
   ) {}
 
@@ -61,9 +65,13 @@ export class VisitorService {
     }
 
     // ③ GeoIP 必须在 IP 截断之前用完整 IP 解析（规格 4.3 红线 1）。
-    //    当前为 Noop 解析器（country/city 恒 null，前端显示「未知」）。
     const location = this.geoip.resolve(clientIp ?? '');
     const ua = userAgent ? userAgent.slice(0, 200) : null;
+
+    // ③.5 IP 明细（「近期访客 IP」功能）：每次访问一条，与会话统计互不影响。
+    //      放在限流之后、会话写入之前——超限的请求既不进明细也不进统计，
+    //      两者口径保持一致。写入失败只丢明细，不影响下面的 UV/PV。
+    await this.recordIpLog(clientIp, location.country, ua, now);
 
     // ④ 取该 visitorId 最近一条会话（索引 visitor_session(visitor_id, last_seen_at)）
     const latest = await this.prisma.visitorSession.findFirst({
@@ -114,5 +122,44 @@ export class VisitorService {
         isNewVisitor: latest === null,
       },
     });
+  }
+
+  /**
+   * 写一条 IP 明细（访问级，不是会话级）。
+   *
+   * 与 visitor_session 的分工：那边存脱敏网段算 UV/PV，这边存完整 IP 供
+   * 后台看「最近谁来过、来自哪个国家」，满 30 天由清理 worker 删除。
+   *
+   * 🔴 国家解析不出来就**整条不入库**（2026-10-28 业务要求）：
+   *    后台只需要知道「客户来自哪个国家」，一条国家未知的 IP 对业务没有价值，
+   *    却要多占一份个人信息（完整 IP）的存储与保留期风险。因此 `country` 为
+   *    null 时直接 return，不写行。
+   *    影响面：内网/保留网段（127.x / 192.168.x / 203.0.113.x 等）与未被国家库
+   *    收录的地址不会出现在「近期访客 IP」里；国家分布也不会再有「未知」分组。
+   *    ⚠️ 若 mmdb 加载失败（文件缺失/损坏），全站都会解析成 null → 整张表停止增长。
+   *    这是**故意**的选择（宁可没有数据，也不存无法归因的 IP），排障时先看
+   *    OfflineGeoIpResolver 的启动日志有没有「国家库加载失败」。
+   *
+   * 失败静默（规格 4.5）：明细表故障只是少一条 IP 记录，不能让整次上报失败，
+   * 更不能连带丢掉 UV/PV。因此单独 try/catch，不与会话写入放同一事务。
+   * 🔴 日志不得出现 IP（规格 10.4）。
+   */
+  private async recordIpLog(
+    clientIp: string | null,
+    country: string | null,
+    userAgent: string | null,
+    visitedAt: Date,
+  ): Promise<void> {
+    if (!clientIp) return;
+    if (!country) return; // 国家未知 → 不入库
+    const ip = normalizeIp(clientIp);
+    if (!ip) return;
+    try {
+      await this.prisma.visitorIpLog.create({
+        data: { ip, country, userAgent, visitedAt },
+      });
+    } catch {
+      // 静默：明细表故障不影响会话统计
+    }
   }
 }

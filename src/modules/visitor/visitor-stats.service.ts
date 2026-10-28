@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { countryDisplayName } from './country-name';
 import {
   SESSION_TIMEOUT_MINUTES,
   periodWindow,
@@ -47,6 +48,14 @@ export interface DayPoint {
 export interface RangeSummary {
   uniqueVisitors: number;
   visits: number;
+}
+
+/** 国家分布聚合的原始行（$queryRaw 结果） */
+interface CountryAggRow {
+  /** ISO alpha-2；列是 NOT NULL（未知国家的 IP 不入库） */
+  country: string;
+  visits: number;
+  uniqueIps: number;
 }
 
 @Injectable()
@@ -230,6 +239,90 @@ export class VisitorStatsService {
       pageSize: params.pageSize,
       total,
       totalPages: Math.max(1, Math.ceil(total / params.pageSize)),
+      generatedAt: now.toISOString(),
+    };
+  }
+
+  /**
+   * GET /cms/visitor-ips：近期访客 IP 明细 + 国家分布（「近期访客 IP」功能）。
+   *
+   * 与 records() 的区别，别混用：
+   *   · records()   读 visitor_session（会话级，只有脱敏网段）；
+   *   · ipRecords() 读 visitor_ip_log（访问级，完整 IP + 国家），
+   *     数据满 30 天会被清理 worker 删除，因此本方法只接受 days = 7 / 30。
+   *
+   * 国家分布**只受时间窗约束**，不跟随 ip / country 过滤：按国家筛选时
+   * 若分布也跟着只剩一个国家，就失去了「哪个国家来得多」的对比意义。
+   *
+   * 独立 IP 数用 COUNT(DISTINCT ip)，不能用 Prisma groupBy 的 _count 代替
+   * ——后者算的是行数（访问次数），会把「同一个人来了 10 次」当成 10 个人。
+   *
+   * 国家解析不出来的 IP **不入库**（见 VisitorService.recordIpLog），
+   * 所以 `country` 列是 NOT NULL，分布里不会再出现「未知」分组。
+   */
+  async ipRecords(params: {
+    days: 7 | 30;
+    page: number;
+    pageSize: number;
+    ip?: string;
+    country?: string;
+    now?: Date;
+  }) {
+    const now = params.now ?? new Date();
+    const rangeStart = new Date(utcDayStart(now).getTime() - (params.days - 1) * 86_400_000);
+    const rangeEnd = utcNextDayStart(now);
+
+    const ipPrefix = params.ip?.trim();
+    const where = {
+      visitedAt: { gte: rangeStart, lt: rangeEnd },
+      ...(ipPrefix ? { ip: { startsWith: ipPrefix } } : {}),
+      ...(params.country ? { country: params.country.toUpperCase() } : {}),
+    };
+
+    const [rows, total, countryRows] = await Promise.all([
+      this.prisma.visitorIpLog.findMany({
+        where,
+        // 第二排序键 id 不可省：同毫秒多条记录时分页边界会漂移
+        orderBy: [{ visitedAt: 'desc' }, { id: 'desc' }],
+        skip: (params.page - 1) * params.pageSize,
+        take: params.pageSize,
+        // 白名单 select：userAgent 不进内存（它是排障线索，不对外返回）
+        select: { id: true, ip: true, country: true, visitedAt: true },
+      }),
+      this.prisma.visitorIpLog.count({ where }),
+      this.prisma.$queryRaw<CountryAggRow[]>`
+        SELECT "country",
+               COUNT(*)::int             AS "visits",
+               COUNT(DISTINCT "ip")::int AS "uniqueIps"
+        FROM "visitor_ip_log"
+        WHERE "visitedAt" >= ${rangeStart} AND "visitedAt" < ${rangeEnd}
+        GROUP BY "country"
+        -- country 恒非空（未知国家的 IP 根本不入库），无需为 null 兜底排序
+        ORDER BY "visits" DESC, "country" ASC
+        LIMIT 20
+      `,
+    ]);
+
+    return {
+      scope: visitorScope(),
+      days: params.days,
+      items: rows.map((row) => ({
+        id: row.id,
+        ip: row.ip,
+        country: row.country,
+        countryName: countryDisplayName(row.country),
+        visitedAt: row.visitedAt.toISOString(),
+      })),
+      page: params.page,
+      pageSize: params.pageSize,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / params.pageSize)),
+      countries: countryRows.map((row) => ({
+        country: row.country,
+        countryName: countryDisplayName(row.country),
+        visits: Number(row.visits),
+        uniqueIps: Number(row.uniqueIps),
+      })),
       generatedAt: now.toISOString(),
     };
   }

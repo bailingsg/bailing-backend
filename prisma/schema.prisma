@@ -1482,3 +1482,33 @@ model VisitorDailyStatistic {
   @@index([statDate], map: "visitor_daily_statistic_stat_date_idx")
   @@map("visitor_daily_statistic")
 }
+
+/// 访客 IP 明细（「近期访客 IP」功能，2026-10-27）
+///
+/// 与 visitor_session 的分工，不要混用：
+///   · visitor_session  = **统计事实源**，存脱敏网段（IPv4 /24、IPv6 /48），
+///     UV / PV / 会话口径全部由它算，永不存完整 IP；
+///   · visitor_ip_log   = **短期明细**，存完整 IP 原文，只用于「最近谁来过、
+///     来自哪个国家」，满 30 天由清理 worker 删除。
+///
+/// 三条约束：
+///   · 每次 track 一条（访问级，不是会话级），受 VisitRateLimiter 双维度限流保护，
+///     单网段 1200 次/分钟上限即本表的写入上限；
+///   · country 为 ISO 3166-1 alpha-2（如 US / DE / IN），由离线 GeoLite2 国家库解析，
+///     未收录或内网地址为 null（前端显示「未知」）；
+///   · 零外键、不含 visitorId——明细不能反查到具体会话，避免两张表拼出完整画像。
+model VisitorIpLog {
+  id        String   @id @default(cuid())
+  ip        String // 完整 IP（IPv6 最长 45 字符，写入前已规范化）
+  country   String // ISO alpha-2，**不可为空**：国家解析不出来就不入库
+  userAgent String? // 仅排障线索（识别爬虫），截断 200 字符，不对外返回
+  visitedAt DateTime @default(now()) @db.Timestamptz(3)
+
+  // 列表默认按时间倒序分页
+  @@index([visitedAt(sort: Desc)], map: "visitor_ip_log_visited_at_idx")
+  // 查「某个 IP 最近来过几次」
+  @@index([ip, visitedAt], map: "visitor_ip_log_ip_visited_at_idx")
+  // 国家分布聚合 + 清理 worker 的 visitedAt 范围扫描
+  @@index([country, visitedAt], map: "visitor_ip_log_country_visited_at_idx")
+  @@map("visitor_ip_log")
+}

@@ -14,6 +14,10 @@ import { VisitorStatsService } from '../visitor-stats.service';
  *
  * 响应白名单（规格 6.5）：id / maskedIp / country / city / visitedAt。
  * 🔴 禁止返回 visitorId / userAgent / region / 完整 IP。
+ *
+ * 注意：本端点读的是 `visitor_session`（脱敏网段，供 UV/PV 会话归并）。
+ * 需要看完整 IP 的是 `AdminVisitorIpsController`（GET /cms/visitor-ips，
+ * 读 `visitor_ip_log`，30 天保留）。两者刻意分开，别在这里加完整 IP 字段。
  */
 @Controller('cms/visitor-records')
 @UseGuards(JwtAuthGuard, PermissionsGuard)

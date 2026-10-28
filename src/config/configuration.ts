@@ -125,9 +125,15 @@ export default () => {
      *     线上固定为 1（信任紧邻一层反代）。取值 'true' 一律强制降级为 1 并告警
      *     （true = 信任任意来源的 X-Forwarded-For，任何客户端可伪造来源 IP）。
      *   · VISITOR_AGGREGATION_ENABLED —— 日聚合 worker 开关（默认开）。
+     *   · VISITOR_IP_RETENTION_DAYS —— 访客 IP 明细保留天数（默认 30）。
+     *     完整 IP 属个人信息，必须有自动删除；清理 worker 按本值每天删除过期行。
+     *     调大要谨慎（合规口径 = 最小必要），非法值回退 30。
+     *   · VISITOR_IP_CLEANUP_ENABLED —— IP 明细清理 worker 开关（默认开）。
      */
     trustProxy: normalizeTrustProxy(process.env.TRUST_PROXY),
     visitorAggregationEnabled: process.env.VISITOR_AGGREGATION_ENABLED !== 'false',
+    visitorIpRetentionDays: normalizeRetentionDays(process.env.VISITOR_IP_RETENTION_DAYS),
+    visitorIpCleanupEnabled: process.env.VISITOR_IP_CLEANUP_ENABLED !== 'false',
   };
 };
 
@@ -151,4 +157,24 @@ function normalizeTrustProxy(raw: string | undefined): number | undefined {
   const parsed = Number.parseInt(trimmed, 10);
   if (Number.isFinite(parsed) && parsed >= 1) return parsed;
   return undefined;
+}
+
+/** 访客 IP 明细保留天数（默认 30，合法区间 1~365） */
+export const DEFAULT_VISITOR_IP_RETENTION_DAYS = 30;
+
+/**
+ * VISITOR_IP_RETENTION_DAYS 归一化：
+ *   · 未设置 / 非法 / 越界 → 30（默认值，不因配错而永不过期）
+ *   · 1 ~ 365             → 原值
+ *
+ * 上限 365 是防呆：写成 36500 等于「永不删除」，与「完整 IP 必须有保留期」
+ * 的合规前提冲突，不如直接回退默认值并让人看见 30。
+ */
+function normalizeRetentionDays(raw: string | undefined): number {
+  if (raw === undefined || raw === '') return DEFAULT_VISITOR_IP_RETENTION_DAYS;
+  const parsed = Number.parseInt(raw.trim(), 10);
+  if (!Number.isFinite(parsed) || parsed < 1 || parsed > 365) {
+    return DEFAULT_VISITOR_IP_RETENTION_DAYS;
+  }
+  return parsed;
 }
