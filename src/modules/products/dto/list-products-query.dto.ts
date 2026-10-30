@@ -33,4 +33,15 @@ export class ListProductsQueryDto {
   @IsOptional()
   @IsBooleanString()
   featured?: string;
+
+  /**
+   * 关键词搜索（2026-10-30 新增，前台 /products 搜索框使用）。
+   *
+   * 匹配范围：产品名 / 简述 / 材质，大小写不敏感，包含即命中。
+   * 与 category / featured 是 AND 关系，可与分类筛选叠加。
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  search?: string;
 }

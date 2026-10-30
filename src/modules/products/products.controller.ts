@@ -5,7 +5,7 @@ import { ListProductsQueryDto } from './dto/list-products-query.dto';
 /**
  * 产品公开 API（只读）。
  *
- * GET /api/v1/products             产品列表（分页 / 分类 / 精选）
+ * GET /api/v1/products             产品列表（分页 / 分类 / 精选 / 关键词 search）
  * GET /api/v1/products/:slug       产品详情（按 slug，兼容保留）
  * GET /api/v1/products/by-id/:id   产品详情（按 id，前台详情路由使用）
  *

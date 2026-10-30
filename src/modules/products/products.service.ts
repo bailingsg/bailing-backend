@@ -41,6 +41,22 @@ export class ProductsService {
     if (query.featured !== undefined) {
       where.isFeatured = query.featured === 'true';
     }
+    /**
+     * 关键词搜索（前台 /products 搜索框）。
+     *
+     * 只查**结构化字段**（名称 / 简述 / 材质 / 别名），不扫 description 富文本：
+     * 正文是 HTML，直接 ILIKE 既慢又容易命中样式类名，命中质量反而更差。
+     * 空串 / 纯空格视为未搜索，避免把整页产品过滤成空。
+     */
+    const keyword = query.search?.trim();
+    if (keyword) {
+      where.OR = [
+        { name: { contains: keyword, mode: 'insensitive' } },
+        { shortDescription: { contains: keyword, mode: 'insensitive' } },
+        { material: { contains: keyword, mode: 'insensitive' } },
+        { slug: { contains: keyword, mode: 'insensitive' } },
+      ];
+    }
 
     const [total, rows] = await this.prisma.$transaction([
       this.prisma.product.count({ where }),
